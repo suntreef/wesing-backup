@@ -1,0 +1,11 @@
+__pycache__/
+build/
+dist/
+*.spec
+demo_output/
+kg_backup_*/
+_t*/
+*.zip
+*.part
+cookie*.txt
+_*.py
