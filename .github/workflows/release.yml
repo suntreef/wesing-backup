@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: pip install requests pyinstaller
-      - run: pyinstaller --onefile --noconsole --name KG-Backup --icon assets/icon.ico --add-data "static;static" kg_app.py
+      - run: pyinstaller --onefile --noconsole --name KG-Backup --icon assets/icon.ico --version-file version_info.txt --add-data "static;static" kg_app.py
       - uses: actions/upload-artifact@v4
         with:
           name: KG-Backup-Windows
