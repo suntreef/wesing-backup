@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.2.0'
+APP_VERSION = '1.2.1'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -129,10 +129,11 @@ def calc_gtk(skey):
 
 def parse_uid(text):
     text = text.strip()
-    m = re.search(r'[?&]uid=([0-9A-Fa-f]{16,24})', text)
+    # uid 实测 15~18 位十六进制（如 639d9986202534 / 639f9b862028378b37），放宽到 10~24
+    m = re.search(r'[?&]uid=([0-9A-Fa-f]{10,24})', text)
     if m:
         return m.group(1)
-    m = re.search(r'\b([0-9A-Fa-f]{16,24})\b', text)
+    m = re.search(r'\b([0-9A-Fa-f]{10,24})\b', text)
     if m:
         return m.group(1)
     raise ValueError(f'无法从输入中解析 uid：{text!r}\n'

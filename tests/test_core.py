@@ -23,6 +23,13 @@ class TestParseUid(unittest.TestCase):
     def test_bare_uid(self):
         self.assertEqual(parse_uid(' 639f9b862028378b37 '), '639f9b862028378b37')
 
+    def test_short_uid_and_personal_v2(self):
+        # 真实用户反馈：15 位 uid + personal_v2 链接 + shareUid/pageId 等附加参数
+        self.assertEqual(
+            parse_uid('https://static-play.kg.qq.com/node/personal_v2?uid=639d9986202534'
+                      '&shareUid=639d9986202534&pageId=homepage_me'),
+            '639d9986202534')
+
     def test_uid_inside_text(self):
         self.assertEqual(parse_uid('我的主页 https://kg.qq.com/node/personal?uid=abcDEF0123456789ab 快看'),
                          'abcDEF0123456789ab')
