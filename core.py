@@ -11,6 +11,9 @@ core.py — 全民K歌个人作品批量备份：核心逻辑（CLI 与 GUI 共�
 - 命令行入口：kg_backup.py（薄壳，调 cli_main）
 - 图形界面入口：kg_app.py（本地服务器 + 浏览器页面，调 backup_one + Job）
 
+歌词说明：歌词来自全民K歌公开歌词接口（LRC 格式），随备份保存为 .lrc 边车文件
+并写入音频歌词标签，仅用于个人欣赏自己唱过的作品，请勿用于商业用途。
+
 说明：
 - 仅用于备份本人或经授权账号的作品，请勿用于批量抓取他人内容或商用。
 - 音频保存服务端原始 AAC 流（不转码、不二次压缩），即公开渠道的最高音质。
@@ -271,6 +274,20 @@ class KGClient:
             return {'playurl': m.group(1)}, url
         raise RuntimeError('播放页未找到详情数据（可能已删除/仅APP可见/结构变更）')
 
+    def fetch_lyric(self, ksong_mid):
+        """取原唱歌词（标准 LRC 文本）。取不到返回 ''。"""
+        if not ksong_mid:
+            return ''
+        try:
+            r = self._get('https://node.kg.qq.com/fcgi-bin/fcg_lyric',
+                          params={'ksongmid': ksong_mid, 'format': 'json'})
+            j = r.json()
+            if j.get('code') == 0:
+                return (j.get('data') or {}).get('lyric') or ''
+        except (requests.RequestException, ValueError, json.JSONDecodeError):
+            pass
+        return ''
+
     def download(self, url, path, min_size=1000):
         last = None
         for attempt in range(1, self.retries + 1):
@@ -310,7 +327,7 @@ def ffmpeg_available():
     return shutil.which('ffmpeg') is not None
 
 
-def embed_tags(audio_path, cover_path, title, artist, date_str, comment, job=None):
+def embed_tags(audio_path, cover_path, title, artist, date_str, comment, lyric='', job=None):
     """ffmpeg 无损重封装写入标签（-c copy 不重编码，不损失音质）。"""
     tmp_fd, tmp_path = tempfile.mkstemp(suffix='.m4a', dir=os.path.dirname(audio_path) or '.')
     os.close(tmp_fd)
@@ -327,6 +344,8 @@ def embed_tags(audio_path, cover_path, title, artist, date_str, comment, job=Non
             '-metadata', f'date={date_str}']
     if comment:
         cmd += ['-metadata', f'comment={comment}']
+    if lyric:
+        cmd += ['-metadata', f'lyrics={lyric}']
     cmd += ['-f', 'ipod', tmp_path]
     try:
         p = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -463,13 +482,30 @@ def process_work(client, out_dir, seq, item, opts, force=False):
             except Exception:
                 pass
 
+    # 歌词：LRC 边车文件 + 嵌入音频标签
+    lyric_text = ''
+    lrc_path = ''
+    if not opts['no_lyric'] and audio_path.endswith('.m4a'):
+        ksong_mid = detail.get('ksong_mid') or item.get('ksong_mid') or ''
+        lyric_text = client.fetch_lyric(ksong_mid)
+        if lyric_text:
+            lrc_path = f'audio/{base}.lrc'
+            if need(lrc_path):
+                try:
+                    with open(os.path.join(out_dir, lrc_path), 'w', encoding='utf-8') as f:
+                        f.write(lyric_text)
+                except OSError:
+                    lrc_path = ''
+
     meta_rel = ''
     if not opts['no_meta']:
         meta_rel = f'meta/{base}.json'
         full = {'shareid': shareid, 'web_url': web_url, 'list_info': item,
                 'detail': detail,
-                'backup': {'seq': seq, 'files': {'audio': audio_path, 'video': video_path,
-                                                 'cover': cover_path, 'photos': photo_files}}}
+                'backup': {'seq': seq, 'lyric': lyric_text,
+                           'files': {'audio': audio_path, 'video': video_path,
+                                     'cover': cover_path, 'lrc': lrc_path,
+                                     'photos': photo_files}}}
         with open(os.path.join(out_dir, meta_rel), 'w', encoding='utf-8') as f:
             json.dump(full, f, ensure_ascii=False, indent=1)
 
@@ -479,7 +515,7 @@ def process_work(client, out_dir, seq, item, opts, force=False):
         tagged = embed_tags(os.path.join(out_dir, audio_path),
                             os.path.join(out_dir, cover_path) if cover_path else '',
                             title, artist, date_str[:10], detail.get('content') or '',
-                            job=job)
+                            lyric=lyric_text, job=job)
 
     entry = {
         'shareid': shareid,
@@ -507,6 +543,7 @@ def process_work(client, out_dir, seq, item, opts, force=False):
         'audio': audio_path or video_path,
         'video': video_path if (video_url and audio_url) else '',
         'cover': cover_path,
+        'lrc': lrc_path,
         'photos': photo_files,
         'meta': meta_rel,
         'tagged': tagged,
@@ -820,6 +857,7 @@ def _backup_one(target, args, job):
 
     opts = {'no_audio': args.no_audio, 'no_cover': args.no_cover,
             'no_comments': args.no_comments, 'no_meta': args.no_meta,
+            'no_lyric': getattr(args, 'no_lyric', False),
             'want_video': args.video, 'seen_ugcids': seen_ugcids,
             'force': args.force, 'job': job,
             'tags': (not args.no_tags) and ffmpeg_available()}
@@ -937,6 +975,7 @@ def cli_main():
     ap.add_argument('--no-meta', action='store_true', help='不保存详情JSON')
     ap.add_argument('--no-html', action='store_true', help='不生成HTML歌单')
     ap.add_argument('--no-tags', action='store_true', help='不往 m4a 嵌标签（默认检测到 ffmpeg 即启用）')
+    ap.add_argument('--no-lyric', action='store_true', help='不下载/嵌入歌词（默认：LRC 边车文件 + 写入音频歌词标签）')
     ap.add_argument('--video', action='store_true', help='有 MV 的作品额外下载 MV 视频')
     ap.add_argument('--mp3', action='store_true', help='额外生成 MP3 副本（192kbps，车机/老设备兼容，m4a 母版保留）')
     ap.add_argument('--zip', action='store_true', help='备份完成后打包为 ZIP（方便传网盘）')

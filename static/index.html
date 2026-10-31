@@ -128,6 +128,7 @@ footer a{color:var(--text2)}
         </div>
         <div style="margin-top:10px">
           <div class="swrow"><span>嵌入标签（标题/歌手/日期/封面写进音频）</span><span class="sw"><input type="checkbox" id="tags" checked><i></i></span></div>
+          <div class="swrow"><span>歌词（生成 .lrc 文件并写进音频标签）</span><span class="sw"><input type="checkbox" id="lyric" checked><i></i></span></div>
           <div class="swrow"><span>生成 MP3 副本（车机/老设备）</span><span class="sw"><input type="checkbox" id="mp3"><i></i></span></div>
           <div class="swrow"><span>下载 MV 视频</span><span class="sw"><input type="checkbox" id="video"><i></i></span></div>
           <div class="swrow"><span>完成后打包 ZIP（传网盘）</span><span class="sw"><input type="checkbox" id="zip"><i></i></span></div>
@@ -237,7 +238,8 @@ async function start(){
       target, cookie: $('#cookie').value.trim(), out: $('#out').value.trim(),
       workers: +$('#workers').value || 3,
       since: $('#since').value, until: $('#until').value,
-      tags: $('#tags').checked, mp3: $('#mp3').checked, video: $('#video').checked, zip: $('#zip').checked,
+      tags: $('#tags').checked, lyric: $('#lyric').checked,
+      mp3: $('#mp3').checked, video: $('#video').checked, zip: $('#zip').checked,
     })});
   const j = await r.json().catch(()=>({}));
   if(!r.ok){

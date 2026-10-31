@@ -46,6 +46,7 @@ def build_args(p):
         until=str(p.get('until') or '').strip(),
         no_audio=False, no_cover=False, no_comments=False, no_meta=False, no_html=False,
         no_tags=not bool(p.get('tags', True)),
+        no_lyric=not bool(p.get('lyric', True)),
         video=bool(p.get('video')), mp3=bool(p.get('mp3')),
         zip=bool(p.get('zip')), list_only=bool(p.get('list_only')),
         force=bool(p.get('force')),
