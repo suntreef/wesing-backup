@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.2.2'
+APP_VERSION = '1.2.3'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -86,6 +86,7 @@ class Job:
         self.state = 'idle'      # idle | listing | running | done | stopped | error
         self.error = ''
         self.cancelled = False
+        self.paused = False
         self.out_dir = ''
         self.profile = {}
         self.stats = {'total_list': 0, 'new': 0, 'repair': 0,
@@ -100,6 +101,7 @@ class Job:
 
     def snapshot(self):
         return {'state': self.state, 'error': self.error, 'cancelled': self.cancelled,
+                'paused': self.paused,
                 'out_dir': self.out_dir, 'profile': self.profile, 'stats': self.stats,
                 'started_at': self.started_at, 'finished_at': self.finished_at,
                 'logs': list(self.logs)}
@@ -867,6 +869,9 @@ def _backup_one(target, args, job):
     fail = []
 
     def task(plan_item):
+        # 暂停 = 挂在此处等待（每首歌是原子单位，暂停不会撕裂下载）
+        while job.paused and not job.cancelled:
+            time.sleep(0.3)
         if job.cancelled:
             return
         item, force_seq, old_key = plan_item

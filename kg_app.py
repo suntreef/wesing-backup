@@ -179,6 +179,14 @@ class Handler(BaseHTTPRequestHandler):
             if job:
                 job.cancelled = True
             return self._send(200, {'ok': True})
+        if self.path == '/api/pause':
+            job = _STATE['job']
+            if not job:
+                return self._send(400, {'error': '没有进行中的任务'})
+            p = self._body()
+            job.paused = bool(p.get('paused'))
+            job.log('⏸ 已暂停（进度保留，点“继续”接着跑）' if job.paused else '▶ 继续备份')
+            return self._send(200, {'ok': True, 'paused': job.paused})
         if self.path == '/api/quit':
             self._send(200, {'ok': True})
             threading.Timer(0.4, _quit).start()
