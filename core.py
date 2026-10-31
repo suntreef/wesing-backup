@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.2.3'
+APP_VERSION = '1.2.4'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -424,6 +424,12 @@ def collect_photos(detail):
 def process_work(client, out_dir, seq, item, opts, force=False):
     """单首作品：详情 → 音频/封面/MV/配图 → 详情JSON → 标签。失败抛异常。"""
     job = opts.get('job')
+    flat = opts.get('flat')
+
+    def place(kind, name):
+        """flat 模式：全部文件落在根目录（同前缀成组）；否则按子目录归档。"""
+        return name if flat else f'{kind}/{name}'
+
     shareid = item.get('shareid') or ''
     detail, web_url = client.fetch_detail(shareid)
     time.sleep(random.uniform(0.2, 0.5))
@@ -450,20 +456,20 @@ def process_work(client, out_dir, seq, item, opts, force=False):
 
     if audio_url and not opts['no_audio']:
         ext = '.mp4' if '.mp4' in os.path.basename(urlparse(audio_url).path) else '.m4a'
-        audio_path = f'audio/{base}{ext}'
+        audio_path = place('audio', f'{base}{ext}')
         if need(audio_path):
             client.download(audio_url, os.path.join(out_dir, audio_path))
     elif video_url and not opts['no_audio']:
-        video_path = f'audio/{base}_MV.mp4'
+        video_path = place('audio', f'{base}_MV.mp4')
         if need(video_path):
             client.download(video_url, os.path.join(out_dir, video_path))
     if video_url and opts['want_video'] and audio_url:
-        video_path = f'audio/{base}_MV.mp4'
+        video_path = place('audio', f'{base}_MV.mp4')
         if need(video_path):
             client.download(video_url, os.path.join(out_dir, video_path))
 
     if cover_url and not opts['no_cover']:
-        cover_path = f'covers/{base}.jpg'
+        cover_path = place('covers', f'{base}.jpg')
         if need(cover_path):
             try:
                 client.download(cover_url, os.path.join(out_dir, cover_path))
@@ -476,7 +482,7 @@ def process_work(client, out_dir, seq, item, opts, force=False):
     if photos and not opts['no_cover']:
         for i, pu in enumerate(photos[:10]):
             try:
-                pf = f'covers/{base}_p{i + 1}.jpg'
+                pf = place('covers', f'{base}_p{i + 1}.jpg')
                 if not need(pf):
                     photo_files.append(pf)
                     continue
@@ -492,7 +498,7 @@ def process_work(client, out_dir, seq, item, opts, force=False):
         ksong_mid = detail.get('ksong_mid') or item.get('ksong_mid') or ''
         lyric_text = client.fetch_lyric(ksong_mid)
         if lyric_text:
-            lrc_path = f'audio/{base}.lrc'
+            lrc_path = place('audio', f'{base}.lrc')
             if need(lrc_path):
                 try:
                     with open(os.path.join(out_dir, lrc_path), 'w', encoding='utf-8') as f:
@@ -502,7 +508,7 @@ def process_work(client, out_dir, seq, item, opts, force=False):
 
     meta_rel = ''
     if not opts['no_meta']:
-        meta_rel = f'meta/{base}.json'
+        meta_rel = place('meta', f'{base}.json')
         full = {'shareid': shareid, 'web_url': web_url, 'list_info': item,
                 'detail': detail,
                 'backup': {'seq': seq, 'lyric': lyric_text,
@@ -552,7 +558,7 @@ def process_work(client, out_dir, seq, item, opts, force=False):
         'tagged': tagged,
     }
     if not opts['no_comments'] and detail.get('comments'):
-        cpath = f'meta/{base}_comments.json'
+        cpath = place('meta', f'{base}_comments.json')
         with open(os.path.join(out_dir, cpath), 'w', encoding='utf-8') as f:
             json.dump({'total': detail.get('total') or detail.get('comment_num'),
                        'count_in_backup': len(detail['comments']),
@@ -748,7 +754,7 @@ def _backup_one(target, args, job):
 
     out = args.out or f'kg_backup_{safe_name(profile["nickname"] or uid, 30)}'
     os.makedirs(out, exist_ok=True)
-    if not args.list_only:
+    if not args.list_only and not getattr(args, 'flat', False):
         for sub in ('audio', 'covers', 'meta'):
             os.makedirs(os.path.join(out, sub), exist_ok=True)
     if profile.get('head_img_url') and not args.list_only:
@@ -861,20 +867,22 @@ def _backup_one(target, args, job):
     opts = {'no_audio': args.no_audio, 'no_cover': args.no_cover,
             'no_comments': args.no_comments, 'no_meta': args.no_meta,
             'no_lyric': getattr(args, 'no_lyric', False),
+            'flat': getattr(args, 'flat', False),
             'want_video': args.video, 'seen_ugcids': seen_ugcids,
             'force': args.force, 'job': job,
             'tags': (not args.no_tags) and ffmpeg_available()}
     lock = threading.Lock()
     counter = {'seq': max([e.get('seq', 0) for e in index.values()] or [0])}
-    fail = []
+    fail_map = {}  # shareid -> {'plan_item','title','shareid','error'}（重试成功会移除）
 
-    def task(plan_item):
+    def task(plan_item, is_retry=False):
         # 暂停 = 挂在此处等待（每首歌是原子单位，暂停不会撕裂下载）
         while job.paused and not job.cancelled:
             time.sleep(0.3)
         if job.cancelled:
             return
         item, force_seq, old_key = plan_item
+        sid = item.get('shareid') or ''
         with lock:
             if force_seq:
                 seq = force_seq  # 补下文件沿用原序号，文件名不变
@@ -884,30 +892,44 @@ def _backup_one(target, args, job):
         try:
             e = process_work(client, out, seq, item, opts, force=bool(force_seq))
             with lock:
-                job.stats['done'] += 1
                 if e is None:
-                    job.log(f"  ○ [{job.stats['done']}/{len(plan)}] {item.get('title')}: 重复作品，跳过")
+                    if not is_retry:
+                        job.stats['done'] += 1
+                    job.log(f"  ○ {item.get('title')}: 重复作品，跳过")
                     return
                 if old_key and old_key in index and old_key != e['tkey']:
                     del index[old_key]
                 index[e['tkey']] = e
                 if e['ugcid']:
                     opts['seen_ugcids'].add(e['ugcid'])
+                fail_map.pop(sid, None)
                 job.stats['ok'] += 1
-                job.log(f"  ✓ [{job.stats['done']}/{len(plan)}] #{seq:04d} {e['title']}"
+                if not is_retry:
+                    job.stats['done'] += 1
+                job.log(f"  {'↻' if is_retry else '✓'} [{job.stats['done']}/{len(plan)}] #{seq:04d} {e['title']}"
                         + ('（仅MV）' if e['audio'].endswith('_MV.mp4') else '')
                         + ('（补下）' if force_seq else ''))
         except Exception as ex:
             with lock:
-                job.stats['done'] += 1
-                job.stats['fail'] += 1
-                fail.append({'shareid': item.get('shareid'), 'title': item.get('title'),
-                             'error': str(ex)})
+                fail_map[sid] = {'plan_item': plan_item, 'shareid': sid,
+                                 'title': item.get('title'), 'error': str(ex)}
+                if not is_retry:
+                    job.stats['done'] += 1
+                    job.stats['fail'] += 1
                 job.log(f"  ✗ [{job.stats['done']}/{len(plan)}] {item.get('title')}: {ex}")
 
     if plan:
         with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
             list(ex.map(task, plan))
+
+    # 整批跑完后，把 ✗ 的当场自动重试一轮（多为瞬时网络/链接过期，换个新请求往往就好）
+    if fail_map and not job.cancelled:
+        retry = [rec['plan_item'] for rec in fail_map.values()]
+        job.log(f'—— {len(retry)} 首失败，自动重试一轮 ——')
+        with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
+            list(ex.map(lambda pi: task(pi, True), retry))
+
+    job.stats['fail'] = len(fail_map)
     job.stats['index'] = len(index)
     job.stats['bytes'] = client.bytes_downloaded
 
@@ -950,10 +972,11 @@ def _backup_one(target, args, job):
         job.log(f'HTML歌单: {html_path} （双击用浏览器打开即可试听）')
     if zip_path:
         job.log(f'ZIP打包: {zip_path}')
-    if fail:
+    if fail_map:
         fp = os.path.join(out, 'failed.json')
         with open(fp, 'w', encoding='utf-8') as f:
-            json.dump(fail, f, ensure_ascii=False, indent=1)
+            json.dump([{'shareid': r['shareid'], 'title': r['title'], 'error': r['error']}
+                       for r in fail_map.values()], f, ensure_ascii=False, indent=1)
         job.log(f'失败清单: {fp}（直接重跑本命令即可自动重试失败项）')
 
 
@@ -982,6 +1005,7 @@ def cli_main():
     ap.add_argument('--no-html', action='store_true', help='不生成HTML歌单')
     ap.add_argument('--no-tags', action='store_true', help='不往 m4a 嵌标签（默认检测到 ffmpeg 即启用）')
     ap.add_argument('--no-lyric', action='store_true', help='不下载/嵌入歌词（默认：LRC 边车文件 + 写入音频歌词标签）')
+    ap.add_argument('--flat', action='store_true', help='文件放一起：音频/封面/歌词/详情 JSON 不分子目录，同前缀成组')
     ap.add_argument('--video', action='store_true', help='有 MV 的作品额外下载 MV 视频')
     ap.add_argument('--mp3', action='store_true', help='额外生成 MP3 副本（192kbps，车机/老设备兼容，m4a 母版保留）')
     ap.add_argument('--zip', action='store_true', help='备份完成后打包为 ZIP（方便传网盘）')

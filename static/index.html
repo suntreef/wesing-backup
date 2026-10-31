@@ -132,6 +132,7 @@ footer a{color:var(--text2)}
           <div class="swrow"><span>生成 MP3 副本（车机/老设备）</span><span class="sw"><input type="checkbox" id="mp3"><i></i></span></div>
           <div class="swrow"><span>下载 MV 视频</span><span class="sw"><input type="checkbox" id="video"><i></i></span></div>
           <div class="swrow"><span>完成后打包 ZIP（传网盘）</span><span class="sw"><input type="checkbox" id="zip"><i></i></span></div>
+          <div class="swrow"><span>文件放一起（音频/封面/歌词/详情不分目录）</span><span class="sw"><input type="checkbox" id="flat"><i></i></span></div>
         </div>
       </div>
     </details>
@@ -255,7 +256,7 @@ async function start(){
       target, cookie: $('#cookie').value.trim(), out: $('#out').value.trim(),
       workers: +$('#workers').value || 3,
       since: $('#since').value, until: $('#until').value,
-      tags: $('#tags').checked, lyric: $('#lyric').checked,
+      tags: $('#tags').checked, lyric: $('#lyric').checked, flat: $('#flat').checked,
       mp3: $('#mp3').checked, video: $('#video').checked, zip: $('#zip').checked,
     })});
   const j = await r.json().catch(()=>({}));

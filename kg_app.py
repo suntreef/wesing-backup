@@ -86,6 +86,7 @@ def build_args(p):
         no_lyric=not bool(p.get('lyric', True)),
         video=bool(p.get('video')), mp3=bool(p.get('mp3')),
         zip=bool(p.get('zip')), list_only=bool(p.get('list_only')),
+        flat=bool(p.get('flat')),
         force=bool(p.get('force')),
     )
 
