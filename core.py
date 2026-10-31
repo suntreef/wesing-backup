@@ -54,7 +54,8 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.1.0'
+APP_VERSION = '1.2.0'
+DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
 # ---------------------------------------------------------------- 基础工具
@@ -85,7 +86,7 @@ class Job:
         self.out_dir = ''
         self.profile = {}
         self.stats = {'total_list': 0, 'new': 0, 'repair': 0,
-                      'done': 0, 'ok': 0, 'fail': 0, 'index': 0}
+                      'done': 0, 'ok': 0, 'fail': 0, 'index': 0, 'bytes': 0}
         self.logs = deque(maxlen=800)
         self.started_at = ''
         self.finished_at = ''
@@ -181,11 +182,17 @@ class KGClient:
             self.s.proxies = {'http': proxy, 'https': proxy}
         self.timeout = timeout
         self.retries = retries
+        self.bytes_downloaded = 0
+        self.share_uid = ''
+        self.login_uid = ''
         skey = ''
         if cookie:
             m = re.search(r'(?:^|;\s*)skey=([^;]+)', cookie)
             if m:
                 skey = m.group(1).strip('"')
+            m2 = re.search(r'(?:^|;\s*)uid=(\d+)', cookie)
+            if m2:
+                self.login_uid = m2.group(1)
         self.gtk = calc_gtk(skey)
 
     def _get(self, url, **kw):
@@ -217,6 +224,25 @@ class KGClient:
         return j['data']
 
     def fetch_detail(self, shareid):
+        """优先走 JSON 详情接口（结构稳定）；失败回退到播放页 HTML 解析。"""
+        try:
+            r = self._get(DETAIL_API, params={
+                'v': 4, 'shareid': shareid, 'shareuid': self.share_uid,
+                'login_uid': self.login_uid, 'format': 'json'})
+            t = r.text.strip()
+            if t.startswith('jsonpcallback('):
+                t = t[len('jsonpcallback('):].rstrip(')').rstrip(';')
+            j = json.loads(t)
+            if j.get('code') == 0:
+                d = j.get('data') or {}
+                det = d.get('detail') or d
+                if isinstance(det, dict) and (det.get('playurl') is not None or det.get('ctime')):
+                    return det, PLAY_URL.format(shareid=shareid)
+        except (requests.RequestException, ValueError, json.JSONDecodeError):
+            pass
+        return self._fetch_detail_html(shareid)
+
+    def _fetch_detail_html(self, shareid):
         url = PLAY_URL.format(shareid=shareid)
         r = self._get(url)
         raw = extract_json_after(r.text, 'window.__FETCH_RES__')
@@ -264,6 +290,7 @@ class KGClient:
                     if n < min_size:
                         raise RuntimeError(f'文件过小({n}B)')
                     os.replace(tmp, path)
+                    self.bytes_downloaded += n
                     return n
             except (requests.RequestException, RuntimeError) as e:
                 last = e
@@ -666,6 +693,7 @@ def _backup_one(target, args, job):
             cookie = f.read().strip()
 
     client = KGClient(cookie, args.proxy, args.timeout, args.retries)
+    client.share_uid = uid
     job.log(f'目标 uid: {uid}（{"已带 Cookie，可含私密作品" if cookie else "未登录，仅公开作品"}）')
 
     job.state = 'listing'
@@ -837,6 +865,7 @@ def _backup_one(target, args, job):
         with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
             list(ex.map(task, plan))
     job.stats['index'] = len(index)
+    job.stats['bytes'] = client.bytes_downloaded
 
     if job.cancelled:
         job.log('用户已停止，正在保存已完成的进度…')
@@ -865,6 +894,11 @@ def _backup_one(target, args, job):
 
     job.log('=' * 56)
     job.log(f'完成：本次成功 {job.stats["ok"]}，失败 {job.stats["fail"]}，索引总计 {len(index)} 首')
+    if client.bytes_downloaded:
+        job.log(f'本次下载: {client.bytes_downloaded / 1048576:.1f} MB')
+    if profile.get('ugc_total_count') and len(uniq) < profile['ugc_total_count'] and cookie:
+        job.log(f'注意：有 {profile["ugc_total_count"] - len(uniq)} 首未能获取——'
+                f'Cookie 可能已过期（重新复制一次），或这些作品仅 App 内可见')
     job.log(f'输出目录: {os.path.abspath(out)}')
     if csv_path:
         job.log(f'目录清单: {csv_path}')

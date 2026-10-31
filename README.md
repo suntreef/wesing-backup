@@ -1,5 +1,7 @@
 # 🎤 全民K歌备份工具（WeSing Backup）
 
+![CI](https://github.com/suntreef/wesing-backup/actions/workflows/ci.yml/badge.svg)
+
 **把你的全民K歌作品一键备份到本地** —— 歌曲、封面、MV、上传时间、介绍文案、评论、评分与全部详情，
 并生成可直接试听的本地 HTML 歌单 + Excel 目录。完全本地运行，不收集任何数据。
 
@@ -81,18 +83,37 @@ kg_backup_昵称/
 
 <details>
 <summary><b>为什么列表数量比账号显示的少？</b></summary>
-差值一般是「仅自己可见」的私密作品，需要登录 Cookie 才能取到。
+差值一般是「仅自己可见」的私密作品，需要登录 Cookie 才能取到。带 Cookie 备份时如果仍有差值，工具会明确提示 Cookie 可能过期。
 </details>
 
 <details>
 <summary><b>能导出全部历史评论吗？</b></summary>
-详情页自带的最新一页评论（含总数）会完整导出；全量历史评论的接口未公开，暂不支持。
+每首歌会导出最新约 10 条评论及评论总数。全量历史评论只有 App 内签名接口能取，网页渠道（本工具）无法获得——我们扫描了全部前端代码确认过，不是不想做。
+</details>
+
+<details>
+<summary><b>CSV/HTML 里的"网页链接"打不开了？</b></summary>
+全民K歌的分享链接（shareid）有有效期，几小时到几天不等。备份下来的音频、封面、详情 JSON 才是长期资产；meta/ 下记录了每首的 ugc_id，配合工具重跑即可找回任何作品。
 </details>
 
 <details>
 <summary><b>下载会弄脏我的账号吗？</b></summary>
 工具只读取公开页面数据，带轻微限速与失败重试，默认并发 3。请勿调高并发狂拉他人主页。
 </details>
+
+## 🇬🇧 English (Quick Start)
+
+**WeSing Backup** — one-click local backup of your (or an authorized) 全民K歌 / WeSing account: songs (original AAC stream, no re-encoding), covers, MVs, upload time, descriptions, comments, and full metadata — plus a local HTML songbook you can play, search and sort, and an Excel index.
+
+```bash
+# Windows: download KG-Backup.exe from Releases and double-click, or:
+pip install requests
+python kg_app.py                                   # GUI (opens your browser)
+python kg_backup.py "https://kg.qq.com/node/personal?uid=xxx"   # CLI, all public works
+python kg_backup.py <uid> --cookie-file cookie.txt              # include private works
+```
+
+Run **locally only**; no data collection. Please back up only your own or authorized accounts. See the Chinese sections above for details.
 
 ## ⚠️ 使用须知
 

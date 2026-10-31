@@ -208,6 +208,7 @@ async function poll(){
     if(stt.done) chips.push(`已处理 <b>${stt.done}/${total || '…'}</b>`);
     if(stt.ok) chips.push(`成功 <b>${stt.ok}</b>`);
     if(stt.fail) chips.push(`失败 <b style="color:var(--red)">${stt.fail}</b>`);
+    if(stt.bytes) chips.push(`已下载 <b>${(stt.bytes / 1048576).toFixed(1)} MB</b>`);
     if(stt.index) chips.push(`曲库总计 <b>${stt.index}</b> 首`);
     $('#chips').innerHTML = chips.map(c=>`<span class="chip">${c}</span>`).join('');
 
