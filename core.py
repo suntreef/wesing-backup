@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.2.4'
+APP_VERSION = '1.2.5'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -330,7 +330,7 @@ def ffmpeg_available():
     return shutil.which('ffmpeg') is not None
 
 
-def embed_tags(audio_path, cover_path, title, artist, date_str, comment, lyric='', job=None):
+def embed_tags(audio_path, cover_path, title, artist, date_str, comment, lyric='', desc='', job=None):
     """ffmpeg 无损重封装写入标签（-c copy 不重编码，不损失音质）。"""
     tmp_fd, tmp_path = tempfile.mkstemp(suffix='.m4a', dir=os.path.dirname(audio_path) or '.')
     os.close(tmp_fd)
@@ -349,6 +349,11 @@ def embed_tags(audio_path, cover_path, title, artist, date_str, comment, lyric='
         cmd += ['-metadata', f'comment={comment}']
     if lyric:
         cmd += ['-metadata', f'lyrics={lyric}']
+    # description 覆盖服务端残留字段，写入原唱/评分等关键信息
+    if desc:
+        cmd += ['-metadata', f'description={desc}']
+    else:
+        cmd += ['-map_metadata', '-1']
     cmd += ['-f', 'ipod', tmp_path]
     try:
         p = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -521,10 +526,21 @@ def process_work(client, out_dir, seq, item, opts, force=False):
     tagged = False
     if opts['tags'] and audio_path.endswith('.m4a'):
         artist = detail.get('nick') or detail.get('kg_nick') or ''
+        bits = []
+        if detail.get('song_name'):
+            singer = detail.get('singer_name') or ''
+            bits.append(f'原唱：{singer}《{detail["song_name"]}》' if singer
+                        else f'原唱：《{detail["song_name"]}》')
+        if detail.get('score'):
+            bits.append(f'评分 {detail["score"]}')
+        if detail.get('play_num') is not None:
+            bits.append(f'播放 {detail["play_num"]}')
+        if detail.get('device'):
+            bits.append(f'录制设备 {detail["device"]}')
         tagged = embed_tags(os.path.join(out_dir, audio_path),
                             os.path.join(out_dir, cover_path) if cover_path else '',
                             title, artist, date_str[:10], detail.get('content') or '',
-                            lyric=lyric_text, job=job)
+                            lyric=lyric_text, desc=' · '.join(bits), job=job)
 
     entry = {
         'shareid': shareid,
