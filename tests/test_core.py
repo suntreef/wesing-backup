@@ -81,7 +81,10 @@ class TestGtk(unittest.TestCase):
 
 class TestMisc(unittest.TestCase):
     def test_ts2str(self):
-        self.assertEqual(ts2str(1571545506), '2019-10-20 12:25:06')  # 本地时区
+        # 时区无关：期望值按运行环境本地时区现算
+        import datetime as dt
+        self.assertEqual(ts2str(1571545506),
+                         dt.datetime.fromtimestamp(1571545506).strftime('%Y-%m-%d %H:%M:%S'))
         self.assertEqual(ts2str('not-a-time'), '')
         self.assertEqual(ts2str(None), '')
 

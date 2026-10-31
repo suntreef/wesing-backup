@@ -8,6 +8,8 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write  # 允许 GITHUB_TOKEN 上传 Release 资产
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
