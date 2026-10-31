@@ -17,6 +17,7 @@ import subprocess
 import sys
 import threading
 import types
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -24,6 +25,42 @@ from core import APP_NAME, APP_VERSION, Job, backup_one
 
 # 仅本机可访问，单一活动任务
 _STATE = {'job': None, 'thread': None, 'server': None}
+
+
+def _instance_file():
+    base = os.environ.get('LOCALAPPDATA') or os.path.expanduser('~')
+    return os.path.join(base, 'KG-Backup', 'instance.json')
+
+
+def find_running_instance():
+    """检测已有实例（防止重复双击 exe 叠开一堆窗口）。返回已运行实例的端口或 None。"""
+    try:
+        with open(_instance_file(), encoding='utf-8') as f:
+            info = json.load(f)
+        port = int(info['port'])
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/status', timeout=2) as r:
+            j = json.load(r)
+        if isinstance(j, dict) and j.get('app'):
+            return port
+    except Exception:
+        pass
+    return None
+
+
+def write_instance_file(port):
+    try:
+        os.makedirs(os.path.dirname(_instance_file()), exist_ok=True)
+        with open(_instance_file(), 'w', encoding='utf-8') as f:
+            json.dump({'port': port, 'pid': os.getpid(), 'version': APP_VERSION}, f)
+    except Exception:
+        pass
+
+
+def remove_instance_file():
+    try:
+        os.remove(_instance_file())
+    except Exception:
+        pass
 
 
 def static_dir():
@@ -160,16 +197,30 @@ def _quit():
     srv = _STATE.get('server')
     if srv:
         threading.Thread(target=srv.shutdown, daemon=True).start()
+    remove_instance_file()
     os._exit(0)
 
 
 def main():
+    # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击叠开一堆窗口
     port = 0
     if len(sys.argv) > 1 and sys.argv[1] == '--port' and len(sys.argv) > 2:
         port = int(sys.argv[2])
+    if port == 0:
+        existing = find_running_instance()
+        if existing:
+            url = f'http://127.0.0.1:{existing}'
+            if sys.stdout:
+                print(f'{APP_NAME} 已在运行，直接打开页面: {url}', flush=True)
+            if not os.environ.get('KG_NO_BROWSER'):
+                webbrowser.open(url)
+            return
     srv = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     _STATE['server'] = srv
     port = srv.server_address[1]
+    write_instance_file(port)
+    import atexit
+    atexit.register(remove_instance_file)
     url = f'http://127.0.0.1:{port}'
     log_line = f'{APP_NAME} v{APP_VERSION} 已启动: {url} （仅本机可访问，关闭此窗口即退出）'
     if sys.stdout:

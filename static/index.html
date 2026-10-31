@@ -166,7 +166,7 @@ footer a{color:var(--text2)}
 
 <script>
 const $ = s => document.querySelector(s);
-let curState = 'idle', lastLogLen = -1, doneNoted = false;
+let curState = 'idle', lastLogLen = -1, doneNoted = false, renderedLogs = 0;
 
 const STATE_TXT = {idle:'待命', listing:'正在获取作品列表…', running:'正在备份…',
                    done:'备份完成 ✓', stopped:'已停止（进度已保存）', error:'出错了'};
@@ -214,12 +214,25 @@ async function poll(){
     $('#chips').innerHTML = chips.map(c=>`<span class="chip">${c}</span>`).join('');
 
     const lg = $('#log');
-    const stick = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 40;
-    lg.innerHTML = (s.logs || []).map(([t,m])=>{
-      const cls = m.includes('✓') ? 'ok' : (m.includes('✗') ? 'err' : (m.includes('○') ? 'skip' : ''));
-      return `<span class="ts">${esc(t)}</span><span class="${cls}">${esc(m)}</span>`;
-    }).join('\n');
-    if(stick) lg.scrollTop = lg.scrollHeight;
+    const logs = s.logs || [];
+    if (logs.length < renderedLogs) { lg.innerHTML = ''; renderedLogs = 0; }  // 新任务：重置
+    if (logs.length !== renderedLogs) {
+      // 增量追加，避免整段重建导致大任务页面卡顿
+      const stick = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 60;
+      const frag = document.createDocumentFragment();
+      for (let i = renderedLogs; i < logs.length; i++) {
+        const [t, m] = logs[i];
+        const div = document.createElement('div');
+        const cls = m.includes('✓') ? 'ok' : (m.includes('✗') ? 'err' : (m.includes('○') ? 'skip' : ''));
+        div.innerHTML = `<span class="ts">${esc(t)}</span><span class="${cls}">${esc(m)}</span>`;
+        frag.appendChild(div);
+      }
+      lg.appendChild(frag);
+      while (lg.childElementCount > 500) lg.removeChild(lg.firstChild);
+      if (stick) lg.scrollTop = lg.scrollHeight;
+      renderedLogs = logs.length;
+    }
+    lastLogLen = logs.length;
 
     const eb = $('#errbox');
     if(st === 'error'){ eb.classList.remove('hidden'); eb.textContent = s.error || '未知错误，请查看日志'; }
