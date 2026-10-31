@@ -102,6 +102,11 @@ kg_backup_昵称/
 工具只读取公开页面数据，带轻微限速与失败重试，默认并发 3。请勿调高并发狂拉他人主页。
 </details>
 
+<details>
+<summary><b>浏览器/杀软提示"检测到病毒"？</b></summary>
+这是<b>误报</b>。本工具是 PyInstaller 打包且没有购买商业数字签名（签名证书需每年数百元），杀软对"未签名的单文件打包 exe"普遍敏感，并非真的有病毒——全部源码开源在仓库里可自行审查或自己打包。绕过方法：Edge/Chrome 下载时点「…」→「保留」→「仍然保留」；Windows 若拦截，在"病毒和威胁防护"→"保护历史记录"里选择允许。建议优先下载 Release 里的 <b>ZIP 版本</b>，被拦概率低很多。
+</details>
+
 ## 🇬🇧 English (Quick Start)
 
 **WeSing Backup** — one-click local backup of your (or an authorized) 全民K歌 / WeSing account: songs (original AAC stream, no re-encoding), covers, MVs, upload time, descriptions, comments, and full metadata — plus a local HTML songbook you can play, search and sort, and an Excel index.
