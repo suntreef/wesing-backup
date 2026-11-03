@@ -113,7 +113,10 @@ footer a{color:var(--text2)}
       <summary>登录 Cookie（备份“仅自己可见”的私密作品时才需要）</summary>
       <div class="inner">
         <textarea id="cookie" placeholder="电脑浏览器登录 kg.qq.com → F12 → Network → 任意请求 → 复制 Cookie: 后面的完整内容，粘贴到这里（可选）"></textarea>
-        <div class="hint">不填也能备份全部<b>公开</b>作品；填写后可连同私密作品一起备份。Cookie 只在本机使用，不会上传。</div>
+        <div class="hint">不填也能备份全部<b>公开</b>作品；填写后可连同私密作品一起备份。Cookie 只在本机使用，不会上传。
+          <button class="btn ghost small" style="margin-left:8px" onclick="checkCookie(this)">检测 Cookie 有效性</button>
+          <span id="ckResult" style="margin-left:8px"></span></div>
+        <div class="hint" id="ckHint"><a href="javascript:void(0)" onclick="showHelp()" style="color:#7cb8ff">📖 图文教程：怎么拿 Cookie？</a></div>
       </div>
     </details>
 
@@ -292,6 +295,38 @@ async function quitApp(){
   await fetch('/api/quit', {method:'POST'});
   const m = document.createElement('div'); m.className='quitmask'; m.textContent='程序已退出，可以关闭此页面';
   document.body.appendChild(m);
+}
+async function checkCookie(btn){
+  const target = $('#target').value.trim();
+  const cookie = $('#cookie').value.trim();
+  const out = $('#ckResult');
+  if(!cookie){ out.textContent='请先粘贴 Cookie'; return; }
+  btn.disabled = true; out.textContent = '检测中…';
+  const r = await fetch('/api/check-cookie', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({target, cookie})});
+  const j = await r.json().catch(()=>({}));
+  btn.disabled = false;
+  if(j.ok){ out.innerHTML = `<span style="color:var(--green)">✓ 有效：${esc(j.nickname || '')}（可见作品 ${j.count}）</span>`; }
+  else{ out.innerHTML = `<span style="color:var(--red)">✗ Cookie 无效或已过期：${esc((j.error||'').slice(0,80))}</span>`; }
+}
+function showHelp(){
+  if(document.getElementById('helpMask')) return;
+  const m = document.createElement('div'); m.id='helpMask';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center';
+  m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:560px;width:92%;padding:26px 28px;line-height:1.9;font-size:14px;position:relative">
+    <div style="font-size:17px;font-weight:700;margin-bottom:10px">📖 获取 Cookie 图文教程（1 分钟）</div>
+    <ol style="padding-left:20px">
+      <li>电脑 Chrome / Edge 打开 <b>kg.qq.com</b>，用 QQ 扫码登录</li>
+      <li>按 <b>F12</b> 打开开发者工具，点顶部 <b>Network（网络）</b>标签</li>
+      <li>按 <b>F5 刷新页面</b>，在请求列表里<b>点第一行</b>（名字是 kg.qq.com 那行）</li>
+      <li>右侧找到 <b>Request Headers（请求标头）</b> → <b>Cookie:</b> 开头的那一行</li>
+      <li><b>右键 → Copy value（复制值）</b>，回到本页粘贴到 Cookie 输入框，点「检测有效性」确认 ✓</li>
+    </ol>
+    <div style="color:var(--text2);font-size:12px;margin-top:8px">提示：Cookie 有效期一般几天到几周，失效了重拿一次即可。它只保存在本机。</div>
+    <button class="btn small" style="position:absolute;top:14px;right:16px" onclick="this.closest('#helpMask').remove()">关闭</button>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if(e.target === m) m.remove(); });
 }
 $('#target').addEventListener('keydown', e=>{ if(e.key==='Enter') start(); });
 poll(); setInterval(poll, 1200);

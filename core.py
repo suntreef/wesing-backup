@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.2.5'
+APP_VERSION = '1.3.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -703,6 +703,7 @@ def write_html(out, entries, profile, generated):
 <header>
  <h1>{nick} 的全民K歌备份 <span class="meta">{stat} · 总播放 {plays}</span></h1>
  <div class="meta">备份时间 {esc(generated)} · 本地文件仅供个人收藏 ·
+   <a href="cd.html" style="color:#ffd76a;text-decoration:none">✨ 复古CD播放器</a> ·
    <input id="q" placeholder="搜索歌名/介绍…" oninput="flt()">
    <select onchange="flt()"><option value="new">最新在前</option><option value="old">最早在前</option><option value="hot">播放最多</option><option value="score">评分最高</option></select>
  </div>
@@ -922,7 +923,8 @@ def _backup_one(target, args, job):
                 job.stats['ok'] += 1
                 if not is_retry:
                     job.stats['done'] += 1
-                job.log(f"  {'↻' if is_retry else '✓'} [{job.stats['done']}/{len(plan)}] #{seq:04d} {e['title']}"
+                job.log(f"  {'✓ [重试成功] ' if is_retry else '✓ '}"
+                        f"[{job.stats['done']}/{len(plan)}] #{seq:04d} {e['title']}"
                         + ('（仅MV）' if e['audio'].endswith('_MV.mp4') else '')
                         + ('（补下）' if force_seq else ''))
         except Exception as ex:
@@ -932,7 +934,10 @@ def _backup_one(target, args, job):
                 if not is_retry:
                     job.stats['done'] += 1
                     job.stats['fail'] += 1
-                job.log(f"  ✗ [{job.stats['done']}/{len(plan)}] {item.get('title')}: {ex}")
+                    job.log(f"  ✗ [{job.stats['done']}/{len(plan)}] {item.get('title')}: {ex}"
+                            f"（多数为瞬时网络问题，稍后自动重试）")
+                else:
+                    job.log(f"  ✗ [重试仍失败] {item.get('title')}: {ex}（已记入 failed.json，重跑命令可再补）")
 
     if plan:
         with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
@@ -941,9 +946,14 @@ def _backup_one(target, args, job):
     # 整批跑完后，把 ✗ 的当场自动重试一轮（多为瞬时网络/链接过期，换个新请求往往就好）
     if fail_map and not job.cancelled:
         retry = [rec['plan_item'] for rec in fail_map.values()]
+        pass1_fail = len(fail_map)
         job.log(f'—— {len(retry)} 首失败，自动重试一轮 ——')
         with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
             list(ex.map(lambda pi: task(pi, True), retry))
+        rescued = pass1_fail - len(fail_map)
+        if rescued > 0:
+            job.log(f'✅ 首轮失败的 {pass1_fail} 首中，{rescued} 首已自动重试救回，'
+                    f'文件正常无需处理；剩余 {len(fail_map)} 首见 failed.json')
 
     job.stats['fail'] = len(fail_map)
     job.stats['index'] = len(index)
@@ -966,6 +976,7 @@ def _backup_one(target, args, job):
     entries = list(index.values())
     csv_path = write_csv(out, entries) if entries else ''
     html_path = write_html(out, entries, profile, generated) if entries and not args.no_html else ''
+    cd_path = write_cd_page(out, entries, profile, generated) if entries and not args.no_html else ''
 
     zip_path = ''
     if args.zip and entries:
@@ -986,6 +997,8 @@ def _backup_one(target, args, job):
         job.log(f'目录清单: {csv_path}')
     if html_path:
         job.log(f'HTML歌单: {html_path} （双击用浏览器打开即可试听）')
+    if cd_path:
+        job.log(f'CD播放器: {cd_path} （复古CD机 · 歌词滚动 · 可与歌单互相切换）')
     if zip_path:
         job.log(f'ZIP打包: {zip_path}')
     if fail_map:
@@ -994,6 +1007,262 @@ def _backup_one(target, args, job):
             json.dump([{'shareid': r['shareid'], 'title': r['title'], 'error': r['error']}
                        for r in fail_map.values()], f, ensure_ascii=False, indent=1)
         job.log(f'失败清单: {fp}（直接重跑本命令即可自动重试失败项）')
+
+
+# ---------------------------------------------------------------- CD 播放器页面
+
+CD_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="zh-cn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__NICK__ · 复古CD机 · 全民K歌备份</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%);color:#e8eaf0;height:100vh;
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden;display:flex;flex-direction:column}
+canvas#bg{position:fixed;inset:0;z-index:0}
+header{position:relative;z-index:2;display:flex;align-items:baseline;gap:14px;padding:14px 26px 6px;color:#9aa3b2;font-size:13px}
+header b{color:#fff;font-size:17px}
+header a{color:#7cb8ff;text-decoration:none;margin-left:auto}
+main{position:relative;z-index:1;flex:1;display:flex;gap:30px;padding:6px 30px 0;min-height:0}
+.deck{flex:0 0 400px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.cdwrap{position:relative;width:330px;height:330px;margin-top:6px}
+.cd{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#181b22 62%,#20242e 63%,#0e1015 100%);
+ box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;overflow:hidden}
+.cd .cover{position:absolute;inset:0;border-radius:50%;object-fit:cover;
+ animation:spin 14s linear infinite;animation-play-state:paused;will-change:transform}
+.cd.playing .cover{animation-play-state:running}
+.cd .glare{position:absolute;inset:0;border-radius:50%;
+ background:conic-gradient(from 210deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40deg,rgba(255,255,255,.16) 80deg,rgba(255,255,255,.03) 130deg,rgba(255,255,255,.15) 190deg,rgba(255,255,255,.02) 260deg,rgba(255,255,255,.14) 320deg);
+ mix-blend-mode:screen;animation:spin 14s linear infinite;animation-play-state:paused}
+.cd.playing .glare{animation-play-state:running}
+.cd .hole{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px;
+ border-radius:50%;background:#0b0d13;border:1px solid rgba(255,255,255,.15);z-index:3}
+.cd .hole::after{content:'';position:absolute;inset:18px;border-radius:50%;background:#171b24}
+@keyframes spin{to{transform:rotate(360deg)}}
+.arm{position:absolute;right:-26px;top:-34px;width:200px;height:300px;z-index:4;pointer-events:none;
+ transform:rotate(-24deg);transform-origin:78% 14%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.cdwrap.playing .arm{transform:rotate(6deg)}
+.now{margin-top:26px;text-align:center;max-width:360px}
+.now .t{font-size:20px;font-weight:700;color:#fff}
+.now .s{color:#8f9aac;font-size:13px;margin-top:5px}
+.now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
+.side{flex:1;display:flex;flex-direction:column;min-width:0}
+.lyrics{flex:1;overflow-y:auto;padding:26px 8px;text-align:center;scroll-behavior:smooth;
+ -webkit-mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent);
+ mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent)}
+.lyrics p{padding:9px 4px;color:#5c6675;font-size:15px;transition:all .25s;cursor:default}
+.lyrics p.on{color:#ffd76a;font-size:18px;font-weight:600;text-shadow:0 0 18px rgba(255,215,106,.35)}
+.ctrl{display:flex;align-items:center;gap:14px;padding:10px 2px 4px}
+.ctrl button{background:none;border:1px solid #333a47;color:#dfe3ec;border-radius:50%;width:44px;height:44px;
+ font-size:17px;cursor:pointer;transition:.15s}
+.ctrl button:hover{border-color:#ffd76a;color:#ffd76a}
+.ctrl .big{width:58px;height:58px;font-size:21px;background:#ffd76a;color:#111;border:none;font-weight:700}
+.time{color:#8f9aac;font-size:12px;font-variant-numeric:tabular-nums}
+#seek{flex:1;appearance:none;height:4px;border-radius:4px;background:#262c38;outline:none}
+#seek::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:#ffd76a;cursor:pointer}
+.strip{position:relative;z-index:1;flex:none;height:128px;display:flex;align-items:center;gap:12px;
+ overflow-x:auto;padding:8px 26px 14px;background:rgba(255,255,255,.025)}
+.strip::-webkit-scrollbar{height:6px}
+.strip::-webkit-scrollbar-thumb{background:#2a3040;border-radius:6px}
+.pl{flex:none;width:92px;cursor:pointer;text-align:center}
+.pl img{width:86px;height:86px;border-radius:10px;object-fit:cover;opacity:.62;transition:.2s;border:2px solid transparent}
+.pl:hover img{opacity:1}
+.pl.on img{opacity:1;border-color:#ffd76a}
+.pl div{font-size:11px;color:#8f9aac;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl.on div{color:#ffd76a}
+</style></head><body>
+<canvas id="bg"></canvas>
+<header><b>__NICK__ 的复古CD机</b><span>__TOTAL__ 首 · 备份于 __GENERATED__</span>
+ <a href="index.html">📋 目录视图</a></header>
+<main>
+ <div class="deck">
+  <div class="cdwrap" id="cdwrap">
+   <div class="cd" id="cd">
+     <img class="cover" id="cover" alt="">
+     <div class="glare"></div><div class="hole"></div>
+   </div>
+   <svg class="arm" viewBox="0 0 200 300">
+     <circle cx="156" cy="42" r="26" fill="#20242e" stroke="#3a4150" stroke-width="3"/>
+     <circle cx="156" cy="42" r="8" fill="#0b0d13"/>
+     <rect x="148" y="52" width="16" height="150" rx="8" fill="#2a2f3a" stroke="#3a4150"/>
+     <rect x="138" y="196" width="52" height="26" rx="12" fill="#20242e" stroke="#3a4150" transform="rotate(-18 164 209)"/>
+   </svg>
+  </div>
+  <div class="now">
+   <div class="t" id="nTitle">—</div>
+   <div class="s" id="nSub">选择下方唱片开始播放</div>
+   <div class="c" id="nDesc"></div>
+  </div>
+ </div>
+ <div class="side">
+  <div class="lyrics" id="lyrics"><p style="color:#7c8496">♪ 点下方唱片，让时间倒回你开口唱的那一刻</p></div>
+  <div class="ctrl">
+   <span class="time" id="tCur">0:00</span>
+   <input type="range" id="seek" min="0" max="1000" value="0">
+   <span class="time" id="tEnd">0:00</span>
+   <button onclick="prev()" title="上一首">⏮</button>
+   <button class="big" id="playBtn" onclick="togglePlay()" title="播放/暂停">▶</button>
+   <button onclick="next()" title="下一首">⏭</button>
+  </div>
+ </div>
+</main>
+<div class="strip" id="strip"></div>
+<audio id="au" preload="none"></audio>
+<script>
+const SONGS = __DATA__;
+const $ = s => document.querySelector(s);
+const au = $('#au');
+let cur = -1, lrc = [], lrcOn = -1, seeking = false;
+
+/* ---------- 粒子背景 ---------- */
+const cv = $('#bg'), cx = cv.getContext('2d');
+let W, H, P = [];
+function rs(){ W = cv.width = innerWidth; H = cv.height = innerHeight; }
+rs(); addEventListener('resize', rs);
+for (let i = 0; i < 110; i++) P.push({
+  x: Math.random(), y: Math.random(), r: .6 + Math.random() * 2.1,
+  vy: .12 + Math.random() * .5, vx: (Math.random() - .5) * .16,
+  a: .08 + Math.random() * .3, ph: Math.random() * 6.28, warm: Math.random() < .28
+});
+(function tick(t){
+  cx.clearRect(0, 0, W, H);
+  for (const p of P) {
+    p.y -= p.vy / H * 3.2; p.x += p.vx / W * 3.2 + Math.sin(t / 2400 + p.ph) * .00045;
+    if (p.y < -.04) { p.y = 1.04; p.x = Math.random(); }
+    if (p.x < -.04) p.x = 1.04; if (p.x > 1.04) p.x = -.04;
+    const tw = .55 + .45 * Math.sin(t / 700 + p.ph);
+    cx.beginPath();
+    cx.arc(p.x * W, p.y * H, p.r, 0, 6.28);
+    cx.fillStyle = p.warm ? 'rgba(255,214,106,' + (p.a * tw) + ')' : 'rgba(190,205,255,' + (p.a * tw * .8) + ')';
+    cx.fill();
+  }
+  requestAnimationFrame(tick);
+})(0);
+
+/* ---------- LRC ---------- */
+function parseLrc(text){
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g);
+    if (!m) continue;
+    const txt = line.replace(/\[[^\]]*\]/g, '').trim();
+    for (const tm of m) {
+      const mm = tm.match(/\[(\d+):(\d+(?:\.\d+)?)\]/);
+      if (mm) out.push({ t: (+mm[1]) * 60 + (+mm[2]), text: txt });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+function renderLrc(){
+  const box = $('#lyrics');
+  if (!lrc.length) { box.innerHTML = '<p style="color:#7c8496">这首歌没有找到歌词文件</p>'; return; }
+  box.innerHTML = lrc.map((l, i) => `<p data-i="${i}">${l.text || '♪'}</p>`).join('');
+}
+function syncLrc(t){
+  if (!lrc.length) return;
+  let i = -1;
+  for (let k = 0; k < lrc.length; k++) if (lrc[k].t <= t) i = k;
+  if (i === lrcOn) return;
+  lrcOn = i;
+  const box = $('#lyrics');
+  [...box.querySelectorAll('p')].forEach((p, k) => p.classList.toggle('on', k === i));
+  const el = box.querySelector('p[data-i="' + i + '"]');
+  if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+/* ---------- 播放 ---------- */
+function fmt(s){ s = Math.max(0, s | 0); return (s / 60 | 0) + ':' + String(s % 60).padStart(2, '0'); }
+function load(i, autoplay){
+  if (!SONGS.length) return;
+  cur = (i + SONGS.length) % SONGS.length;
+  const e = SONGS[cur];
+  au.src = e.audio;
+  $('#cover').src = e.cover || '';
+  $('#nTitle').textContent = e.title;
+  $('#nSub').textContent = '原唱：' + (e.singer ? e.singer + '《' + e.song + '》' : (e.song || '—'))
+    + '　·　' + e.time + (e.score ? '　·　评分 ' + e.score : '');
+  $('#nDesc').textContent = e.content || '';
+  $('#tEnd').textContent = fmt(au.duration || 0);
+  lrc = []; lrcOn = -1; renderLrc();
+  if (e.lrc) fetch(e.lrc).then(r => r.ok ? r.text() : '').then(t => {
+    if (e.audio === au.getAttribute('src') && t) { lrc = parseLrc(t); renderLrc(); syncLrc(au.currentTime || 0); }
+  }).catch(() => {});
+  [...document.querySelectorAll('.pl')].forEach((p, k) => p.classList.toggle('on', k === cur));
+  if (autoplay) play(); else pauseUi();
+  const on = document.querySelector('.pl.on');
+  if (on) on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+}
+function play(){ au.play().catch(() => {}); }
+function pauseUi(){ $('#cd').classList.remove('playing'); $('#cdwrap').classList.remove('playing'); $('#playBtn').textContent = '▶'; }
+function togglePlay(){
+  if (cur < 0) { load(0, true); return; }
+  if (au.paused) play(); else au.pause();
+}
+au.onplay = () => { $('#cd').classList.add('playing'); $('#cdwrap').classList.add('playing'); $('#playBtn').textContent = '⏸'; };
+au.onpause = () => pauseUi();
+au.onended = () => load(cur + 1, true);
+au.ontimeupdate = () => {
+  if (!seeking && au.duration) $('#seek').value = au.currentTime / au.duration * 1000;
+  $('#tCur').textContent = fmt(au.currentTime);
+  $('#tEnd').textContent = fmt(au.duration || 0);
+  syncLrc(au.currentTime);
+};
+au.onloadedmetadata = () => { $('#tEnd').textContent = fmt(au.duration || 0); };
+$('#seek').addEventListener('input', () => { seeking = true; });
+$('#seek').addEventListener('change', () => {
+  if (au.duration) au.currentTime = $('#seek').value / 1000 * au.duration;
+  seeking = false;
+});
+function prev(){ load(cur - 1, true); }
+function next(){ load(cur + 1, true); }
+addEventListener('keydown', e => {
+  if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight' && e.altKey) next();
+  if (e.code === 'ArrowLeft' && e.altKey) prev();
+});
+
+/* ---------- 初始化 ---------- */
+const strip = $('#strip');
+SONGS.forEach((e, i) => {
+  const d = document.createElement('div');
+  d.className = 'pl';
+  d.innerHTML = `<img loading="lazy" src="${e.cover || ''}" onerror="this.style.visibility='hidden'"><div>${e.seq}. ${e.title}</div>`;
+  d.onclick = () => load(i, true);
+  strip.appendChild(d);
+});
+if (SONGS.length) load(0, false);
+</script></body></html>
+"""
+
+
+def write_cd_page(out, entries, profile, generated):
+    path = os.path.join(out, 'cd.html')
+
+    def esc(s):
+        return html_mod.escape(str(s if s is not None else ''))
+
+    data = []
+    for e in sorted(entries, key=lambda x: x['seq']):
+        if not e.get('audio'):
+            continue
+        data.append({
+            'seq': e['seq'], 'title': e.get('title') or '未命名',
+            'song': e.get('song_name') or '', 'singer': e.get('singer_name') or '',
+            'time': (e.get('time') or '')[:10], 'score': e.get('score'),
+            'content': e.get('content') or '',
+            'audio': e.get('audio') or '', 'cover': e.get('cover') or '',
+            'lrc': e.get('lrc') or '',
+        })
+    data_json = json.dumps(data, ensure_ascii=False).replace('</', '<\\/')
+    nick = esc(profile.get('nickname', ''))
+    doc = (CD_TEMPLATE
+           .replace('__DATA__', data_json)
+           .replace('__NICK__', nick)
+           .replace('__TOTAL__', str(len(data)))
+           .replace('__GENERATED__', esc(generated[:10])))
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(doc)
+    return path
 
 
 # ---------------------------------------------------------------- CLI 入口

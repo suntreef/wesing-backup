@@ -180,6 +180,20 @@ class Handler(BaseHTTPRequestHandler):
             if job:
                 job.cancelled = True
             return self._send(200, {'ok': True})
+        if self.path == '/api/check-cookie':
+            try:
+                p = self._body()
+                from core import KGClient, parse_uid
+                uid = parse_uid(str(p.get('target') or ''))
+                client = KGClient(str(p.get('cookie') or '').strip(),
+                                  str(p.get('proxy') or '').strip(), 20, 2)
+                client.share_uid = uid
+                d = client.get_work_page(uid, 1)
+                return self._send(200, {
+                    'ok': True, 'nickname': d.get('nickname', ''),
+                    'count': d.get('ugc_total_count')})
+            except Exception as e:
+                return self._send(200, {'ok': False, 'error': str(e)})
         if self.path == '/api/pause':
             job = _STATE['job']
             if not job:
