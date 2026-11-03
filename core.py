@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.4.1'
+APP_VERSION = '1.5.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1344,6 +1344,354 @@ def write_cd_page(out, entries, profile, generated):
     with open(path, 'w', encoding='utf-8') as f:
         f.write(doc)
     return path
+
+
+
+
+# ---------------------------------------------------------------- 备份主流程
+
+def backup_one(target, args, job=None):
+    """备份一个账号。job 用于进度回调与取消（GUI）；CLI 传 None 自动创建。"""
+    job = job or Job()
+    job.started_at = ts2str(time.time())
+    try:
+        _backup_one(target, args, job)
+        job.state = 'stopped' if job.cancelled else 'done'
+        job.finished_at = ts2str(time.time())
+    except Exception as e:
+        job.state = 'error'
+        job.error = str(e)
+        job.finished_at = ts2str(time.time())
+        raise
+    return job
+
+
+def _backup_one(target, args, job):
+    uid = parse_uid(target)
+    cookie = args.cookie
+    if getattr(args, 'cookie_file', ''):
+        with open(args.cookie_file, encoding='utf-8-sig') as f:
+            cookie = f.read().strip()
+
+    client = KGClient(cookie, args.proxy, args.timeout, args.retries)
+    client.share_uid = uid
+    job.log(f'目标 uid: {uid}（{"已带 Cookie，可含私密作品" if cookie else "未登录，仅公开作品"}）')
+
+    job.state = 'listing'
+    d1 = client.get_work_page(uid, 1)
+    profile = {'uid': uid, 'nickname': d1.get('nickname', ''),
+               'head_img_url': d1.get('head_img_url', ''),
+               'ugc_total_count': d1.get('ugc_total_count'), 'level': d1.get('level'),
+               'levelname': d1.get('levelname'), 'follower': d1.get('follower'),
+               'following': d1.get('following'), 'fetched_at': ts2str(time.time())}
+    job.profile = profile
+    job.log(f"账号: {profile['nickname'] or uid} · 可见作品总数: {profile['ugc_total_count']}")
+
+    out = args.out or f'kg_backup_{safe_name(profile["nickname"] or uid, 30)}'
+    os.makedirs(out, exist_ok=True)
+    if not args.list_only and not getattr(args, 'flat', False):
+        for sub in ('audio', 'covers', 'meta'):
+            os.makedirs(os.path.join(out, sub), exist_ok=True)
+    if profile.get('head_img_url') and not args.list_only:
+        try:
+            client.download(profile['head_img_url'], os.path.join(out, 'avatar.jpg'), min_size=100)
+        except Exception:
+            pass
+    job.out_dir = out
+
+    idx_path = os.path.join(out, 'index.json')
+    index = {}
+    if os.path.exists(idx_path) and not args.force:
+        try:
+            with open(idx_path, encoding='utf-8') as f:
+                index = json.load(f).get('works', {})
+            if index:
+                # 统一键名：tkey(稳定键) > ugcid > 原键，避免同一作品多个旧条目
+                index = {(e.get('tkey') or e.get('ugcid') or k): e
+                         for k, e in index.items()}
+                job.log(f'增量模式：已有 {len(index)} 首备份（--force 强制重来）')
+        except Exception:
+            index = {}
+
+    # 翻页抓全列表
+    works = list(d1.get('ugclist') or [])
+    page, has_more, misses = 2, d1.get('has_more'), 0
+    while has_more and page <= 3000:
+        if job.cancelled:
+            job.log('已取消，停止翻页')
+            break
+        time.sleep(args.page_sleep)
+        try:
+            d = client.get_work_page(uid, page)
+            misses = 0
+        except Exception as e:
+            misses += 1
+            if misses >= 3:
+                job.log(f'连续 3 页失败，停止翻页: {e}')
+                break
+            page += 1
+            continue
+        wl = d.get('ugclist') or []
+        if not wl:
+            break
+        works.extend(wl)
+        job.log(f'  列表进度 {len(works)} 首…')
+        if not d.get('has_more'):
+            break
+        has_more = d.get('has_more')
+        page += 1
+    job.log(f'列表抓取完成：{len(works)} 首（账号显示 {profile["ugc_total_count"]}；'
+            f'差值一般是 仅自己可见 的私密作品，需登录 Cookie 才能取到）')
+
+    seen, uniq = set(), []
+    for w in works:
+        tkey = f"{w.get('time') or 0}_{w.get('ksong_mid') or ''}"
+        if w.get('shareid') and tkey not in seen:
+            seen.add(tkey)
+            uniq.append(w)
+    uniq.sort(key=lambda w: w.get('time') or 0)
+    job.stats['total_list'] = len(uniq)
+
+    # 增量跳过（tkey 稳定键 + 旧索引兼容），并检测"已备份但文件丢失"的自动补下
+    legacy_key = {(e.get('time'), e.get('title')): k
+                  for k, e in index.items() if not e.get('tkey')}
+    seen_ugcids = {e.get('ugcid') for e in index.values() if e.get('ugcid')}
+
+    since = args.since and dt.date.fromisoformat(args.since)
+    until = args.until and dt.date.fromisoformat(args.until)
+    todo, repair = [], []
+    for w in uniq:
+        tkey = f"{w.get('time') or 0}_{w.get('ksong_mid') or ''}"
+        old_key, e = None, index.get(tkey)
+        if e is None:
+            old_key = legacy_key.get((ts2str(w.get('time')), w.get('title')))
+            if old_key:
+                e = index[old_key]
+        if e is not None:
+            # 已备份过：音频文件还在就跳过，丢了就登记补下（不受 --max 限制）
+            if e.get('audio') and not os.path.exists(os.path.join(out, e['audio'])):
+                repair.append((w, e.get('seq'), old_key))
+            continue
+        t = w.get('time')
+        if t and (since or until):
+            d = dt.date.fromtimestamp(t)
+            if (since and d < since) or (until and d > until):
+                continue
+        todo.append(w)
+    if args.max:
+        todo = todo[:args.max]
+    if repair:
+        job.log(f'检测到 {len(repair)} 首已备份但音频缺失，自动补下')
+    plan = [(w, None, None) for w in todo] + repair
+
+    if args.list_only:
+        csv_path = write_list_csv(out, todo if (since or until or args.max) else uniq)
+        job.log(f'清单模式完成：{len(todo if (since or until or args.max) else uniq)} 首 → {csv_path}')
+        return
+
+    job.stats['new'] = len(todo)
+    job.stats['repair'] = len(repair)
+    job.log(f'本次待处理 {len(plan)} 首（新增 {len(todo)}，补下 {len(repair)}），'
+            f'并发 {args.workers}，标签嵌入{"开" if not args.no_tags and ffmpeg_available() else "关"}')
+    job.state = 'running'
+    if job.cancelled:
+        job.log('已取消')
+        return
+
+    opts = {'no_audio': args.no_audio, 'no_cover': args.no_cover,
+            'no_comments': args.no_comments, 'no_meta': args.no_meta,
+            'no_lyric': getattr(args, 'no_lyric', False),
+            'flat': getattr(args, 'flat', False),
+            'want_video': args.video, 'seen_ugcids': seen_ugcids,
+            'force': args.force, 'job': job,
+            'tags': (not args.no_tags) and ffmpeg_available()}
+    lock = threading.Lock()
+    counter = {'seq': max([e.get('seq', 0) for e in index.values()] or [0])}
+    fail_map = {}  # shareid -> {'plan_item','title','shareid','error'}（重试成功会移除）
+
+    def task(plan_item, is_retry=False):
+        # 暂停 = 挂在此处等待（每首歌是原子单位，暂停不会撕裂下载）
+        while job.paused and not job.cancelled:
+            time.sleep(0.3)
+        if job.cancelled:
+            return
+        item, force_seq, old_key = plan_item
+        sid = item.get('shareid') or ''
+        with lock:
+            if force_seq:
+                seq = force_seq  # 补下文件沿用原序号，文件名不变
+            else:
+                counter['seq'] += 1
+                seq = counter['seq']
+        try:
+            e = process_work(client, out, seq, item, opts, force=bool(force_seq))
+            with lock:
+                if e is None:
+                    if not is_retry:
+                        job.stats['done'] += 1
+                    job.log(f"  ○ {item.get('title')}: 重复作品，跳过")
+                    return
+                if old_key and old_key in index and old_key != e['tkey']:
+                    del index[old_key]
+                index[e['tkey']] = e
+                if e['ugcid']:
+                    opts['seen_ugcids'].add(e['ugcid'])
+                fail_map.pop(sid, None)
+                job.stats['ok'] += 1
+                if not is_retry:
+                    job.stats['done'] += 1
+                job.log(f"  {'✓ [重试成功] ' if is_retry else '✓ '}"
+                        f"[{job.stats['done']}/{len(plan)}] #{seq:04d} {e['title']}"
+                        + ('（仅MV）' if e['audio'].endswith('_MV.mp4') else '')
+                        + ('（补下）' if force_seq else ''))
+        except Exception as ex:
+            with lock:
+                fail_map[sid] = {'plan_item': plan_item, 'shareid': sid,
+                                 'title': item.get('title'), 'error': str(ex)}
+                if not is_retry:
+                    job.stats['done'] += 1
+                    job.stats['fail'] += 1
+                    job.log(f"  ✗ [{job.stats['done']}/{len(plan)}] {item.get('title')}: {ex}"
+                            f"（多数为瞬时网络问题，稍后自动重试）")
+                else:
+                    job.log(f"  ✗ [重试仍失败] {item.get('title')}: {ex}（已记入 failed.json，重跑命令可再补）")
+
+    if plan:
+        with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
+            list(ex.map(task, plan))
+
+    # 整批跑完后，把 ✗ 的当场自动重试一轮（多为瞬时网络/链接过期，换个新请求往往就好）
+    if fail_map and not job.cancelled:
+        retry = [rec['plan_item'] for rec in fail_map.values()]
+        pass1_fail = len(fail_map)
+        job.log(f'—— {len(retry)} 首失败，自动重试一轮 ——')
+        with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
+            list(ex.map(lambda pi: task(pi, True), retry))
+        rescued = pass1_fail - len(fail_map)
+        if rescued > 0:
+            job.log(f'✅ 首轮失败的 {pass1_fail} 首中，{rescued} 首已自动重试救回，'
+                    f'文件正常无需处理；剩余 {len(fail_map)} 首见 failed.json')
+
+    # 旧版本备份原地升级：补歌词 LRC + 无损重嵌标签（不重新下载音频）
+    if not args.list_only:
+        upgrade_old_entries(client, out, index, job, profile)
+
+    job.stats['fail'] = len(fail_map)
+    job.stats['index'] = len(index)
+    job.stats['bytes'] = client.bytes_downloaded
+
+    if job.cancelled:
+        job.log('用户已停止，正在保存已完成的进度…')
+
+    if args.mp3:
+        convert_mp3(out, list(index.values()), job=job)
+
+    profile['backup_count'] = len(index)
+    generated = ts2str(time.time())
+    with open(idx_path, 'w', encoding='utf-8') as f:
+        json.dump({'profile': profile, 'generated': generated, 'works': index},
+                  f, ensure_ascii=False, indent=1)
+    with open(os.path.join(out, 'profile.json'), 'w', encoding='utf-8') as f:
+        json.dump(profile, f, ensure_ascii=False, indent=1)
+
+    entries = list(index.values())
+    csv_path = write_csv(out, entries) if entries else ''
+    html_path = write_html(out, entries, profile, generated) if entries and not args.no_html else ''
+    cd_path = write_cd_page(out, entries, profile, generated) if entries and not args.no_html else ''
+
+    zip_path = ''
+    if args.zip and entries:
+        parent = os.path.dirname(os.path.abspath(out))
+        zp = shutil.make_archive(os.path.abspath(out), 'zip',
+                                 root_dir=parent, base_dir=os.path.basename(out))
+        zip_path = f'{zp}（{os.path.getsize(zp) / 1048576:.0f}MB）'
+
+    job.log('=' * 56)
+    job.log(f'完成：本次成功 {job.stats["ok"]}，失败 {job.stats["fail"]}，索引总计 {len(index)} 首')
+    if client.bytes_downloaded:
+        job.log(f'本次下载: {client.bytes_downloaded / 1048576:.1f} MB')
+    if profile.get('ugc_total_count') and len(uniq) < profile['ugc_total_count'] and cookie:
+        job.log(f'注意：有 {profile["ugc_total_count"] - len(uniq)} 首未能获取——'
+                f'Cookie 可能已过期（重新复制一次），或这些作品仅 App 内可见')
+    job.log(f'输出目录: {os.path.abspath(out)}')
+    if csv_path:
+        job.log(f'目录清单: {csv_path}')
+    if html_path:
+        job.log(f'HTML歌单: {html_path} （双击用浏览器打开即可试听）')
+    if cd_path:
+        job.log(f'CD播放器: {cd_path} （复古CD机 · 歌词滚动 · 可与歌单互相切换）')
+    if zip_path:
+        job.log(f'ZIP打包: {zip_path}')
+    if fail_map:
+        fp = os.path.join(out, 'failed.json')
+        with open(fp, 'w', encoding='utf-8') as f:
+            json.dump([{'shareid': r['shareid'], 'title': r['title'], 'error': r['error']}
+                       for r in fail_map.values()], f, ensure_ascii=False, indent=1)
+        job.log(f'失败清单: {fp}（直接重跑本命令即可自动重试失败项）')
+
+
+
+
+def upgrade_old_entries(client, out, index, job, profile):
+    """旧版本备份原地升级：补歌词 LRC + 无损重嵌标签（不重新下载音频）。"""
+    todo = []
+    for e in index.values():
+        if not e.get('audio', '').endswith('.m4a'):
+            continue
+        if not os.path.exists(os.path.join(out, e['audio'])):
+            continue
+        if not e.get('lrc') or not e.get('tagged'):
+            todo.append(e)
+    if not todo:
+        return
+    job.log(f'🆙 检测到 {len(todo)} 首旧备份缺少歌词/标签，自动原地升级（不重新下载音频）')
+    done = 0
+    for e in todo:
+        if job.cancelled:
+            break
+        try:
+            ksong_mid = ''
+            tkey = e.get('tkey') or ''
+            if '_' in tkey:
+                ksong_mid = tkey.split('_', 1)[1]
+            lyric = ''
+            if ksong_mid and not e.get('lrc'):
+                lyric = client.fetch_lyric(ksong_mid)
+            if lyric:
+                lrc_rel = e['audio'][:-4] + '.lrc'
+                try:
+                    with open(os.path.join(out, lrc_rel), 'w', encoding='utf-8') as f:
+                        f.write(lyric)
+                    e['lrc'] = lrc_rel
+                except OSError:
+                    pass
+            if ffmpeg_available() and (not e.get('tagged') or lyric):
+                cover_abs = os.path.join(out, e.get('cover') or '')
+                bits = []
+                if e.get('song_name'):
+                    singer = e.get('singer_name') or ''
+                    bits.append(f'原唱：{singer}《{e["song_name"]}》' if singer
+                                else f'原唱：《{e["song_name"]}》')
+                if e.get('score'):
+                    bits.append(f'评分 {e["score"]}')
+                if e.get('play_num') is not None:
+                    bits.append(f'播放 {e["play_num"]}')
+                if e.get('device'):
+                    bits.append(f'录制设备 {e["device"]}')
+                e['tagged'] = embed_tags(os.path.join(out, e['audio']),
+                                         cover_abs if os.path.exists(cover_abs) else '',
+                                         e.get('title') or '', profile.get('nickname', ''),
+                                         (e.get('time') or '')[:10],
+                                         e.get('content') or '',
+                                         lyric=lyric, desc=' · '.join(bits), job=job)
+            done += 1
+            if done % 20 == 0 or done == len(todo):
+                job.log(f'  🆙 升级进度 {done}/{len(todo)}')
+            time.sleep(0.15)
+        except Exception as ex:
+            job.log(f'  ⚠ 升级跳过《{e.get("title")}》: {ex}')
+    if done:
+        job.log(f'🆙 升级完成：{done} 首已补齐歌词/标签')
 
 
 # ---------------------------------------------------------------- CLI 入口

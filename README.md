@@ -141,6 +141,24 @@ Run **locally only**; no data collection. Please back up only your own or author
 
 本项目仅用于**备份本人或经授权账号**的作品、留存个人记忆，请勿用于批量抓取他人内容、商业用途或任何违反全民K歌用户协议的场景。歌词与音乐版权归原权利方所有。
 
+
+## 🐳 Docker 部署（可选，NAS/服务器玩家）
+
+备份引擎跑在容器里，浏览器打开 `http://NAS的IP:8765` 即可操作，备份文件落在挂载目录：
+
+```bash
+# 方式一：直接用发布镜像（推荐）
+docker run -d --name wesing-backup -p 8765:8765 \
+  -v "$PWD/backups:/data" --restart unless-stopped \
+  ghcr.io/suntreef/wesing-backup:latest
+
+# 方式二：本仓库构建
+git clone https://github.com/suntreef/wesing-backup && cd wesing-backup
+docker compose up -d
+```
+
+镜像内置 ffmpeg（自动嵌标签/MP3 副本）。旧备份目录放进挂载卷后重跑一次备份即可自动升级（补歌词/标签，无需重新下载音频）。镜像仅用于个人备份，请勿公开暴露到公网。
+
 ## 🛠 开发
 
 ```

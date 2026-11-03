@@ -286,11 +286,15 @@ def main():
     # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击 exe 叠开一堆窗口
     port = 0
     lan = False
+    host = '127.0.0.1'
     argv = sys.argv[1:]
     if '--port' in argv:
         port = int(argv[argv.index('--port') + 1])
     if '--lan' in argv:
         lan = True
+    if '--host' in argv:
+        host = argv[argv.index('--host') + 1]
+        lan = host != '127.0.0.1'
     if port == 0:
         existing = find_running_instance()
         if existing:
@@ -300,7 +304,6 @@ def main():
             if not os.environ.get('KG_NO_BROWSER'):
                 webbrowser.open(url)
             return
-    host = '0.0.0.0' if lan else '127.0.0.1'
     srv = ThreadingHTTPServer((host, port), Handler)
     _STATE['server'] = srv
     _STATE['lan'] = lan
