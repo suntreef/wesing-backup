@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.6.0'
+APP_VERSION = '1.7.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1962,6 +1962,282 @@ def upgrade_old_entries(client, out, index, job, profile):
     if done:
         job.log(f'🆙 升级完成：{done} 首已补齐歌词/标签')
 
+
+GUEST_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="zh-cn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f1220">
+<title>🎁 __NICK__ 的盲盒歌单</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:radial-gradient(900px 600px at 50% -8%,#1d1a33,#0f1220 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:96px}
+header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.94);
+ backdrop-filter:blur(8px);border-bottom:1px solid #2a2f3e}
+header h1{font-size:19px}
+header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
+header .gold{color:#ffd76a}
+.wrap{max-width:760px;margin:0 auto;padding:22px 16px 0}
+/* 今日盲盒 */
+.today{position:relative;text-align:center;border-radius:22px;padding:30px 22px 26px;
+ background:linear-gradient(180deg,#221d38,#171428);box-shadow:0 0 0 1px #38315a inset,0 20px 60px rgba(0,0,0,.5);margin-bottom:30px}
+.today .day{color:#9aa3b8;font-size:12px;letter-spacing:2px}
+.gift{font-size:84px;line-height:1.15;display:inline-block;cursor:pointer;user-select:none;
+ animation:sway 2.6s ease-in-out infinite;filter:drop-shadow(0 14px 26px rgba(255,215,106,.28));transition:transform .5s}
+@keyframes sway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg) translateY(-8px)}}
+.gift.opened{animation:pop .55s ease-out}
+@keyframes pop{40%{transform:scale(1.35) rotate(9deg)}70%{transform:scale(.94)}100%{transform:scale(1)}}
+.rev-cover{width:min(260px,64vw);height:min(260px,64vw);border-radius:18px;object-fit:cover;margin:6px auto;
+ box-shadow:0 22px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.1);display:none;
+ animation:reveal .7s cubic-bezier(.2,.9,.3,1.2)}
+.rev-cover.show{display:block}
+@keyframes reveal{0%{transform:scale(.5) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+.rev-title{font-size:21px;font-weight:800;color:#ffd76a;display:none;margin-top:10px}
+.rev-title.show{display:block}
+.rev-sub{color:#9aa3b8;font-size:13px;display:none;margin-top:6px}
+.rev-sub.show{display:block}
+.btn{display:inline-block;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;color:#221d38;
+ background:linear-gradient(180deg,#ffd76a,#e8b64c);border-radius:999px;padding:13px 34px;margin-top:16px;
+ box-shadow:0 0 26px rgba(255,215,106,.4),0 4px 0 #b8923a;-webkit-appearance:none;appearance:none;transition:.15s}
+.btn:active{transform:translateY(3px);box-shadow:0 0 26px rgba(255,215,106,.4)}
+.btn.play{background:linear-gradient(180deg,#7cb8ff,#5a9ae8);color:#0d1522;box-shadow:0 0 26px rgba(124,184,255,.35),0 4px 0 #3f74b0}
+.count{color:#8f9aac;font-size:12.5px;margin-top:14px}
+.count b{color:#ffd76a;font-variant-numeric:tabular-nums}
+.confetti{position:absolute;top:38%;left:50%;font-size:22px;pointer-events:none;animation:conf 1.1s ease-out forwards;z-index:5}
+@keyframes conf{0%{transform:translate(0,0) rotate(0) scale(.6);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(540deg) scale(1.15);opacity:0}}
+/* 解锁柜 */
+.sec{margin:26px 0 14px;display:flex;align-items:baseline;gap:10px}
+.sec h2{font-size:16px}
+.sec span{color:#8f9aac;font-size:12px}
+.cabinet{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.item{background:#1a1e2e;border-radius:14px;overflow:hidden;cursor:pointer;transition:.18s;position:relative;border:1px solid #2a2f3e}
+.item:hover{transform:translateY(-3px);border-color:#3a415a}
+.item img{width:100%;height:118px;object-fit:cover;display:block}
+.item .nm{padding:9px 11px 3px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .dt{padding:0 11px 10px;font-size:11px;color:#8f9aac}
+.item.locked{cursor:default}
+.item.locked img{filter:brightness(.12) blur(6px)}
+.item .q{position:absolute;inset:0 0 34px;display:flex;align-items:center;justify-content:center;font-size:34px;color:#4a5468}
+.item .tag{position:absolute;top:8px;left:8px;font-size:10px;background:rgba(255,215,106,.9);color:#221d38;
+ border-radius:6px;padding:2px 7px;font-weight:700}
+.item.locked .tag{background:rgba(124,140,180,.35);color:#c7d1e8}
+.item.shake{animation:shk .4s}
+@keyframes shk{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+.history{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.hrow{display:flex;align-items:center;gap:12px;background:#1a1e2e;border-radius:12px;padding:10px 14px;border:1px solid #2a2f3e}
+.hrow .d{color:#ffd76a;font-size:12px;font-variant-numeric:tabular-nums;flex:none}
+.hrow .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hrow .s{color:#8f9aac;font-size:11px;margin-left:auto;flex:none}
+.empty{text-align:center;color:#6b7488;padding:40px 10px;font-size:14px;line-height:2}
+/* 底部播放条 */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(20,24,38,.97);backdrop-filter:blur(8px);
+ border-top:1px solid #2a2f3e;padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;align-items:center;gap:12px}
+.bar.show{display:flex}
+.bar img{width:44px;height:44px;border-radius:8px;object-fit:cover}
+.bar .bi{flex:1;min-width:0}
+.bar .bt{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .bs{color:#8f9aac;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar button{background:none;border:1px solid #3a415a;color:#dfe3ec;border-radius:50%;width:40px;height:40px;flex:none;
+ font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center}
+.bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:17px}
+.bar .bp:hover{background:#ffe28a}
+</style></head><body>
+<header>
+ <h1>🎁 <span class="gold">__NICK__</span> 的盲盒歌单</h1>
+ <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
+</header>
+<div class="wrap">
+ <div class="today">
+  <div class="day">__TODAY__ · 今日盲盒</div>
+  <div id="giftArea">
+   <div class="gift" id="gift" onclick="reveal()">🎁</div>
+   <div class="rev-cover" id="revCover"><img class="jsCover rev-img" style="width:100%;height:100%;border-radius:18px;object-fit:cover" alt=""></div>
+   <div class="rev-title" id="revTitle"></div>
+   <div class="rev-sub" id="revSub"></div>
+   <button class="btn" id="openBtn" onclick="reveal()">开启今日盲盒</button>
+  </div>
+  <div class="count">下一首盲盒 <b id="cd">--:--:--</b> 后掉落 · 记得回来看看</div>
+ </div>
+
+ <div class="sec"><h2>🔓 已解锁的歌柜</h2><span>点封面播放 · 全部可反复听</span></div>
+ <div class="cabinet" id="cabinet"></div>
+
+ <div class="sec"><h2>📅 掉落日历</h2><span>每一首都有自己的日期</span></div>
+ <div class="history" id="history"></div>
+</div>
+<div class="bar" id="bar">
+ <img id="barCover" alt="">
+ <div class="bi"><div class="bt" id="barTitle">—</div><div class="bs" id="barSub"></div></div>
+ <button onclick="barPrev()">⏮</button>
+ <button class="bp" id="barPlay" onclick="barToggle()">▶</button>
+ <button onclick="barNext()">⏭</button>
+</div>
+<audio id="au" preload="none"></audio>
+<script>const SONGS = __DATA__;const HISTORY = __HISTORY__;</script>
+<script>
+const $ = s => document.querySelector(s);
+const au = document.getElementById('au');
+let cur = -1;
+const unlocked = SONGS.filter(s => !s.locked);
+function fmt(s){ s = Math.max(0, s|0); return (s/60|0) + ':' + String(s%60).padStart(2,'0'); }
+/* 今日盲盒 */
+const today = SONGS.find(s => s.today);
+let revealed = false;
+try { revealed = localStorage.getItem('kgreveal_' + '__TODAY__') === '1'; } catch(e){}
+function reveal(first){
+  if (revealed && !first) { playSong(SONGS.indexOf(today)); return; }
+  if (revealed) return;
+  revealed = true;
+  try { localStorage.setItem('kgreveal_' + '__TODAY__', '1'); } catch(e){}
+  const g = document.getElementById('gift');
+  g.classList.add('opened');
+  for (let i = 0; i < 14; i++) {
+    const c = document.createElement('span');
+    c.className = 'confetti';
+    c.textContent = ['🎉','✨','🎵','💛','🎈'][i % 5];
+    c.style.setProperty('--dx', (Math.random()*260-130) + 'px');
+    c.style.setProperty('--dy', (Math.random()*-200-40) + 'px');
+    g.appendChild(c);
+  }
+  setTimeout(() => {
+    g.style.display = 'none';
+    document.getElementById('openBtn').style.display = 'none';
+    const cover = document.getElementById('revCover');
+    cover.querySelector('img').src = today.cover || '';
+    cover.classList.add('show');
+    document.getElementById('revTitle').textContent = '🎉 今日揭晓：《' + today.title + '》';
+    document.getElementById('revTitle').classList.add('show');
+    document.getElementById('revSub').textContent = '原唱：' + (today.singer ? today.singer + '《' + today.song + '》' : today.song)
+      + ' · ' + today.time + ' · 点下方封面播放';
+    document.getElementById('revSub').classList.add('show');
+    unlockCardUi(today);
+    setTimeout(() => playSong(SONGS.indexOf(today)), 600);
+  }, 620);
+}
+function unlockCardUi(song){
+  const el = document.querySelector('.item[data-uk="' + song.uk + '"]');
+  if (el && el.classList.contains('locked')) {
+    el.classList.remove('locked');
+    el.querySelector('img').src = song.cover || '';
+    el.querySelector('img').style.filter = '';
+    const q = el.querySelector('.q'); if (q) q.remove();
+    el.querySelector('.nm').textContent = song.seq + '. ' + song.title;
+  }
+}
+/* 倒计时 */
+function tickCd(){
+  const now = new Date();
+  const mid = new Date(now); mid.setHours(24,0,0,0);
+  const d = mid - now;
+  const h = String(d/3600000|0).padStart(2,'0'), m = String((d/60000|0)%60).padStart(2,'0'), s = String((d/1000|0)%60).padStart(2,'0');
+  document.getElementById('cd').textContent = h + ':' + m + ':' + s;
+}
+tickCd(); setInterval(tickCd, 1000);
+/* 歌柜 */
+const cab = document.getElementById('cabinet');
+SONGS.forEach(s => {
+  const d = document.createElement('div');
+  d.className = 'item' + (s.locked ? ' locked' : '');
+  d.dataset.uk = s.uk;
+  d.innerHTML = `<img src="${s.locked ? '' : (s.cover || '')}" alt="" ${s.locked ? '' : 'loading="lazy"'}>` +
+    (s.locked ? '<div class="q">❓</div>' : '') +
+    (s.today ? '<div class="tag">今日</div>' : (s.locked ? '<div class="tag">🔒</div>' : '')) +
+    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>`;
+  d.onclick = () => {
+    if (s.locked) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
+    playSong(SONGS.indexOf(s));
+  };
+  cab.appendChild(d);
+  if (s.today && revealed) unlockCardUi(s);
+});
+/* 掉落日历 */
+const his = document.getElementById('history');
+if (!HISTORY.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
+HISTORY.forEach(h => {
+  const d = document.createElement('div');
+  d.className = 'hrow';
+  d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》</span><span class="s">原唱 ${h.singer || '—'}</span>`;
+  his.appendChild(d);
+});
+/* 播放条 */
+function playSong(i){
+  const s = SONGS[i]; if (!s || s.locked) return;
+  if (cur === i && !au.paused) { au.pause(); return; }
+  cur = i;
+  au.src = s.audio;
+  au.play().catch(()=>{});
+  document.getElementById('barCover').src = s.cover || '';
+  document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
+  document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
+  document.getElementById('bar').classList.add('show');
+}
+au.onplay = () => document.getElementById('barPlay').textContent = '⏸';
+au.onpause = () => document.getElementById('barPlay').textContent = '▶';
+au.ontimeupdate = () => {};
+function barToggle(){ if (!au.src) { if (unlocked.length) playSong(SONGS.indexOf(unlocked[0])); return; } if (au.paused) au.play(); else au.pause(); }
+function barStep(step){
+  if (!unlocked.length) return;
+  let i = unlocked.indexOf(SONGS[cur]);
+  if (i < 0) i = 0; else i = (i + step + unlocked.length) % unlocked.length;
+  playSong(SONGS.indexOf(unlocked[i]));
+}
+function barPrev(){ barStep(-1); }
+function barNext(){ barStep(1); }
+au.onended = () => barNext();
+/* 已揭晓状态初始化 */
+if (revealed && today) {
+  document.getElementById('gift').style.display = 'none';
+  document.getElementById('openBtn').style.display = 'none';
+  const cover = document.getElementById('revCover');
+  cover.querySelector('img').src = today.cover || '';
+  cover.classList.add('show');
+  document.getElementById('revTitle').textContent = '🎉 今日已揭晓：《' + today.title + '》';
+  document.getElementById('revTitle').classList.add('show');
+  document.getElementById('revSub').textContent = '原唱：' + (today.singer ? today.singer + '《' + today.song + '》' : today.song) + ' · ' + today.time + ' · 点上方封面再听一遍';
+  document.getElementById('revSub').classList.add('show');
+}
+</script></body></html>
+"""
+
+
+def render_guest_page(entries, profile, unlocked_keys, history, today_key, today_date):
+    """生成朋友盲盒页（kg_app 动态调用）。unlocked_keys 为已解锁歌曲键集合。"""
+    def esc(s):
+        return html_mod.escape(str(s if s is not None else ''))
+
+    def uk(e):
+        return e.get('ugcid') or ('s' + str(e.get('seq')))
+
+    data = []
+    today = None
+    for e in sorted(entries, key=lambda x: x['seq']):
+        if not e.get('audio'):
+            continue
+        k = uk(e)
+        locked = k not in unlocked_keys
+        is_today = (k == today_key)
+        if is_today:
+            today = e
+        data.append({
+            'uk': k, 'seq': e['seq'], 'title': e.get('title') or '未命名',
+            'song': e.get('song_name') or '', 'singer': e.get('singer_name') or '',
+            'time': (e.get('time') or '')[:10],
+            'cover': '' if locked else '/g/' + (e.get('cover') or ''),
+            'audio': '' if locked else '/g/' + (e.get('audio') or ''),
+            'locked': locked, 'today': is_today,
+        })
+    hist = [{'date': h['date'], 'title': h['title'], 'singer': h.get('singer') or ''} for h in history]
+    nick = esc(profile.get('nickname', ''))
+    unlocked_n = sum(1 for d in data if not d['locked'])
+    doc = (GUEST_TEMPLATE
+           .replace('__DATA__', json.dumps(data, ensure_ascii=False).replace('</', '<\\/')[:0] +
+                    json.dumps(data, ensure_ascii=False).replace('</', '<\\/'))
+           .replace('__HISTORY__', json.dumps(hist, ensure_ascii=False))
+           .replace('__NICK__', nick)
+           .replace('__UNLOCKED__', str(unlocked_n))
+           .replace('__TOTAL__', str(len(data)))
+           .replace('__TODAY__', esc(today_date)))
+    return doc
 
 # ---------------------------------------------------------------- CLI 入口
 

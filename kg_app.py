@@ -11,6 +11,7 @@ kg_app.py — 全民K歌备份工具 · 图形界面入口
     python kg_app.py            # 启动并打开浏览器
 """
 
+import hashlib
 import json
 import os
 import socket
@@ -23,10 +24,97 @@ import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from core import APP_NAME, APP_VERSION, Job, backup_one
+import datetime as dt
+
+dt_date = dt.date
+
+from core import APP_NAME, APP_VERSION, Job, backup_one, render_guest_page
 
 # 仅本机可访问，单一活动任务
 _STATE = {'job': None, 'thread': None, 'server': None, 'lan': False}
+
+
+def _shares_file():
+    return os.path.join(os.getcwd(), 'shares.json')
+
+
+def load_shares():
+    try:
+        with open(_shares_file(), encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {'dir': '', 'since': ''}
+
+
+def save_shares(sh):
+    try:
+        with open(_shares_file(), 'w', encoding='utf-8') as f:
+            json.dump(sh, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
+def share_entries():
+    """读取当前分享目录的 index.json，返回 (entries_sorted, profile, share)。"""
+    sh = load_shares()
+    d = sh.get('dir') or ''
+    if not d or not os.path.isdir(d):
+        return [], {}, sh
+    try:
+        with open(os.path.join(d, 'index.json'), encoding='utf-8') as f:
+            idx = json.load(f)
+    except Exception:
+        return [], {}, sh
+    entries = sorted(idx.get('works', {}).values(), key=lambda x: x.get('seq') or 0)
+    return entries, idx.get('profile', {}), sh
+
+
+def _uk(e):
+    return e.get('ugcid') or ('s' + str(e.get('seq')))
+
+
+def _pick_for_date(entries, day):
+    """确定性盲盒：同一日期永远抽中同一首。"""
+    if not entries:
+        return None
+    seed = hashlib.md5((day + '|wesing-blindbox|' + str(len(entries))).encode()).hexdigest()
+    return entries[int(seed, 16) % len(entries)]
+
+
+def blindbox_state():
+    """返回 (entries, profile, unlocked_keys, history, today_pick_key, today_date)。"""
+    entries, profile, sh = share_entries()
+    if not entries:
+        return entries, profile, set(), [], None, ''
+    start_file = os.path.join(sh.get('dir') or '.', 'guest_start')
+    today = dt_date.today().isoformat()
+    if not os.path.exists(start_file):
+        try:
+            with open(start_file, 'w') as f:
+                f.write(today)
+        except Exception:
+            pass
+    try:
+        with open(start_file, encoding='utf-8') as f:
+            start = f.read().strip() or today
+    except Exception:
+        start = today
+    history, unlocked = [], set()
+    d = dt_date.fromisoformat(start)
+    end = dt_date.today()
+    guard = 0
+    while d <= end and guard < 3650:
+        day = d.isoformat()
+        pick = _pick_for_date(entries, day)
+        if pick is not None:
+            unlocked.add(_uk(pick))
+            history.append({'date': day, 'title': pick.get('title') or '',
+                            'singer': pick.get('singer_name') or '', 'uk': _uk(pick)})
+        d += dt.timedelta(days=1)
+        guard += 1
+    today_pick = _pick_for_date(entries, today)
+    today_key = _uk(today_pick) if today_pick else None
+    return entries, profile, unlocked, history, today_key, today
 
 
 def lan_ips():
@@ -163,6 +251,82 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(self.rfile.read(n).decode('utf-8'))
 
     # ---------- GET ----------
+
+    _MIME = {'.m4a': 'audio/mp4', '.mp4': 'video/mp4', '.jpg': 'image/jpeg',
+             '.jpeg': 'image/jpeg', '.png': 'image/png', '.lrc': 'text/plain; charset=utf-8',
+             '.html': 'text/html; charset=utf-8'}
+
+    def _serve_guest_file(self, rel):
+        """服务分享目录里的文件（含 Range 断点/拖动支持 + 盲盒锁定拦截）。"""
+        try:
+            rel = urllib.request.url2pathname(rel).replace('\\', '/').lstrip('/')
+        except Exception:
+            return self._send(400, b'bad path', 'text/plain; charset=utf-8')
+        entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+        if not entries:
+            return self._send(404, b'no share', 'text/plain; charset=utf-8')
+        sh = load_shares()
+        root = os.path.abspath(sh.get('dir') or '')
+        full = os.path.abspath(os.path.join(root, rel))
+        if not full.startswith(root + os.sep) and full != root:
+            return self._send(403, b'forbidden', 'text/plain; charset=utf-8')
+        ext = os.path.splitext(full)[1].lower()
+        mime = self._MIME.get(ext)
+        if not mime:
+            return self._send(404, b'not found', 'text/plain; charset=utf-8')
+        if ext in ('.m4a', '.mp4', '.jpg', '.jpeg'):
+            base = os.path.basename(full)
+            ok = False
+            for e in entries:
+                if _uk(e) not in unlocked:
+                    continue
+                if any(f and os.path.basename(f) == base for f in (e.get('audio'), e.get('cover'))):
+                    ok = True
+                    break
+            if not ok:
+                return self._send(403, b'locked', 'text/plain; charset=utf-8')
+        if not os.path.exists(full):
+            return self._send(404, b'not found', 'text/plain; charset=utf-8')
+        size = os.path.getsize(full)
+        rng = self.headers.get('Range')
+        start, end = 0, size - 1
+        partial = False
+        if rng and rng.startswith('bytes='):
+            try:
+                spec = rng[6:].split(',')[0]
+                a, _, b = spec.partition('-')
+                if a:
+                    start = int(a)
+                    if b:
+                        end = min(int(b), size - 1)
+                elif b:
+                    start = max(0, size - int(b))
+                partial = True
+            except ValueError:
+                pass
+        if start >= size or end < start:
+            return self._send(416, b'range error', 'text/plain; charset=utf-8')
+        self.send_response(206 if partial else 200)
+        self.send_header('Content-Type', mime)
+        self.send_header('Accept-Ranges', 'bytes')
+        length = end - start + 1
+        if partial:
+            self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
+        self.send_header('Content-Length', str(length))
+        self.end_headers()
+        try:
+            with open(full, 'rb') as f:
+                f.seek(start)
+                remain = length
+                while remain > 0:
+                    chunk = f.read(min(1 << 16, remain))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remain -= len(chunk)
+        except (BrokenPipeError, ConnectionAbortedError):
+            pass
+
     def do_GET(self):
         if self.path in ('/', '/index.html'):
             fp = os.path.join(static_dir(), 'index.html')
@@ -184,6 +348,25 @@ class Handler(BaseHTTPRequestHandler):
                 except OSError:
                     pass
             return self._send(404, {'error': 'not found'})
+        if self.path == '/api/share':
+            entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+            ips = lan_ips() if _STATE.get('lan') else []
+            port = _STATE['server'].server_address[1]
+            url = f'http://{ips[0]}:{port}/guest' if ips else ''
+            return self._send(200, {
+                'dir': (load_shares().get('dir') or ''),
+                'guestUrl': url, 'unlocked': len(unlocked), 'total': len(entries),
+                'today': (today_key and next((e.get('title') for e in entries if _uk(e) == today_key), '')) or '',
+                'ips': ips})
+        if self.path == '/guest':
+            entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+            if not entries:
+                return self._send(200, '还没有可分享的备份目录。先在工具页跑一次备份，或通过 /api/share 设置目录。'
+                                  .encode(), 'text/html; charset=utf-8')
+            html = render_guest_page(entries, profile, unlocked, history, today_key, today_date)
+            return self._send(200, html.encode(), 'text/html; charset=utf-8')
+        if self.path.startswith('/g/'):
+            return self._serve_guest_file(self.path[3:])
         if self.path.startswith('/api/status'):
             job = _STATE['job']
             snap = job.snapshot() if job else {'state': 'idle'}
@@ -260,6 +443,28 @@ class Handler(BaseHTTPRequestHandler):
             job.paused = bool(p.get('paused'))
             job.log('⏸ 已暂停（进度保留，点“继续”接着跑）' if job.paused else '▶ 继续备份')
             return self._send(200, {'ok': True, 'paused': job.paused})
+        if self.path == '/api/share':
+            p = self._body()
+            if 'dir' in p:
+                d = str(p.get('dir') or '').strip()
+                if d and os.path.isdir(d) and os.path.exists(os.path.join(d, 'index.json')):
+                    sh = load_shares()
+                    if not sh.get('since'):
+                        import datetime as _dt
+                        sh['since'] = _dt.date.today().isoformat()
+                    sh['dir'] = d
+                    save_shares(sh)
+                    return self._send(200, {'ok': True, 'dir': d})
+                return self._send(400, {'error': '目录不存在或还没有 index.json（先完成一次备份）'})
+            entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+            ips = lan_ips() if _STATE.get('lan') else []
+            port = _STATE['server'].server_address[1]
+            url = f'http://{ips[0]}:{port}/guest' if ips else ''
+            return self._send(200, {
+                'ok': True, 'dir': (load_shares().get('dir') or ''),
+                'guestUrl': url, 'unlocked': len(unlocked), 'total': len(entries),
+                'today': (today_key and next((e.get('title') for e in entries if _uk(e) == today_key), '')) or '',
+                'ips': ips})
         if self.path == '/api/quit':
             self._send(200, {'ok': True})
             threading.Timer(0.4, _quit).start()
@@ -270,6 +475,13 @@ class Handler(BaseHTTPRequestHandler):
 def _run_job(target, args, job):
     try:
         backup_one(target, args, job)
+        if job.out_dir:
+            sh = load_shares()
+            sh['dir'] = os.path.abspath(job.out_dir)
+            if not sh.get('since'):
+                import datetime as _dt
+                sh['since'] = _dt.date.today().isoformat()
+            save_shares(sh)
     except BaseException as e:  # 状态已记入 job，线程不抛栈
         job.log(f'任务结束（{job.state}）: {e}' if job.state == 'error' else f'任务结束（{job.state}）')
 

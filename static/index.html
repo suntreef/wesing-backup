@@ -114,7 +114,8 @@ footer a{color:var(--text2)}
 <body>
 <header>
   <div class="brand">🎤 全民K歌备份</div>
-  <button class="btn ghost small" onclick="lanModal()" style="margin-left:auto">📱 手机访问</button>
+  <button class="btn ghost small" onclick="shareModal()" style="margin-left:auto">🎁 朋友盲盒</button>
+  <button class="btn ghost small" onclick="lanModal()">📱 手机访问</button>
   <div class="v" id="ver">本地运行 · v?</div>
 </header>
 
@@ -348,6 +349,59 @@ function showHelp(){
   </div>`;
   document.body.appendChild(m);
   m.addEventListener('click', e => { if(e.target === m) m.remove(); });
+}
+
+/* ---------- 朋友盲盒（分享） ---------- */
+function shareModal(){
+  if(document.getElementById('shMask')) { document.getElementById('shMask').remove(); return; }
+  const m = document.createElement('div'); m.id='shMask';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center';
+  m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:520px;width:92%;padding:24px 26px;position:relative;text-align:center">
+    <div style="font-size:17px;font-weight:700;margin-bottom:10px">🎁 朋友盲盒 · 分享收藏</div>
+    <div id="shState" style="font-size:13px;color:var(--text2);margin-bottom:10px">加载中…</div>
+    <div style="display:flex;gap:8px;margin:10px 0">
+      <input id="shDir" placeholder="备份目录完整路径（默认最近一次备份）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
+      <button class="btn small" onclick="setShare()">设为分享</button>
+    </div>
+    <div id="shQr" style="min-height:170px;display:flex;align-items:center;justify-content:center"></div>
+    <div id="shUrl" style="font-size:12px;color:var(--text2);margin-top:8px;word-break:break-all"></div>
+    <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
+      朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
+      同一 Wi-Fi 直接访问；公网分享需要端口转发或内网穿透（frp/Tailscale）。<br>
+      工具页（本页）请勿直接暴露公网。
+    </div>
+    <button class="btn small" style="position:absolute;top:14px;right:16px" onclick="document.getElementById('shMask').remove()">关闭</button>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if(e.target === m) m.remove(); });
+  refreshShare();
+}
+async function refreshShare(){
+  const s = await (await fetch('/api/share')).json();
+  const st = document.getElementById('shState'); if(!st) return;
+  if(!s.dir){ st.textContent = '还没有分享目录：先完成一次备份（完成后自动设为分享），或在下方填入路径。';
+    document.getElementById('shQr').innerHTML = '<div style="color:var(--text2);font-size:13px;padding:30px 0">设置分享目录后，这里出现朋友链接二维码</div>';
+    document.getElementById('shUrl').textContent = '';
+    return;
+  }
+  st.innerHTML = `当前分享：<b style="word-break:break-all">${esc(s.dir)}</b><br>` +
+    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）');
+  const qr = document.getElementById('shQr'), url = s.guestUrl;
+  if(url && window.qrcode){
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    qr.innerHTML = q.createImgTag(4, 8);
+    const img = qr.querySelector('img'); if(img) img.style.borderRadius = '8px';
+  } else {
+    qr.innerHTML = url ? '' : '<div style="color:var(--text2);font-size:13px;padding:30px 0">打开 📱 手机访问 开关后出现二维码</div>';
+  }
+  document.getElementById('shUrl').textContent = url;
+}
+async function setShare(){
+  const dir = document.getElementById('shDir').value.trim();
+  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({dir})});
+  const j = await r.json().catch(()=>({}));
+  if(!j.ok){ alert(j.error || '设置失败'); return; }
+  refreshShare();
 }
 
 /* ---------- 手机访问（局域网） ---------- */
