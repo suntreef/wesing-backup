@@ -808,7 +808,7 @@ body:not(.vgrid) #cdCtrls{display:flex}
  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tape-sub{text-align:center;font-size:12px;color:#8a7a58;margin-top:4px}
 /* ---------- 频谱 ---------- */
-#skinSpectrum{justify-content:center;align-items:center;overflow-y:auto;padding-bottom:12px}
+#skinSpectrum{justify-content:center;align-items:center;overflow-y:auto;overflow-x:hidden;padding-bottom:12px}
 .spec-bg{position:absolute;inset:-40px;width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover;
  filter:blur(60px) brightness(.42) saturate(1.3);z-index:0}
 .spec-stage{position:relative;z-index:1;width:min(680px,94vw);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px 0 8px}
@@ -885,7 +885,6 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   .vmain{flex-direction:column;align-items:center;gap:10px;padding:4px 16px 0}
   .deck{flex:none}
   .cdwrap{width:240px;height:240px;margin-top:2px}
-  .vinyl-reflect{width:240px;height:90px}
   .arm{width:146px;height:220px;right:-10px;top:-16px}
   .now{margin-top:14px}
   .now .t{font-size:17px}
@@ -893,9 +892,10 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   .lyrics{min-height:210px;padding:10px 2px}
   .lyrics p{font-size:14px;padding:7px 3px}
   .lyrics p.on{font-size:16px}
-  .strip{padding:8px 16px 12px}
   .ctrl{gap:8px}
   .ctrl .big{width:50px;height:50px}
+  body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow-y:auto;overflow-x:hidden;height:auto}
+  #cdView{min-height:100dvh}
   .tape-body{padding:16px 14px 20px}
   .tape-window{gap:22px;height:150px}
   .reel{width:104px;height:104px}
@@ -924,7 +924,7 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
  <div class="meta" id="cdCtrls">空格键 播放/暂停 · Alt+←/→ 切歌 · 换肤不停播 · 切回目录音乐不断</div>
 </header>
 <div id="classicView">
- <div class="grid" id="g">__CARDS__</div>
+ <div class="grid" id="g"></div>
 </div>
 
 <div class="skin-view" id="skinVinyl">
@@ -1037,22 +1037,42 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
  <div id="dlist"></div>
 </div>
 <audio id="au" preload="none"></audio>
-<script>const SONGS = __DATA__;</script>
+<script>const SONGS = __DATA__;const CARDS = __CARDS__;</script>
 <script>
-/* ============ 目录视图 ============ */
-function num(c){var t=c.querySelector('.stats').textContent.match(/▶ (\d+)/);return t?+t[1]:0;}
-function scoreNum(c){var t=c.querySelector('.stats').textContent.match(/★ (\d+)/);return t?+t[1]:0;}
-function seqNum(c){var t=c.querySelector('.title a').textContent.match(/^(\d+)/);return t?+t[1]:0;}
+/* ============ 目录视图（增量渲染，千首不卡） ============ */
+const BATCH = 60;
+let view = [], shown = 0;
+function cardNode(c){ const d = document.createElement('div'); d.innerHTML = c.h; return d.firstElementChild; }
+function renderMore(){
+  const g = document.getElementById('g');
+  const sent = document.getElementById('gSentinel');
+  const frag = document.createDocumentFragment();
+  view.slice(shown, shown + BATCH).forEach(c => frag.appendChild(cardNode(c)));
+  if (sent) g.insertBefore(frag, sent); else g.appendChild(frag);
+  shown = Math.min(view.length, shown + BATCH);
+}
+function resetGrid(){
+  const g = document.getElementById('g');
+  g.innerHTML = '';
+  shown = 0;
+  const s = document.createElement('div');
+  s.id = 'gSentinel';
+  g.appendChild(s);
+  gridIO.observe(s);
+  renderMore();
+}
+const gridIO = new IntersectionObserver(es => {
+  if (es[0].isIntersecting && shown < view.length) renderMore();
+}, { rootMargin: '800px' });
 function flt(){
- var q=document.getElementById('q').value.toLowerCase();
- var m=document.querySelector('select').value;
- var cards=[...document.querySelectorAll('#classicView .card')];
- cards.forEach(c=>c.classList.toggle('hidden', !!q && !c.dataset.title.toLowerCase().includes(q)));
- if(m==='old'){cards.sort((a,b)=>seqNum(a)-seqNum(b));}
- else if(m==='hot'){cards.sort((a,b)=>num(b)-num(a));}
- else if(m==='score'){cards.sort((a,b)=>scoreNum(b)-scoreNum(a));}
- else{cards.sort((a,b)=>seqNum(b)-seqNum(a));}
- cards.forEach(c=>document.getElementById('g').appendChild(c));
+  const q = document.getElementById('q').value.toLowerCase();
+  const m = document.querySelector('select').value;
+  view = CARDS.filter(c => !q || c.text.includes(q));
+  if (m === 'old') view.sort((a,b) => a.seq - b.seq);
+  else if (m === 'hot') view.sort((a,b) => (b.play||0) - (a.play||0));
+  else if (m === 'score') view.sort((a,b) => (b.score||0) - (a.score||0));
+  else view.sort((a,b) => b.seq - a.seq);
+  resetGrid();
 }
 /* ============ 播放内核 ============ */
 const au = document.getElementById('au');
@@ -1086,6 +1106,7 @@ function levels(){
 /* 粒子背景 */
 const cv = document.getElementById('bg'), cx = cv.getContext('2d');
 let W, H, P = [];
+let specCv = null, scx = null;
 function rs(){ W = cv.width = innerWidth; H = cv.height = innerHeight; specFit(); }
 rs(); addEventListener('resize', () => { rs(); });
 for (let i = 0; i < 110; i++) P.push({
@@ -1210,8 +1231,9 @@ addEventListener('keydown', e => {
 document.querySelectorAll('.card audio').forEach(a =>
   a.addEventListener('play', () => { if (!au.paused) au.pause(); }));
 /* ============ 频谱 + 电平 + 律动 ============ */
-const specCv = document.getElementById('specCanvas'), scx = specCv.getContext('2d');
-function specFit(){ specCv.width = specCv.clientWidth || 640; specCv.height = specCv.clientHeight || 90; }
+specCv = document.getElementById('specCanvas');
+scx = specCv.getContext('2d');
+function specFit(){ if (!specCv) return; specCv.width = specCv.clientWidth || 640; specCv.height = specCv.clientHeight || 90; }
 function drawSpec(){
   const w = specCv.width, h = specCv.height;
   scx.clearRect(0, 0, w, h);
@@ -1290,6 +1312,7 @@ function setView(v){
   try { v = localStorage.getItem('kgview') || 'grid'; } catch(e) {}
   setView(['grid','vinyl','tape','spectrum','jukebox'].includes(v) ? v : 'grid');
 })();
+flt();
 </script></body></html>
 """
 
@@ -1303,7 +1326,7 @@ def write_html(out, entries, profile, generated):
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
 
-    cards = []
+    cards_data = []
     for e in sorted(entries, key=lambda x: x['seq'], reverse=True):
         cover_html = (f'<img loading="lazy" src="{esc(e["cover"])}" alt="">'
                       if e.get('cover') else '<div class="noimg">♪</div>')
@@ -1322,7 +1345,9 @@ def write_html(out, entries, profile, generated):
         duet = ('　👤 合唱：' + esc(e['partner'])) if e.get('is_duet') and e.get('partner') else ''
         player = (f'<audio controls preload="none" src="{esc(e["audio"])}"></audio>'
                   if e.get('audio') and e['audio'].endswith(('.m4a', '.mp4')) else '')
-        cards.append(f'''<div class="card" data-title="{esc(e['title'])} {esc(e['song_name'])} {esc(e['singer_name'])} {content}">
+        text = ' '.join(x for x in [e.get('title'), e.get('song_name'), e.get('singer_name'),
+                                    e.get('content')] if x).lower()
+        cards_data.append({'h': f'''<div class="card">
   {cover_html}
   <div class="body">
     <div class="title"><a href="{esc(e['web_url'])}" target="_blank">{e['seq']:04d} {esc(e['title'])}</a></div>
@@ -1332,7 +1357,8 @@ def write_html(out, entries, profile, generated):
     <div class="stats">{'　'.join(stats)}</div>
     {player}
   </div>
-</div>''')
+</div>''', 'seq': e['seq'], 'play': e.get('play_num') or 0,
+            'score': e.get('score') or 0, 'text': text})
 
     nick = esc(profile.get('nickname', ''))
     total = len(entries)
@@ -1363,9 +1389,10 @@ def write_html(out, entries, profile, generated):
         })
     data_json = json.dumps(data, ensure_ascii=False).replace('</', '<\\/')
 
+    cards_json = json.dumps(cards_data, ensure_ascii=False).replace('</', '<\\/')
     doc = (PAGE_TEMPLATE
            .replace('__DATA__', data_json)
-           .replace('__CARDS__', ''.join(cards))
+           .replace('__CARDS__', cards_json)
            .replace('__NICK__', nick)
            .replace('__STAT__', esc(stat))
            .replace('__PLAYS__', str(plays))
@@ -1461,7 +1488,6 @@ main{position:relative;z-index:1;flex:1;display:flex;gap:30px;padding:6px 30px 0
   .lyrics{min-height:210px;padding:10px 2px}
   .lyrics p{font-size:14px;padding:7px 3px}
   .lyrics p.on{font-size:16px}
-  .strip{padding:8px 16px 12px}
 }
 </style></head><body>
 <canvas id="bg"></canvas>
