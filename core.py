@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.5.0'
+APP_VERSION = '1.6.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -667,8 +667,9 @@ header{position:sticky;top:0;z-index:9;padding:18px 24px 10px;background:rgba(17
  backdrop-filter:blur(6px);border-bottom:1px solid #2a2f36}
 .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 h1{margin:0;font-size:22px}
-.seg{display:inline-flex;background:#1a1f26;border-radius:999px;padding:4px;gap:4px;margin-left:auto}
-.seg button{border:none;background:none;color:#9aa3ad;padding:7px 18px;border-radius:999px;font-size:13px;cursor:pointer;transition:.2s}
+.seg{display:inline-flex;background:#1a1f26;border-radius:999px;padding:4px;gap:4px;margin-left:auto;
+ overflow-x:auto;max-width:100%}
+.seg button{border:none;background:none;color:#9aa3ad;padding:7px 16px;border-radius:999px;font-size:13px;cursor:pointer;transition:.2s;white-space:nowrap}
 .seg button.on{background:#ffd76a;color:#111;font-weight:700}
 .meta{color:#9aa3ad;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px}
 #q{padding:7px 12px;border-radius:8px;border:1px solid #3a4149;background:#1b2026;color:#eee;width:min(200px,38vw)}
@@ -686,34 +687,24 @@ select{padding:7px;border-radius:8px;border:1px solid #3a4149;background:#1b2026
 .content{color:#cfd6dd;font-size:13px;background:#222932;border-left:3px solid #3f6ea5;padding:6px 9px;border-radius:0 6px 6px 0;white-space:pre-wrap}
 audio{width:100%;height:34px;margin-top:4px}
 .hidden{display:none}
-/* ---------- CD视图 ---------- */
-#cdView{display:none;flex-direction:column;flex:1;position:relative;min-height:0;
- background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%)}
-main{flex:1;display:flex;gap:30px;padding:10px 30px 0;min-height:0}
-.deck{flex:0 0 400px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
-.cdwrap{position:relative;width:330px;height:330px;margin-top:6px}
-.cd{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#181b22 62%,#20242e 63%,#0e1015 100%);
- box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;overflow:hidden}
-.cd .cover{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;
- animation:spin 14s linear infinite;animation-play-state:paused;will-change:transform}
-.cd.playing .cover{animation-play-state:running}
-.cd .glare{position:absolute;inset:0;border-radius:50%;
- background:conic-gradient(from 210deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40deg,rgba(255,255,255,.16) 80deg,rgba(255,255,255,.03) 130deg,rgba(255,255,255,.15) 190deg,rgba(255,255,255,.02) 260deg,rgba(255,255,255,.14) 320deg);
- mix-blend-mode:screen;animation:spin 14s linear infinite;animation-play-state:paused}
-.cd.playing .glare{animation-play-state:running}
-.cd .hole{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px;
- border-radius:50%;background:#0b0d13;border:1px solid rgba(255,255,255,.15);z-index:3}
-.cd .hole::after{content:'';position:absolute;inset:18px;border-radius:50%;background:#171b24}
-@keyframes spin{to{transform:rotate(360deg)}}
-.arm{position:absolute;right:-26px;top:-34px;width:200px;height:300px;z-index:4;pointer-events:none;
- transform:rotate(-24deg);transform-origin:78% 14%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
-.cdwrap.playing .arm{transform:rotate(6deg)}
-.now{margin-top:26px;text-align:center;max-width:360px}
-.now .t{font-size:20px;font-weight:700;color:#fff}
-.now .s{color:#8f9aac;font-size:13px;margin-top:5px}
-.now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
-.side{flex:1;display:flex;flex-direction:column;min-width:0}
-.lyrics{flex:1;overflow-y:auto;padding:26px 8px;text-align:center;scroll-behavior:smooth;
+/* ---------- 皮肤通用 ---------- */
+.skin-view{display:none;flex:1;position:relative;min-height:0;z-index:1}
+body.vvinyl #skinVinyl,body.vtape #skinTape,body.vspectrum #skinSpectrum,body.vjukebox #skinJuke{display:flex}
+body:not(.vgrid) #classicView{display:none}
+body:not(.vgrid) #strip{display:flex}
+#strip{display:none;flex:none;height:128px;align-items:center;gap:12px;overflow-x:auto;padding:8px 26px 14px;
+ background:rgba(255,255,255,.025);position:relative;z-index:2}
+#strip::-webkit-scrollbar{height:6px}
+#strip::-webkit-scrollbar-thumb{background:#2a3040;border-radius:6px}
+.pl{flex:none;width:92px;cursor:pointer;text-align:center}
+.pl img{width:86px;height:86px;border-radius:10px;object-fit:cover;opacity:.62;transition:.2s;border:2px solid transparent}
+.pl:hover img{opacity:1}
+.pl.on img{opacity:1;border-color:#ffd76a}
+.pl div{font-size:11px;color:#8f9aac;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl.on div{color:#ffd76a}
+#cdCtrls{display:none}
+body:not(.vgrid) #cdCtrls{display:flex}
+.lyrics{flex:1;overflow-y:auto;text-align:center;scroll-behavior:smooth;
  -webkit-mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent);
  mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent)}
 .lyrics p{padding:9px 4px;color:#5c6675;font-size:15px;transition:all .25s}
@@ -725,25 +716,142 @@ main{flex:1;display:flex;gap:30px;padding:10px 30px 0;min-height:0}
 .ctrl .big{width:58px;height:58px;flex:none;font-size:21px;background:#ffd76a;color:#111;border:none;font-weight:700;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 .ctrl .big:hover{background:#ffe28a;border:none;color:#111}
 .time{color:#8f9aac;font-size:12px;font-variant-numeric:tabular-nums}
-#seek{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:#262c38;outline:none}
-#seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#ffd76a;cursor:pointer}
-.strip{flex:none;height:128px;display:flex;align-items:center;gap:12px;
- overflow-x:auto;padding:8px 26px 14px;background:rgba(255,255,255,.025)}
-.strip::-webkit-scrollbar{height:6px}
-.strip::-webkit-scrollbar-thumb{background:#2a3040;border-radius:6px}
-.pl{flex:none;width:92px;cursor:pointer;text-align:center}
-.pl img{width:86px;height:86px;border-radius:10px;object-fit:cover;opacity:.62;transition:.2s;border:2px solid transparent}
-.pl:hover img{opacity:1}
-.pl.on img{opacity:1;border-color:#ffd76a}
-.pl div{font-size:11px;color:#8f9aac;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pl.on div{color:#ffd76a}
+#seek,#seek2{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:#262c38;outline:none}
+#seek::-webkit-slider-thumb,#seek2::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#ffd76a;cursor:pointer}
+/* ---------- 黑胶（精修） ---------- */
+#skinVinyl{flex-direction:column;background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%)}
+.vmain{flex:1;display:flex;gap:30px;padding:10px 30px 0;min-height:0}
+.deck{flex:0 0 400px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.cdwrap{position:relative;width:330px;height:330px;margin-top:6px}
+.cd{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#181b22 62%,#20242e 63%,#0e1015 100%);
+ box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;overflow:hidden}
+.cd .cover{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;
+ animation:spin 14s linear infinite;animation-play-state:paused;will-change:transform}
+.cd .grooves{position:absolute;inset:0;border-radius:50%;z-index:2;pointer-events:none;
+ background:repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.03) 0 2px,rgba(0,0,0,.06) 2px 5px);
+ mix-blend-mode:overlay;animation:spin 14s linear infinite;animation-play-state:paused}
+.cd .glare{position:absolute;inset:0;border-radius:50%;z-index:3;
+ background:conic-gradient(from 210deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40deg,rgba(255,255,255,.16) 80deg,rgba(255,255,255,.03) 130deg,rgba(255,255,255,.15) 190deg,rgba(255,255,255,.02) 260deg,rgba(255,255,255,.14) 320deg);
+ mix-blend-mode:screen;animation:spin 14s linear infinite;animation-play-state:paused}
+.cd .hole{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px;
+ border-radius:50%;background:#0b0d13;border:1px solid rgba(255,255,255,.15);z-index:4}
+.cd .hole::after{content:'';position:absolute;inset:18px;border-radius:50%;background:#171b24}
+.cd.playing .cover,.cd.playing .grooves,.cd.playing .glare{animation-play-state:running}
+@keyframes spin{to{transform:rotate(360deg)}}
+.arm{position:absolute;right:-26px;top:-34px;width:200px;height:300px;z-index:4;pointer-events:none;
+ transform:rotate(-24deg);transform-origin:78% 14%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.cdwrap.playing .arm{transform:rotate(6deg)}
+.vinyl-reflect{width:330px;height:120px;margin-top:10px;border-radius:10px;overflow:hidden;opacity:.35;
+ -webkit-mask-image:linear-gradient(#fff,transparent 75%);mask-image:linear-gradient(#fff,transparent 75%)}
+.vinyl-reflect img{width:100%;height:210px;object-fit:cover;transform:scaleY(-1);filter:blur(2px) saturate(.8)}
+.now{margin-top:18px;text-align:center;max-width:360px}
+.now .t{font-size:20px;font-weight:700;color:#fff}
+.now .s{color:#8f9aac;font-size:13px;margin-top:5px}
+.now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
+.vside{flex:1;display:flex;flex-direction:column;min-width:0;padding:10px 30px 0}
+/* ---------- 卡座 ---------- */
+#skinTape{flex-direction:column;align-items:center;justify-content:center;padding:20px;
+ background:linear-gradient(180deg,#20242e,#12151c 70%,#0b0d13)}
+.tape-body{width:min(680px,94vw);border-radius:22px;padding:22px 26px 26px;
+ background:linear-gradient(180deg,#e7dcc3,#d6c6a2 60%,#c4b28c);
+ box-shadow:0 24px 60px rgba(0,0,0,.55),0 2px 0 rgba(255,255,255,.35) inset,0 -6px 18px rgba(0,0,0,.2) inset;
+ color:#4a3f2e}
+.tape-brand{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:3px;
+ color:#7a6c50;font-weight:700;margin-bottom:12px}
+.tape-window{position:relative;height:190px;border-radius:14px;
+ background:linear-gradient(180deg,#2c2620,#1a1712);box-shadow:0 4px 14px rgba(0,0,0,.4) inset;
+ display:flex;align-items:center;justify-content:center;gap:44px;padding:14px}
+.reel{position:relative;width:130px;height:130px;border-radius:50%;
+ background:radial-gradient(circle,#3a3226 30%,#241f18 31%,#171310 100%);
+ box-shadow:0 0 0 4px rgba(0,0,0,.35),0 0 22px rgba(0,0,0,.5) inset}
+.reel img{position:absolute;inset:14px;width:calc(100% - 28px);height:calc(100% - 28px);border-radius:50%;object-fit:cover;opacity:.9;
+ animation:spin 8s linear infinite;animation-play-state:paused}
+.reel .spokes{position:absolute;inset:0;border-radius:50%;
+ background:repeating-conic-gradient(rgba(255,255,255,.12) 0 14deg,transparent 14deg 45deg);
+ animation:spin 8s linear infinite;animation-play-state:paused}
+.reel .hub{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px;border-radius:50%;
+ background:#d6c6a2;box-shadow:0 2px 6px rgba(0,0,0,.5);z-index:3}
+.reel .hub::after{content:'';position:absolute;inset:8px;border-radius:50%;background:#8a7a58}
+.tape-window.playing .reel img,.tape-window.playing .reel .spokes{animation-play-state:running}
+.tape-link{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:120px;height:10px;border-radius:6px;
+ background:linear-gradient(90deg,#1a1208,#3d2c14 40%,#1a1208);box-shadow:0 1px 3px rgba(0,0,0,.6)}
+.tape-meters{display:flex;align-items:center;justify-content:space-between;margin:16px 6px 6px}
+.vu{display:flex;align-items:center;gap:10px}
+.vu-gauge{position:relative;width:110px;height:56px;border-radius:10px 10px 4px 4px;overflow:hidden;
+ background:linear-gradient(180deg,#14110c,#241e14);box-shadow:0 2px 8px rgba(0,0,0,.4) inset}
+.vu-gauge::after{content:'';position:absolute;left:8%;right:8%;bottom:0;height:2px;background:#6b5c40}
+.vu-needle{position:absolute;left:50%;bottom:4px;width:3px;height:44px;border-radius:2px;
+ background:linear-gradient(#ff6b5e,#ffb020);transform-origin:50% 100%;transform:rotate(-38deg);
+ transition:transform .12s ease-out;box-shadow:0 0 6px rgba(255,176,32,.5)}
+.vu-lab{font-size:11px;color:#7a6c50;font-weight:700}
+.led{padding:8px 18px;border-radius:8px;background:#16120c;border:1px solid #3a3122;
+ font-family:Consolas,Menlo,monospace;font-size:26px;letter-spacing:4px;color:#ffb02e;
+ text-shadow:0 0 12px rgba(255,176,32,.65);box-shadow:0 2px 10px rgba(0,0,0,.6) inset}
+.tape-keys{display:flex;align-items:center;justify-content:center;gap:14px;margin-top:16px}
+.tkey{min-width:86px;padding:12px 16px;border:none;border-radius:8px;cursor:pointer;
+ background:linear-gradient(180deg,#f3ead6,#d9c9a8);color:#4a3f2e;font-weight:700;font-size:13px;letter-spacing:2px;
+ box-shadow:0 3px 0 #a8987288,0 6px 14px rgba(0,0,0,.3);-webkit-appearance:none;appearance:none;transition:.1s}
+.tkey:active{transform:translateY(3px);box-shadow:0 0 0 #a8987288,0 2px 8px rgba(0,0,0,.3)}
+.tkey.on{background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#3a2f14}
+.tape-title{text-align:center;margin-top:14px;font-size:15px;font-weight:700;color:#4a3f2e;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tape-sub{text-align:center;font-size:12px;color:#8a7a58;margin-top:4px}
+/* ---------- 频谱 ---------- */
+#skinSpectrum{justify-content:center;align-items:center;overflow-y:auto;padding-bottom:12px}
+.spec-bg{position:absolute;inset:-40px;width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover;
+ filter:blur(60px) brightness(.42) saturate(1.3);z-index:0}
+.spec-stage{position:relative;z-index:1;width:min(680px,94vw);text-align:center;display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px 0 8px}
+.spec-cover{width:min(300px,60vw);height:min(300px,60vw);border-radius:20px;object-fit:cover;
+ box-shadow:0 30px 90px rgba(0,0,0,.6);animation:breathe 4.5s ease-in-out infinite;animation-play-state:paused}
+body.vspectrum.playing .spec-cover{animation-play-state:running}
+@keyframes breathe{50%{transform:scale(1.035)}}
+.spec-title{font-size:24px;font-weight:700;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.5)}
+.spec-sub{color:#b9c2d4;font-size:13px}
+.spec-line{min-height:30px;color:#ffd76a;font-size:16px;font-weight:600;text-shadow:0 2px 14px rgba(0,0,0,.55)}
+#specCanvas{width:min(640px,92vw);height:90px}
+.sctrl{width:min(640px,92vw);display:flex;align-items:center;gap:12px}
+/* ---------- 点唱机 ---------- */
+#skinJuke{justify-content:center;align-items:center;padding:26px;background:
+ radial-gradient(900px 600px at 50% 0%,#231a33,#131020 55%,#0a0812)}
+.juke{width:min(460px,94vw);margin:0 auto;text-align:center}
+.juke-arch{position:relative;height:380px;border-radius:230px 230px 24px 24px / 190px 190px 24px 24px;
+ background:linear-gradient(180deg,#241a3a,#181226 60%,#100c1a);
+ box-shadow:0 0 0 5px #2c2145,0 0 34px rgba(124,77,255,.35),0 26px 70px rgba(0,0,0,.6);overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
+.juke-arch .neon{position:absolute;border-radius:50%;pointer-events:none;filter:blur(1px);opacity:.9}
+.neon.n1{inset:14px;border:6px solid transparent;
+ background:conic-gradient(from 0deg,#ff4fa3,#ffd76a,#4fe3ff,#7cffb2,#ff4fa3) border-box;
+ -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+ animation:huerot 6s linear infinite}
+.neon.n2{inset:34px;border:3px solid rgba(255,215,106,.8);box-shadow:0 0 18px rgba(255,215,106,.5)}
+.neon.n3{inset:52px;border:3px solid rgba(79,227,255,.55);box-shadow:0 0 16px rgba(79,227,255,.45)}
+@keyframes huerot{to{filter:hue-rotate(360deg)}}
+.juke-cover{position:relative;z-index:2;width:min(300px,58vw);height:min(300px,58vw);object-fit:cover;border-radius:16px 16px 8px 8px;
+ box-shadow:0 18px 50px rgba(0,0,0,.65),0 0 0 4px rgba(255,255,255,.06);
+ transform:scale(calc(.92 + .08 * var(--lvl,.2)));transition:transform .18s;margin-bottom:26px}
+.juke-panel{background:linear-gradient(180deg,#2a2140,#171126);border-radius:0 0 26px 26px;
+ margin-top:-14px;padding:18px 22px 22px;box-shadow:0 0 0 4px #2c2145,0 0 26px rgba(124,77,255,.25)}
+.juke-title{font-size:19px;font-weight:700;color:#fff}
+.juke-sub{color:#9d92c9;font-size:13px;margin-top:5px}
+.jk-play{margin-top:14px;padding:12px 30px;border:none;border-radius:999px;cursor:pointer;font-weight:700;font-size:15px;
+ background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#2c2145;-webkit-appearance:none;appearance:none;
+ box-shadow:0 0 22px rgba(255,215,106,.45),0 4px 0 #b8923a}
+.jk-play:active{transform:translateY(3px);box-shadow:0 0 22px rgba(255,215,106,.45)}
+.juke-lights{display:flex;gap:10px;justify-content:center;margin-top:16px}
+.juke-lights i{width:10px;height:10px;border-radius:50%;background:#7c4dff;box-shadow:0 0 12px #7c4dff;
+ animation:blink 1.6s infinite}
+.juke-lights i:nth-child(2){background:#ff4fa3;box-shadow:0 0 12px #ff4fa3;animation-delay:.2s}
+.juke-lights i:nth-child(3){background:#4fe3ff;box-shadow:0 0 12px #4fe3ff;animation-delay:.4s}
+.juke-lights i:nth-child(4){background:#7cffb2;box-shadow:0 0 12px #7cffb2;animation-delay:.6s}
+.juke-lights i:nth-child(5){background:#ffd76a;box-shadow:0 0 12px #ffd76a;animation-delay:.8s}
+@keyframes blink{50%{opacity:.25}}
 /* ---------- 视图状态 ---------- */
-body.vcd #classicView{display:none}
-body.vcd #cdView{display:flex}
-body.vcd{overflow:hidden;height:100vh;height:100dvh}
-body.vcd #gridCtrls{display:none}
+body.vvinyl #classicView,body.vtape #classicView,body.vspectrum #classicView,body.vjukebox #classicView{display:none}
+body.vgrid #classicView{display:block}
+body.vvinyl #skinVinyl,body.vtape #skinTape,body.vspectrum #skinSpectrum,body.vjukebox #skinJuke{display:flex}
+body:not(.vgrid) #gridCtrls{display:none}
 #cdCtrls{display:none}
-body.vcd #cdCtrls{display:block}
+body.vvinyl #cdCtrls,body.vtape #cdCtrls,body.vspectrum #cdCtrls,body.vjukebox #cdCtrls{display:flex}
+body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh;height:100dvh}
 @media (max-width:640px){
   header{padding:14px 14px 8px}
   header .hrow{gap:8px}
@@ -752,20 +860,26 @@ body.vcd #cdCtrls{display:block}
   .grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:14px}
 }
 @media (max-width:880px){
-  body.vcd{overflow:auto;overflow-x:hidden;height:auto}
-  main{flex-direction:column;align-items:center;gap:10px;padding:4px 16px 0}
+  .vmain{flex-direction:column;align-items:center;gap:10px;padding:4px 16px 0}
   .deck{flex:none}
   .cdwrap{width:240px;height:240px;margin-top:2px}
+  .vinyl-reflect{width:240px;height:90px}
   .arm{width:146px;height:220px;right:-10px;top:-16px}
   .now{margin-top:14px}
   .now .t{font-size:17px}
-  .side{width:100%}
+  .vside{width:100%;padding:10px 16px 0}
   .lyrics{min-height:210px;padding:10px 2px}
   .lyrics p{font-size:14px;padding:7px 3px}
   .lyrics p.on{font-size:16px}
   .strip{padding:8px 16px 12px}
   .ctrl{gap:8px}
   .ctrl .big{width:50px;height:50px}
+  .tape-body{padding:16px 14px 20px}
+  .tape-window{gap:22px;height:150px}
+  .reel{width:104px;height:104px}
+  .tape-link{width:90px}
+  .led{font-size:20px;padding:6px 12px}
+  .spec-cover{width:min(220px,56vw);height:min(220px,56vw)}
 }
 </style></head><body data-view="grid">
 <canvas id="bg"></canvas>
@@ -774,7 +888,10 @@ body.vcd #cdCtrls{display:block}
   <h1>__NICK__ 的全民K歌备份</h1>
   <div class="seg">
    <button id="segGrid" class="on" onclick="setView('grid')">📋 目录</button>
-   <button id="segCd" onclick="setView('cd')">🎧 复古CD机</button>
+   <button id="segVinyl" onclick="setView('vinyl')">🎧 黑胶</button>
+   <button id="segTape" onclick="setView('tape')">📼 卡座</button>
+   <button id="segSpec" onclick="setView('spectrum')">🌈 频谱</button>
+   <button id="segJuke" onclick="setView('jukebox')">🎙 点唱机</button>
   </div>
  </div>
  <div class="meta">__STAT__ · 总播放 __PLAYS__</div>
@@ -782,17 +899,19 @@ body.vcd #cdCtrls{display:block}
    <input id="q" placeholder="搜索歌名/介绍…" oninput="flt()">
    <select onchange="flt()"><option value="new">最新在前</option><option value="old">最早在前</option><option value="hot">播放最多</option><option value="score">评分最高</option></select>
  </div>
- <div class="meta" id="cdCtrls">空格键 播放/暂停 · Alt+←/→ 切歌 · 切回目录视图音乐不断</div>
+ <div class="meta" id="cdCtrls">空格键 播放/暂停 · Alt+←/→ 切歌 · 换肤不停播 · 切回目录音乐不断</div>
 </header>
 <div id="classicView">
  <div class="grid" id="g">__CARDS__</div>
 </div>
-<div id="cdView">
- <main>
+
+<div class="skin-view" id="skinVinyl">
+ <div class="vmain">
   <div class="deck">
    <div class="cdwrap" id="cdwrap">
     <div class="cd" id="cd">
-      <img class="cover" id="cover" alt="">
+      <img class="cover jsCover" alt="">
+      <div class="grooves"></div>
       <div class="glare"></div><div class="hole"></div>
     </div>
     <svg class="arm" viewBox="0 0 200 300">
@@ -802,26 +921,87 @@ body.vcd #cdCtrls{display:block}
       <rect x="138" y="196" width="52" height="26" rx="12" fill="#20242e" stroke="#3a4150" transform="rotate(-18 164 209)"/>
     </svg>
    </div>
+   <div class="vinyl-reflect"><img class="jsCover" alt=""></div>
    <div class="now">
-    <div class="t" id="nTitle">—</div>
-    <div class="s" id="nSub">切到本视图，点 ▶ 开始播放</div>
-    <div class="c" id="nDesc"></div>
+    <div class="t jsTitle">—</div>
+    <div class="s jsSub">切到本视图，点 ▶ 开始播放</div>
+    <div class="c jsDesc"></div>
    </div>
   </div>
-  <div class="side">
-   <div class="lyrics" id="lyrics"><p style="color:#7c8496">♪ 选择一首歌开始播放</p></div>
+  <div class="vside">
+   <div class="lyrics" id="lyVinyl"><p style="color:#7c8496">♪ 选择一首歌开始播放</p></div>
    <div class="ctrl">
-    <span class="time" id="tCur">0:00</span>
-    <input type="range" id="seek" min="0" max="1000" value="0">
-    <span class="time" id="tEnd">0:00</span>
-    <button onclick="prev()" title="上一首">⏮</button>
-    <button class="big" id="playBtn" onclick="togglePlay()" title="播放/暂停">▶</button>
-    <button onclick="next()" title="下一首">⏭</button>
+    <span class="time jsCur">0:00</span>
+    <input type="range" class="jsSeek" min="0" max="1000" value="0">
+    <span class="time jsEnd">0:00</span>
+    <button class="jsPrev" onclick="prev()" title="上一首">⏮</button>
+    <button class="big jsPlay" onclick="togglePlay()" title="播放/暂停">▶</button>
+    <button class="jsNext" onclick="next()" title="下一首">⏭</button>
    </div>
   </div>
- </main>
- <div class="strip" id="strip"></div>
+ </div>
 </div>
+
+<div class="skin-view" id="skinTape">
+ <div class="tape-body">
+  <div class="tape-brand"><span>K-SONG STEREO</span><span>TAPE ▸ __TOTAL__</span></div>
+  <div class="tape-window" id="tapeWin">
+    <div class="reel"><img class="jsCover" alt=""><div class="spokes"></div><div class="hub"></div></div>
+    <div class="tape-link"></div>
+    <div class="reel"><div class="spokes"></div><div class="hub"></div></div>
+  </div>
+  <div class="tape-meters">
+    <div class="vu"><div class="vu-lab">L</div><div class="vu-gauge"><div class="vu-needle" id="vuL"></div></div></div>
+    <div class="led jsLED" id="ledTime">00:00</div>
+    <div class="vu"><div class="vu-lab">R</div><div class="vu-gauge"><div class="vu-needle" id="vuR"></div></div></div>
+  </div>
+  <div class="tape-keys">
+    <button class="tkey jsPrev" onclick="prev()">⏮ PREV</button>
+    <button class="tkey big jsPlay" onclick="togglePlay()">▶ PLAY</button>
+    <button class="tkey jsNext" onclick="next()">⏭ NEXT</button>
+  </div>
+  <div class="tape-title jsTitle">—</div>
+  <div class="tape-sub jsSub"></div>
+ </div>
+</div>
+
+<div class="skin-view" id="skinSpectrum">
+ <img class="spec-bg jsCover" alt="">
+ <div class="spec-stage">
+  <img class="spec-cover jsCover" alt="">
+  <div class="spec-title jsTitle">—</div>
+  <div class="spec-sub jsSub"></div>
+  <div class="spec-line" id="specLyric">♪</div>
+  <canvas id="specCanvas"></canvas>
+  <div class="sctrl">
+   <span class="time jsCur">0:00</span>
+   <input type="range" class="jsSeek" min="0" max="1000" value="0">
+   <span class="time jsEnd">0:00</span>
+  </div>
+  <div class="ctrl">
+   <button class="jsPrev" onclick="prev()">⏮</button>
+   <button class="big jsPlay" onclick="togglePlay()">▶</button>
+   <button class="jsNext" onclick="next()">⏭</button>
+  </div>
+ </div>
+</div>
+
+<div class="skin-view" id="skinJuke">
+ <div class="juke">
+  <div class="juke-arch">
+   <div class="neon n1"></div><div class="neon n2"></div><div class="neon n3"></div>
+   <img class="juke-cover jsCover" alt="">
+  </div>
+  <div class="juke-panel">
+   <div class="juke-title jsTitle">—</div>
+   <div class="juke-sub jsSub"></div>
+   <button class="jk-play jsPlay" onclick="togglePlay()">▶ SELECT · 播放</button>
+   <div class="juke-lights"><i></i><i></i><i></i><i></i><i></i></div>
+  </div>
+ </div>
+</div>
+
+<div id="strip"></div>
 <audio id="au" preload="none"></audio>
 <script>const SONGS = __DATA__;</script>
 <script>
@@ -840,16 +1020,40 @@ function flt(){
  else{cards.sort((a,b)=>seqNum(b)-seqNum(a));}
  cards.forEach(c=>document.getElementById('g').appendChild(c));
 }
-/* ============ CD播放器 ============ */
+/* ============ 播放内核 ============ */
 const au = document.getElementById('au');
 let cur = -1, lrc = [], lrcOn = -1, seeking = false, cdBuilt = false;
 const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* Web Audio 分析（频谱/电平表/霓虹律动共用） */
+let actx = null, analyser = null, freq = null, fakeT = 0;
+const fakeArr = new Uint8Array(64);
+function ensureAudioGraph(){
+  if (actx) { if (actx.state === 'suspended') actx.resume(); return true; }
+  try {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    const srcN = actx.createMediaElementSource(au);
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 256;
+    srcN.connect(analyser);
+    analyser.connect(actx.destination);
+    freq = new Uint8Array(analyser.frequencyBinCount);
+    return true;
+  } catch (e) { actx = null; analyser = null; return false; }
+}
+function levels(){
+  if (analyser) { analyser.getByteFrequencyData(freq); return freq; }
+  fakeT += .09;
+  for (let i = 0; i < fakeArr.length; i++)
+    fakeArr[i] = 34 + 66 * Math.abs(Math.sin(fakeT * (1 + i * .05) + i * .28));
+  return fakeArr;
+}
 /* 粒子背景 */
 const cv = document.getElementById('bg'), cx = cv.getContext('2d');
 let W, H, P = [];
-function rs(){ W = cv.width = innerWidth; H = cv.height = innerHeight; }
-rs(); addEventListener('resize', rs);
+function rs(){ W = cv.width = innerWidth; H = cv.height = innerHeight; specFit(); }
+rs(); addEventListener('resize', () => { rs(); });
 for (let i = 0; i < 110; i++) P.push({
   x: Math.random(), y: Math.random(), r: .6 + Math.random() * 2.1,
   vy: .12 + Math.random() * .5, vx: (Math.random() - .5) * .16,
@@ -884,9 +1088,14 @@ function parseLrc(text){
   return out.sort((a, b) => a.t - b.t);
 }
 function renderLrc(){
-  const box = $('#lyrics');
-  if (!lrc.length) { box.innerHTML = '<p style="color:#7c8496">这首歌没有找到歌词文件</p>'; return; }
-  box.innerHTML = lrc.map((l, i) => `<p data-i="${i}">${l.text || '♪'}</p>`).join('');
+  const boxes = ['#lyVinyl'];
+  for (const sel of boxes) {
+    const box = document.querySelector(sel);
+    if (!box) continue;
+    box.innerHTML = lrc.length ? lrc.map((l, i) => `<p data-i="${i}">${l.text || '♪'}</p>`).join('')
+                               : '<p style="color:#7c8496">这首歌没有找到歌词文件</p>';
+  }
+  lrcOn = -1;
 }
 function syncLrc(t){
   if (!lrc.length) return;
@@ -894,63 +1103,116 @@ function syncLrc(t){
   for (let k = 0; k < lrc.length; k++) if (lrc[k].t <= t) i = k;
   if (i === lrcOn) return;
   lrcOn = i;
-  const box = $('#lyrics');
+  const box = $('#lyVinyl');
   [...box.querySelectorAll('p')].forEach((p, k) => p.classList.toggle('on', k === i));
   const el = box.querySelector('p[data-i="' + i + '"]');
   if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  const line = lrc[i] ? (lrc[i].text || '♪') : '';
+  const sp = document.getElementById('specLyric');
+  if (sp && document.body.dataset.view === 'spectrum') sp.textContent = line || '♪';
 }
 function fmt(s){ s = Math.max(0, s | 0); return (s / 60 | 0) + ':' + String(s % 60).padStart(2, '0'); }
+function fmtL(s){ s = Math.max(0, s | 0); return String(s / 60 | 0).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
 function load(i, autoplay){
   if (!SONGS.length) return;
   cur = (i + SONGS.length) % SONGS.length;
   const e = SONGS[cur];
   au.src = e.audio;
-  $('#cover').src = e.cover || '';
-  $('#nTitle').textContent = e.title;
-  $('#nSub').textContent = '原唱：' + (e.singer ? e.singer + '《' + e.song + '》' : (e.song || '—'))
+  $$('.jsCover').forEach(el => el.src = e.cover || '');
+  $$('.jsTitle').forEach(el => el.textContent = e.title);
+  const sub = '原唱：' + (e.singer ? e.singer + '《' + e.song + '》' : (e.song || '—'))
     + '　·　' + e.time + (e.score ? '　·　评分 ' + e.score : '');
-  $('#nDesc').textContent = e.content || '';
-  $('#tEnd').textContent = fmt(au.duration || 0);
+  $$('.jsSub').forEach(el => el.textContent = sub);
+  $$('.jsDesc').forEach(el => el.textContent = e.content || '');
+  $$('.jsEnd').forEach(el => el.textContent = fmt(au.duration || 0));
   lrc = []; lrcOn = -1; renderLrc();
   if (e.lrc) fetch(e.lrc).then(r => r.ok ? r.text() : '').then(t => {
     if (e.audio === au.getAttribute('src') && t) { lrc = parseLrc(t); renderLrc(); syncLrc(au.currentTime || 0); }
   }).catch(() => {});
-  [...document.querySelectorAll('.pl')].forEach((p, k) => p.classList.toggle('on', k === cur));
+  $$('.pl').forEach((p, k) => p.classList.toggle('on', k === cur));
   if (autoplay) play(); else pauseUi();
   const on = document.querySelector('.pl.on');
   if (on) on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
 }
 function play(){ au.play().catch(() => {}); }
-function pauseUi(){ $('#cd').classList.remove('playing'); $('#cdwrap').classList.remove('playing'); $('#playBtn').textContent = '▶'; }
+function pauseUi(){ $('#cd').classList.remove('playing'); $('#cdwrap').classList.remove('playing');
+  document.getElementById('tapeWin').classList.remove('playing');
+  $$('.jsPlay').forEach(el => el.textContent = el.classList.contains('tkey') ? '▶ PLAY' : '▶'); }
 function togglePlay(){
   if (cur < 0) { load(0, true); return; }
   if (au.paused) play(); else au.pause();
 }
-au.onplay = () => { $('#cd').classList.add('playing'); $('#cdwrap').classList.add('playing'); $('#playBtn').textContent = '⏸';
-  document.querySelectorAll('.card audio').forEach(a => { try { a.pause(); } catch(e){} }); };
+au.onplay = () => {
+  $('#cd').classList.add('playing'); $('#cdwrap').classList.add('playing');
+  document.getElementById('tapeWin').classList.add('playing');
+  $$('.jsPlay').forEach(el => el.textContent = el.classList.contains('tkey') ? '⏸ PAUSE' : '⏸');
+  ensureAudioGraph();
+  $$('.card audio').forEach(a => { try { a.pause(); } catch(e){} });
+};
 au.onpause = () => pauseUi();
 au.onended = () => load(cur + 1, true);
 au.ontimeupdate = () => {
-  if (!seeking && au.duration) $('#seek').value = au.currentTime / au.duration * 1000;
-  $('#tCur').textContent = fmt(au.currentTime);
-  $('#tEnd').textContent = fmt(au.duration || 0);
+  if (!seeking) $$('.jsSeek').forEach(el => el.value = au.duration ? au.currentTime / au.duration * 1000 : 0);
+  $$('.jsCur').forEach(el => el.textContent = fmt(au.currentTime));
+  $$('.jsEnd').forEach(el => el.textContent = fmt(au.duration || 0));
+  document.getElementById('ledTime').textContent = fmtL(au.currentTime);
   syncLrc(au.currentTime);
 };
-au.onloadedmetadata = () => { $('#tEnd').textContent = fmt(au.duration || 0); };
-$('#seek').addEventListener('input', () => { seeking = true; });
-$('#seek').addEventListener('change', () => {
-  if (au.duration) au.currentTime = $('#seek').value / 1000 * au.duration;
-  seeking = false;
+au.onloadedmetadata = () => { $$('.jsEnd').forEach(el => el.textContent = fmt(au.duration || 0)); };
+$$('.jsSeek').forEach(el => {
+  el.addEventListener('input', () => { seeking = true; });
+  el.addEventListener('change', () => {
+    if (au.duration) au.currentTime = el.value / 1000 * au.duration;
+    seeking = false;
+  });
 });
 function prev(){ load(cur - 1, true); }
 function next(){ load(cur + 1, true); }
 addEventListener('keydown', e => {
-  if (e.code === 'Space' && document.body.dataset.view === 'cd') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'Space' && document.body.dataset.view !== 'grid') { e.preventDefault(); togglePlay(); }
   if (e.code === 'ArrowRight' && e.altKey) next();
   if (e.code === 'ArrowLeft' && e.altKey) prev();
 });
 document.querySelectorAll('.card audio').forEach(a =>
   a.addEventListener('play', () => { if (!au.paused) au.pause(); }));
+/* ============ 频谱 + 电平 + 律动 ============ */
+const specCv = document.getElementById('specCanvas'), scx = specCv.getContext('2d');
+function specFit(){ specCv.width = specCv.clientWidth || 640; specCv.height = specCv.clientHeight || 90; }
+function drawSpec(){
+  const w = specCv.width, h = specCv.height;
+  scx.clearRect(0, 0, w, h);
+  const L = levels(), n = 48, bw = w / n;
+  for (let i = 0; i < n; i++) {
+    const v = L[Math.floor(i * L.length / n / 2)] / 255;
+    const bh = Math.max(2, v * h * .82);
+    const grd = scx.createLinearGradient(0, h - bh, 0, h);
+    grd.addColorStop(0, '#ffd76a'); grd.addColorStop(1, 'rgba(124,183,255,.35)');
+    scx.fillStyle = grd;
+    scx.fillRect(i * bw + 1.5, h - bh, bw - 3, bh);
+  }
+}
+function vuSet(el, v){
+  el.style.transform = 'rotate(' + (-38 + Math.min(1, v) * 76) + 'deg)';
+}
+function jukePulse(v){
+  document.documentElement.style.setProperty('--lvl', v.toFixed(3));
+}
+(function vTick(){
+  const view = document.body.dataset.view;
+  if (view === 'spectrum' || view === 'tape' || view === 'jukebox') {
+    const L = levels();
+    const avg = a => a.reduce((x, y) => x + y, 0) / a.length / 255;
+    const low = avg([...L.slice(0, 10)]);
+    const mid = avg([...L.slice(10, 40)]);
+    jukePulse(low);
+    if (view === 'tape' && !au.paused) {
+      vuSet(document.getElementById('vuL'), low * 1.4);
+      vuSet(document.getElementById('vuR'), mid * 1.3);
+    }
+    if (view === 'spectrum') { specFit(); drawSpec(); }
+  }
+  requestAnimationFrame(vTick);
+})(0);
 /* ============ 视图切换 ============ */
 function initCd(){
   if (cdBuilt) return;
@@ -966,22 +1228,28 @@ function initCd(){
   if (SONGS.length) load(0, false);
 }
 function setView(v){
-  document.body.classList.toggle('vcd', v === 'cd');
-  document.getElementById('classicView').style.display = (v === 'cd') ? 'none' : 'block';
-  document.getElementById('cdView').style.display = (v === 'cd') ? 'flex' : 'none';
-  document.getElementById('gridCtrls').style.display = (v === 'cd') ? 'none' : 'flex';
-  document.getElementById('cdCtrls').style.display = (v === 'cd') ? 'flex' : 'none';
-  document.getElementById('segGrid').classList.toggle('on', v !== 'cd');
-  document.getElementById('segCd').classList.toggle('on', v === 'cd');
+  document.body.dataset.view = v;
+  document.body.classList.toggle('vgrid', v === 'grid');
+  document.body.classList.toggle('vvinyl', v === 'vinyl');
+  document.body.classList.toggle('vtape', v === 'tape');
+  document.body.classList.toggle('vspectrum', v === 'spectrum');
+  document.body.classList.toggle('vjukebox', v === 'jukebox');
+  document.getElementById('segGrid').classList.toggle('on', v === 'grid');
+  document.getElementById('segVinyl').classList.toggle('on', v === 'vinyl');
+  document.getElementById('segTape').classList.toggle('on', v === 'tape');
+  document.getElementById('segSpec').classList.toggle('on', v === 'spectrum');
+  document.getElementById('segJuke').classList.toggle('on', v === 'jukebox');
   try { localStorage.setItem('kgview', v); } catch(e) {}
-  if (v === 'cd') initCd();
+  if (v !== 'grid') initCd();
 }
 (function(){ let v = 'grid';
   try { v = localStorage.getItem('kgview') || 'grid'; } catch(e) {}
-  setView(v === 'cd' ? 'cd' : 'grid');
+  setView(['grid','vinyl','tape','spectrum','jukebox'].includes(v) ? v : 'grid');
 })();
 </script></body></html>
 """
+
+
 
 
 def write_html(out, entries, profile, generated):
@@ -1057,7 +1325,8 @@ def write_html(out, entries, profile, generated):
            .replace('__NICK__', nick)
            .replace('__STAT__', esc(stat))
            .replace('__PLAYS__', str(plays))
-           .replace('__GENERATED__', esc(generated[:10])))
+           .replace('__GENERATED__', esc(generated[:10]))
+           .replace('__TOTAL__', str(total)))
     with open(path, 'w', encoding='utf-8') as f:
         f.write(doc)
     return path
