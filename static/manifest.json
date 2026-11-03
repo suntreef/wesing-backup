@@ -1,0 +1,21 @@
+{
+ "name": "全民K歌备份工具",
+ "short_name": "K歌备份",
+ "description": "全民K歌个人作品批量备份",
+ "start_url": "/",
+ "display": "standalone",
+ "background_color": "#f5f5f7",
+ "theme_color": "#0071e3",
+ "icons": [
+  {
+   "src": "icon-192.png",
+   "sizes": "192x192",
+   "type": "image/png"
+  },
+  {
+   "src": "icon-512.png",
+   "sizes": "512x512",
+   "type": "image/png"
+  }
+ ]
+}

@@ -1,0 +1,11 @@
+services:
+  wesing-backup:
+    build: .
+    # 也可直接用发布镜像：
+    # image: ghcr.io/suntreef/wesing-backup:latest
+    container_name: wesing-backup
+    ports:
+      - "8765:8765"
+    volumes:
+      - "./backups:/data"
+    restart: unless-stopped
