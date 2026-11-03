@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.7.0'
+APP_VERSION = '1.7.1'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -692,16 +692,30 @@ audio{width:100%;height:34px;margin-top:4px}
 body.vvinyl #skinVinyl,body.vtape #skinTape,body.vspectrum #skinSpectrum,body.vjukebox #skinJuke{display:flex}
 body:not(.vgrid) #classicView{display:none}
 body:not(.vgrid) #strip{display:flex}
-#strip{display:none;flex:none;height:128px;align-items:center;gap:12px;overflow-x:auto;padding:8px 26px 14px;
- background:rgba(255,255,255,.025);position:relative;z-index:2}
-#strip::-webkit-scrollbar{height:6px}
-#strip::-webkit-scrollbar-thumb{background:#2a3040;border-radius:6px}
-.pl{flex:none;width:92px;cursor:pointer;text-align:center}
-.pl img{width:86px;height:86px;border-radius:10px;object-fit:cover;opacity:.62;transition:.2s;border:2px solid transparent}
-.pl:hover img{opacity:1}
-.pl.on img{opacity:1;border-color:#ffd76a}
-.pl div{font-size:11px;color:#8f9aac;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pl.on div{color:#ffd76a}
+#fab{display:none;position:fixed;right:18px;bottom:20px;z-index:30;width:52px;height:52px;border-radius:50%;
+ background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#221d38;border:none;font-size:20px;cursor:pointer;
+ box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 22px rgba(255,215,106,.35);-webkit-appearance:none;appearance:none;
+ align-items:center;justify-content:center;line-height:1}
+body:not(.vgrid) #fab{display:inline-flex}
+#fab:hover{transform:scale(1.06)}
+#drawer{position:fixed;top:0;right:-400px;bottom:0;width:min(370px,94vw);z-index:60;
+ background:rgba(16,19,28,.97);backdrop-filter:blur(12px);border-left:1px solid #2a3040;
+ transition:right .32s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+#drawer.open{right:0}
+#drawer .dhead{padding:14px 16px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #2a3040}
+#dq{flex:1;padding:9px 12px;border-radius:10px;border:1px solid #3a4150;background:#14181f;color:#eee;font-size:13px;outline:none}
+#dq:focus{border-color:#ffd76a}
+#dlist{flex:1;overflow-y:auto;padding:8px}
+.ditem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;cursor:pointer}
+.ditem:hover{background:#1c222e}
+.ditem.on{background:#252e40}
+.ditem .n{flex:none;width:36px;color:#7c8496;font-size:12px;font-variant-numeric:tabular-nums}
+.ditem img{width:44px;height:44px;border-radius:9px;object-fit:cover;flex:none}
+.ditem .c{flex:1;min-width:0}
+.ditem .t{font-size:13.5px;font-weight:600;color:#e8eaf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ditem .s{font-size:11px;color:#8f9aac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#drawer .dmask{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.35);display:none}
+#drawer.open ~ .dmask{display:block}
 #cdCtrls{display:none}
 body:not(.vgrid) #cdCtrls{display:flex}
 .lyrics{flex:1;overflow-y:auto;text-align:center;scroll-behavior:smooth;
@@ -741,9 +755,6 @@ body:not(.vgrid) #cdCtrls{display:flex}
 .arm{position:absolute;right:-26px;top:-34px;width:200px;height:300px;z-index:4;pointer-events:none;
  transform:rotate(-24deg);transform-origin:78% 14%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
 .cdwrap.playing .arm{transform:rotate(6deg)}
-.vinyl-reflect{width:330px;height:120px;margin-top:10px;border-radius:10px;overflow:hidden;opacity:.35;
- -webkit-mask-image:linear-gradient(#fff,transparent 75%);mask-image:linear-gradient(#fff,transparent 75%)}
-.vinyl-reflect img{width:100%;height:210px;object-fit:cover;transform:scaleY(-1);filter:blur(2px) saturate(.8)}
 .now{margin-top:18px;text-align:center;max-width:360px}
 .now .t{font-size:20px;font-weight:700;color:#fff}
 .now .s{color:#8f9aac;font-size:13px;margin-top:5px}
@@ -825,16 +836,27 @@ body.vspectrum.playing .spec-cover{animation-play-state:running}
 .neon.n2{inset:34px;border:3px solid rgba(255,215,106,.8);box-shadow:0 0 18px rgba(255,215,106,.5)}
 .neon.n3{inset:52px;border:3px solid rgba(79,227,255,.55);box-shadow:0 0 16px rgba(79,227,255,.45)}
 @keyframes huerot{to{filter:hue-rotate(360deg)}}
-.juke-cover{position:relative;z-index:2;width:min(300px,58vw);height:min(300px,58vw);object-fit:cover;border-radius:16px 16px 8px 8px;
- box-shadow:0 18px 50px rgba(0,0,0,.65),0 0 0 4px rgba(255,255,255,.06);
- transform:scale(calc(.92 + .08 * var(--lvl,.2)));transition:transform .18s;margin-bottom:26px}
+.jk-win{position:relative;z-index:2;width:min(300px,72%);margin:30px auto 22px;padding:12px;border-radius:18px;
+ background:linear-gradient(180deg,#241a3a,#191230);border:6px solid #2e2348;
+ box-shadow:0 0 30px rgba(0,0,0,.6),0 0 24px rgba(124,77,255,.28) inset;animation:breathe 4.5s ease-in-out infinite;animation-play-state:paused}
+body.vjukebox.playing .jk-win{animation-play-state:running}
+@keyframes breathe{50%{transform:scale(1.02)}}
+.jk-cover{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;display:block;
+ box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.jk-card{margin-top:12px;padding:12px 14px;border-radius:12px;text-align:center;
+ background:linear-gradient(180deg,#2c2145,#1c1530);border:1px solid #3a2d5e}
+.jk-t{display:block;font-size:16px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.jk-s{display:block;color:#9d92c9;font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .juke-panel{background:linear-gradient(180deg,#2a2140,#171126);border-radius:0 0 26px 26px;
- margin-top:-14px;padding:18px 22px 22px;box-shadow:0 0 0 4px #2c2145,0 0 26px rgba(124,77,255,.25)}
-.juke-title{font-size:19px;font-weight:700;color:#fff}
-.juke-sub{color:#9d92c9;font-size:13px;margin-top:5px}
-.jk-play{margin-top:14px;padding:12px 30px;border:none;border-radius:999px;cursor:pointer;font-weight:700;font-size:15px;
+ margin-top:-2px;padding:16px 22px 20px;box-shadow:0 0 0 4px #2c2145,0 0 26px rgba(124,77,255,.25)}
+.jk-row{display:flex;align-items:center;justify-content:center;gap:16px}
+.jk-ctrl{background:none;border:1px solid #453a68;color:#c9bfe8;border-radius:50%;width:44px;height:44px;
+ font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.15s}
+.jk-ctrl:hover{border-color:#ffd76a;color:#ffd76a}
+.jk-play{width:58px;height:58px;border:none;border-radius:50%;cursor:pointer;font-size:20px;font-weight:700;
  background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#2c2145;-webkit-appearance:none;appearance:none;
- box-shadow:0 0 22px rgba(255,215,106,.45),0 4px 0 #b8923a}
+ display:inline-flex;align-items:center;justify-content:center;
+ box-shadow:0 0 22px rgba(255,215,106,.45),0 4px 0 #b8923a;line-height:1}
 .jk-play:active{transform:translateY(3px);box-shadow:0 0 22px rgba(255,215,106,.45)}
 .juke-lights{display:flex;gap:10px;justify-content:center;margin-top:16px}
 .juke-lights i{width:10px;height:10px;border-radius:50%;background:#7c4dff;box-shadow:0 0 12px #7c4dff;
@@ -921,7 +943,6 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
       <rect x="138" y="196" width="52" height="26" rx="12" fill="#20242e" stroke="#3a4150" transform="rotate(-18 164 209)"/>
     </svg>
    </div>
-   <div class="vinyl-reflect"><img class="jsCover" alt=""></div>
    <div class="now">
     <div class="t jsTitle">—</div>
     <div class="s jsSub">切到本视图，点 ▶ 开始播放</div>
@@ -990,18 +1011,31 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
  <div class="juke">
   <div class="juke-arch">
    <div class="neon n1"></div><div class="neon n2"></div><div class="neon n3"></div>
-   <img class="juke-cover jsCover" alt="">
+   <div class="jk-win">
+     <img class="jk-cover jsCover" alt="">
+     <div class="jk-card"><span class="jk-t jsTitle">—</span><span class="jk-s jsSub"></span></div>
+   </div>
   </div>
   <div class="juke-panel">
-   <div class="juke-title jsTitle">—</div>
-   <div class="juke-sub jsSub"></div>
-   <button class="jk-play jsPlay" onclick="togglePlay()">▶ SELECT · 播放</button>
+   <div class="jk-row">
+    <button class="jk-ctrl jsPrev" onclick="prev()" title="上一首">⏮</button>
+    <button class="jk-play jsPlay" onclick="togglePlay()">▶</button>
+    <button class="jk-ctrl jsNext" onclick="next()" title="下一首">⏭</button>
+    <button class="jk-ctrl" onclick="toggleDrawer()" title="歌单">☰</button>
+   </div>
    <div class="juke-lights"><i></i><i></i><i></i><i></i><i></i></div>
   </div>
  </div>
 </div>
 
-<div id="strip"></div>
+<button id="fab" onclick="toggleDrawer()" title="歌单">☰</button>
+<div id="drawer">
+ <div class="dhead">
+  <input id="dq" oninput="fltDrawer()" placeholder="搜索歌单…">
+  <button class="btn small" onclick="closeDrawer()">✕</button>
+ </div>
+ <div id="dlist"></div>
+</div>
 <audio id="au" preload="none"></audio>
 <script>const SONGS = __DATA__;</script>
 <script>
@@ -1217,16 +1251,26 @@ function jukePulse(v){
 function initCd(){
   if (cdBuilt) return;
   cdBuilt = true;
-  const strip = document.getElementById('strip');
+  const list = document.getElementById('dlist');
   SONGS.forEach((e, i) => {
     const d = document.createElement('div');
-    d.className = 'pl';
-    d.innerHTML = `<img loading="lazy" src="${e.cover || ''}" onerror="this.style.visibility='hidden'"><div>${e.seq}. ${e.title}</div>`;
-    d.onclick = () => load(i, true);
-    strip.appendChild(d);
+    d.className = 'ditem';
+    d.innerHTML = `<span class="n">${String(e.seq).padStart(4, '0')}</span>` +
+      (e.cover ? `<img loading="lazy" src="${e.cover}" onerror="this.remove()">` : '') +
+      `<span class="c"><span class="t">${e.title}</span><span class="s">${e.singer ? e.singer + '《' + e.song + '》' : e.song} · ${e.time}</span></span>`;
+    d.onclick = () => { load(i, true); closeDrawer(); };
+    list.appendChild(d);
   });
   if (SONGS.length) load(0, false);
 }
+function toggleDrawer(){ const d = document.getElementById('drawer'); d.classList.toggle('open'); fltDrawer(); }
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); }
+function fltDrawer(){
+  const q = (document.getElementById('dq') || {value: ''}).value.toLowerCase();
+  [...document.querySelectorAll('.ditem')].forEach(it =>
+    it.classList.toggle('hidden', !!q && !it.textContent.toLowerCase().includes(q)));
+}
+addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
 function setView(v){
   document.body.dataset.view = v;
   document.body.classList.toggle('vgrid', v === 'grid');
