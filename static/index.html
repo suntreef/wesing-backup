@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0071e3">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="K歌备份">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="icon-192.png">
 <title>全民K歌备份工具</title>
 <style>
 :root{
@@ -24,6 +30,11 @@ header{position:sticky;top:0;z-index:20;backdrop-filter:saturate(180%) blur(18px
 @media (prefers-color-scheme: dark){header{background:rgba(22,22,23,.75);border-bottom-color:rgba(255,255,255,.08)}}
 header .brand{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
 header .v{font-size:11px;color:var(--text2);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+ header{gap:10px;flex-wrap:wrap}
+ @media (max-width:640px){
+  #q{width:min(200px,38vw)}
+  .meta{flex-wrap:wrap;row-gap:6px}
+ }
 main{max-width:680px;margin:0 auto;padding:52px 20px 30px}
 .hero{text-align:center;margin-bottom:34px}
 .hero h1{font-size:clamp(28px,5.4vw,44px);font-weight:700;letter-spacing:-.02em;line-height:1.15}
@@ -66,6 +77,15 @@ details .inner{margin-top:14px}
 .btn.danger{color:var(--red)}
 #startBtn{width:100%;margin-top:22px}
 .hidden{display:none!important}
+ @media (max-width:640px){
+  header{padding:10px 14px;gap:8px;flex-wrap:wrap}
+  header .brand{font-size:14px}
+  #q{width:min(200px,40vw)}
+  main{padding:28px 14px 20px}
+  .card{padding:18px 14px}
+  .hero h1{font-size:26px}
+  .btn{font-size:15px}
+ }
 /* 进度区 */
 .staterow{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .dot{width:10px;height:10px;border-radius:50%;background:#a1a1a6;flex:none}
@@ -94,6 +114,7 @@ footer a{color:var(--text2)}
 <body>
 <header>
   <div class="brand">🎤 全民K歌备份</div>
+  <button class="btn ghost small" onclick="lanModal()" style="margin-left:auto">📱 手机访问</button>
   <div class="v" id="ver">本地运行 · v?</div>
 </header>
 
@@ -328,7 +349,58 @@ function showHelp(){
   document.body.appendChild(m);
   m.addEventListener('click', e => { if(e.target === m) m.remove(); });
 }
+
+/* ---------- 手机访问（局域网） ---------- */
+function lanModal(){
+  if(document.getElementById('lanMask')) { document.getElementById('lanMask').remove(); return; }
+  const m = document.createElement('div'); m.id='lanMask';
+  m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center';
+  m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:460px;width:92%;padding:24px 26px;position:relative;text-align:center">
+    <div style="font-size:17px;font-weight:700;margin-bottom:12px">📱 手机访问（同一 Wi-Fi）</div>
+    <div id="lanState" style="font-size:13px;color:var(--text2);margin-bottom:12px">加载中…</div>
+    <div id="lanQr" style="min-height:180px;display:flex;align-items:center;justify-content:center"></div>
+    <div id="lanUrls" style="font-size:12px;color:var(--text2);margin-top:10px;word-break:break-all"></div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;font-size:13px">
+      <label style="display:inline-flex;align-items:center;gap:10px"><span class="sw"><input type="checkbox" id="lanCb" onchange="toggleLan(this)"><i></i></span>开放局域网访问</label>
+    </div>
+    <div style="color:var(--text2);font-size:11px;margin-top:8px">开放后，同一 Wi-Fi 下的手机/平板都能打开本页面遥控备份。<br>建议只在家庭网络开启，公共 Wi-Fi 请关闭。</div>
+    <button class="btn small" style="position:absolute;top:14px;right:16px" onclick="document.getElementById('lanMask').remove()">关闭</button>
+  </div>`;
+  document.body.appendChild(m);
+  m.addEventListener('click', e => { if(e.target === m) m.remove(); });
+  refreshLan();
+}
+async function refreshLan(){
+  const s = await (await fetch('/api/status')).json();
+  const cb = document.getElementById('lanCb'); if(cb) cb.checked = !!s.lan;
+  const st = document.getElementById('lanState'), qr = document.getElementById('lanQr'), urls = document.getElementById('lanUrls');
+  if(!st) return;
+  if(!s.lan){
+    st.textContent = '当前仅本机可访问。打开下方开关后，手机扫码即可遥控备份。';
+    qr.innerHTML = '<div style="color:var(--text2);font-size:13px;padding:40px 0">📱 开关打开后，这里会出现二维码</div>';
+    urls.textContent = '';
+    return;
+  }
+  const ip = (s.lan_ips || [])[0] || '';
+  const url = ip ? `http://${ip}:${s.port}` : '';
+  st.textContent = '已开放局域网访问 ✅ 手机扫下方二维码（或输入网址）：';
+  if(url && window.qrcode){
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    qr.innerHTML = q.createImgTag(4, 8);
+    const img = qr.querySelector('img'); if(img){ img.style.borderRadius = '8px'; }
+  } else { qr.textContent = url; }
+  urls.textContent = (s.lan_ips || []).map(ip => `http://${ip}:${s.port}`).join('　');
+}
+async function toggleLan(cb){
+  cb.disabled = true;
+  await fetch('/api/lan', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({on: cb.checked})}).catch(()=>{});
+  cb.disabled = false;
+  refreshLan();
+}
 $('#target').addEventListener('keydown', e=>{ if(e.key==='Enter') start(); });
+</script>
+<script src="/static/qrcode.min.js"></script>
+<script>
 poll(); setInterval(poll, 1200);
 </script>
 </body>

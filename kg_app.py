@@ -13,9 +13,11 @@ kg_app.py — 全民K歌备份工具 · 图形界面入口
 
 import json
 import os
+import socket
 import subprocess
 import sys
 import threading
+import time
 import types
 import urllib.request
 import webbrowser
@@ -24,7 +26,41 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from core import APP_NAME, APP_VERSION, Job, backup_one
 
 # 仅本机可访问，单一活动任务
-_STATE = {'job': None, 'thread': None, 'server': None}
+_STATE = {'job': None, 'thread': None, 'server': None, 'lan': False}
+
+
+def lan_ips():
+    """枚举本机局域网 IP（优先默认路由出口）。"""
+    ips = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ips.append(s.getsockname()[0])
+        s.close()
+    except Exception:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in ips and not ip.startswith('127.') and ':' not in ip:
+                ips.append(ip)
+    except Exception:
+        pass
+    return ips
+
+
+def rebind(lan_on):
+    """切换监听范围：仅本机 ↔ 局域网。返回 (port, lan_ips)。"""
+    old = _STATE['server']
+    port = old.server_address[1]
+    host = '0.0.0.0' if lan_on else '127.0.0.1'
+    old.shutdown()
+    old.server_close()  # 不关监听 socket 的话，Windows 上新连接会被旧 socket 拦下（SYN 被拒）
+    srv = ThreadingHTTPServer((host, port), Handler)
+    _STATE['server'] = srv
+    _STATE['lan'] = lan_on
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv.server_address[1], lan_ips()
 
 
 def _instance_file():
@@ -135,12 +171,28 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, f.read(), 'text/html; charset=utf-8')
             except OSError:
                 return self._send(500, {'error': '找不到页面文件'})
+        if self.path.startswith('/static/'):
+            name = os.path.basename(self.path[len('/static/'):])
+            allow = {'qrcode.min.js': 'application/javascript; charset=utf-8',
+                     'manifest.json': 'application/manifest+json',
+                     'icon-192.png': 'image/png', 'icon-512.png': 'image/png'}
+            if name in allow:
+                fp = os.path.join(static_dir(), name)
+                try:
+                    with open(fp, 'rb') as f:
+                        return self._send(200, f.read(), allow[name])
+                except OSError:
+                    pass
+            return self._send(404, {'error': 'not found'})
         if self.path.startswith('/api/status'):
             job = _STATE['job']
             snap = job.snapshot() if job else {'state': 'idle'}
             snap['running'] = bool(_STATE['thread'] and _STATE['thread'].is_alive())
             snap['app'] = {'name': APP_NAME, 'version': APP_VERSION,
                            'ffmpeg': __import__('core').ffmpeg_available()}
+            snap['lan'] = _STATE.get('lan', False)
+            snap['port'] = _STATE['server'].server_address[1]
+            snap['lan_ips'] = lan_ips() if snap['lan'] else []
             return self._send(200, snap)
         if self.path.startswith('/api/open'):
             job = _STATE['job']
@@ -175,6 +227,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {'ok': True})
             except Exception as e:
                 return self._send(400, {'error': str(e)})
+        if self.path == '/api/lan':
+            p = self._body()
+            port, ips = rebind(bool(p.get('on')))
+            msg = '已开放局域网访问' if p.get('on') else '已恢复仅本机访问'
+            return self._send(200, {'ok': True, 'lan': bool(p.get('on')), 'port': port,
+                                    'lan_ips': ips, 'msg': msg})
         if self.path == '/api/stop':
             job = _STATE['job']
             if job:
@@ -225,10 +283,14 @@ def _quit():
 
 
 def main():
-    # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击叠开一堆窗口
+    # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击 exe 叠开一堆窗口
     port = 0
-    if len(sys.argv) > 1 and sys.argv[1] == '--port' and len(sys.argv) > 2:
-        port = int(sys.argv[2])
+    lan = False
+    argv = sys.argv[1:]
+    if '--port' in argv:
+        port = int(argv[argv.index('--port') + 1])
+    if '--lan' in argv:
+        lan = True
     if port == 0:
         existing = find_running_instance()
         if existing:
@@ -238,20 +300,26 @@ def main():
             if not os.environ.get('KG_NO_BROWSER'):
                 webbrowser.open(url)
             return
-    srv = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    host = '0.0.0.0' if lan else '127.0.0.1'
+    srv = ThreadingHTTPServer((host, port), Handler)
     _STATE['server'] = srv
+    _STATE['lan'] = lan
     port = srv.server_address[1]
     write_instance_file(port)
     import atexit
     atexit.register(remove_instance_file)
     url = f'http://127.0.0.1:{port}'
-    log_line = f'{APP_NAME} v{APP_VERSION} 已启动: {url} （仅本机可访问，关闭此窗口即退出）'
     if sys.stdout:
-        print(log_line, flush=True)
+        print(f'{APP_NAME} v{APP_VERSION} 已启动: {url} （关闭此窗口即退出）', flush=True)
+        if lan:
+            for ip in lan_ips():
+                print(f'  📱 手机（同一Wi-Fi）访问: http://{ip}:{port}', flush=True)
     if not os.environ.get('KG_NO_BROWSER'):
         threading.Timer(0.8, webbrowser.open, args=(url,)).start()
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
-        srv.serve_forever()
+        while True:
+            time.sleep(3600)
     except KeyboardInterrupt:
         pass
 

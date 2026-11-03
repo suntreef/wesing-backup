@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.3.0'
+APP_VERSION = '1.4.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -626,8 +626,33 @@ def write_list_csv(out, works):
     return path
 
 
+def _icon_png_bytes():
+    """内置应用图标（打包后在 _MEIPASS/static，源码运行在 ./static）。"""
+    bases = [os.path.join(getattr(sys, '_MEIPASS', '') or '', 'static'),
+             os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')]
+    for base in bases:
+        p = os.path.join(base, 'icon-192.png')
+        if os.path.exists(p):
+            with open(p, 'rb') as f:
+                return f.read()
+    return None
+
+
+def _write_icon(out):
+    b = _icon_png_bytes()
+    p = os.path.join(out, 'kgicon.png')
+    if b and not os.path.exists(p):
+        try:
+            with open(p, 'wb') as f:
+                f.write(b)
+        except OSError:
+            return ''
+    return 'kgicon.png' if (b and os.path.exists(p)) else ''
+
+
 def write_html(out, entries, profile, generated):
     path = os.path.join(out, 'index.html')
+    _write_icon(out)
 
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
@@ -680,6 +705,10 @@ def write_html(out, entries, profile, generated):
     doc = f'''<!DOCTYPE html>
 <html lang="zh-cn"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="K歌歌单">
+<link rel="apple-touch-icon" href="kgicon.png">
 <title>{nick} 的全民K歌备份</title>
 <style>
  body{{font-family:"Microsoft YaHei",system-ui,sans-serif;margin:0;background:#111418;color:#eee}}
@@ -1013,11 +1042,16 @@ def _backup_one(target, args, job):
 
 CD_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-cn"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0d13">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="K歌CD机">
+<link rel="apple-touch-icon" href="kgicon.png">
 <title>__NICK__ · 复古CD机 · 全民K歌备份</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%);color:#e8eaf0;height:100vh;
+body{background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%);color:#e8eaf0;height:100vh;height:100dvh;
  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden;display:flex;flex-direction:column}
 canvas#bg{position:fixed;inset:0;z-index:0}
 header{position:relative;z-index:2;display:flex;align-items:baseline;gap:14px;padding:14px 26px 6px;color:#9aa3b2;font-size:13px}
@@ -1026,9 +1060,10 @@ header a{color:#7cb8ff;text-decoration:none;margin-left:auto}
 main{position:relative;z-index:1;flex:1;display:flex;gap:30px;padding:6px 30px 0;min-height:0}
 .deck{flex:0 0 400px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
 .cdwrap{position:relative;width:330px;height:330px;margin-top:6px}
+
 .cd{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#181b22 62%,#20242e 63%,#0e1015 100%);
  box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;overflow:hidden}
-.cd .cover{position:absolute;inset:0;border-radius:50%;object-fit:cover;
+.cd .cover{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;
  animation:spin 14s linear infinite;animation-play-state:paused;will-change:transform}
 .cd.playing .cover{animation-play-state:running}
 .cd .glare{position:absolute;inset:0;border-radius:50%;
@@ -1053,12 +1088,12 @@ main{position:relative;z-index:1;flex:1;display:flex;gap:30px;padding:6px 30px 0
 .lyrics p{padding:9px 4px;color:#5c6675;font-size:15px;transition:all .25s;cursor:default}
 .lyrics p.on{color:#ffd76a;font-size:18px;font-weight:600;text-shadow:0 0 18px rgba(255,215,106,.35)}
 .ctrl{display:flex;align-items:center;gap:14px;padding:10px 2px 4px}
-.ctrl button{background:none;border:1px solid #333a47;color:#dfe3ec;border-radius:50%;width:44px;height:44px;
- font-size:17px;cursor:pointer;transition:.15s}
+.ctrl button{background:none;border:1px solid #333a47;color:#dfe3ec;border-radius:50%;width:44px;height:44px;flex:none;
+ font-size:17px;cursor:pointer;transition:.15s;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
 .ctrl button:hover{border-color:#ffd76a;color:#ffd76a}
-.ctrl .big{width:58px;height:58px;font-size:21px;background:#ffd76a;color:#111;border:none;font-weight:700}
+.ctrl .big{width:58px;height:58px;flex:none;font-size:21px;background:#ffd76a;color:#111;border:none;font-weight:700;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 .time{color:#8f9aac;font-size:12px;font-variant-numeric:tabular-nums}
-#seek{flex:1;appearance:none;height:4px;border-radius:4px;background:#262c38;outline:none}
+#seek{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:#262c38;outline:none}
 #seek::-webkit-slider-thumb{appearance:none;width:13px;height:13px;border-radius:50%;background:#ffd76a;cursor:pointer}
 .strip{position:relative;z-index:1;flex:none;height:128px;display:flex;align-items:center;gap:12px;
  overflow-x:auto;padding:8px 26px 14px;background:rgba(255,255,255,.025)}
@@ -1070,6 +1105,26 @@ main{position:relative;z-index:1;flex:1;display:flex;gap:30px;padding:6px 30px 0
 .pl.on img{opacity:1;border-color:#ffd76a}
 .pl div{font-size:11px;color:#8f9aac;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl.on div{color:#ffd76a}
+@media (max-width:880px){
+  html,body{overflow-x:hidden}
+  body{overflow:auto}
+  .arm{right:-10px;top:-16px}
+  .ctrl{gap:8px}
+  .ctrl .big{width:50px;height:50px}
+  body{overflow:auto}
+  header{flex-wrap:wrap;padding:12px 16px 4px}
+  main{flex-direction:column;align-items:center;gap:10px;padding:4px 16px 0}
+  .deck{flex:none}
+  .cdwrap{width:240px;height:240px;margin-top:2px}
+  .arm{width:146px;height:220px;right:-18px;top:-24px}
+  .now{margin-top:14px}
+  .now .t{font-size:17px}
+  .side{width:100%}
+  .lyrics{min-height:210px;padding:10px 2px}
+  .lyrics p{font-size:14px;padding:7px 3px}
+  .lyrics p.on{font-size:16px}
+  .strip{padding:8px 16px 12px}
+}
 </style></head><body>
 <canvas id="bg"></canvas>
 <header><b>__NICK__ 的复古CD机</b><span>__TOTAL__ 首 · 备份于 __GENERATED__</span>
@@ -1237,6 +1292,7 @@ if (SONGS.length) load(0, false);
 
 def write_cd_page(out, entries, profile, generated):
     path = os.path.join(out, 'cd.html')
+    _write_icon(out)
 
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
