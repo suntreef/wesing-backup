@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.4.0'
+APP_VERSION = '1.4.1'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -650,6 +650,340 @@ def _write_icon(out):
     return 'kgicon.png' if (b and os.path.exists(p)) else ''
 
 
+PAGE_TEMPLATE = r"""<!DOCTYPE html>
+<html lang="zh-cn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="K歌歌单">
+<link rel="apple-touch-icon" href="kgicon.png">
+<title>__NICK__ 的全民K歌备份</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#111418;color:#eee;min-height:100vh;display:flex;flex-direction:column;
+ font-family:"Microsoft YaHei",system-ui,sans-serif;overflow-x:hidden}
+canvas#bg{position:fixed;inset:0;z-index:0}
+header{position:sticky;top:0;z-index:9;padding:18px 24px 10px;background:rgba(17,20,24,.96);
+ backdrop-filter:blur(6px);border-bottom:1px solid #2a2f36}
+.hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+h1{margin:0;font-size:22px}
+.seg{display:inline-flex;background:#1a1f26;border-radius:999px;padding:4px;gap:4px;margin-left:auto}
+.seg button{border:none;background:none;color:#9aa3ad;padding:7px 18px;border-radius:999px;font-size:13px;cursor:pointer;transition:.2s}
+.seg button.on{background:#ffd76a;color:#111;font-weight:700}
+.meta{color:#9aa3ad;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px}
+#q{padding:7px 12px;border-radius:8px;border:1px solid #3a4149;background:#1b2026;color:#eee;width:min(200px,38vw)}
+select{padding:7px;border-radius:8px;border:1px solid #3a4149;background:#1b2026;color:#eee}
+/* ---------- 目录视图 ---------- */
+#classicView{position:relative;z-index:1;flex:1}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:20px}
+.card{background:#1a1f26;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.card img,.noimg{width:100%;height:190px;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:48px;color:#555;background:#232932}
+.body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:5px}
+.title a{color:#fff;font-weight:600;text-decoration:none;font-size:15px}
+.title a:hover{color:#7cb8ff}
+.sub{color:#aab4bf;font-size:13px}
+.time,.stats{color:#8b95a1;font-size:12px}
+.content{color:#cfd6dd;font-size:13px;background:#222932;border-left:3px solid #3f6ea5;padding:6px 9px;border-radius:0 6px 6px 0;white-space:pre-wrap}
+audio{width:100%;height:34px;margin-top:4px}
+.hidden{display:none}
+/* ---------- CD视图 ---------- */
+#cdView{display:none;flex-direction:column;flex:1;position:relative;min-height:0;
+ background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%)}
+main{flex:1;display:flex;gap:30px;padding:10px 30px 0;min-height:0}
+.deck{flex:0 0 400px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.cdwrap{position:relative;width:330px;height:330px;margin-top:6px}
+.cd{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#181b22 62%,#20242e 63%,#0e1015 100%);
+ box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;overflow:hidden}
+.cd .cover{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;
+ animation:spin 14s linear infinite;animation-play-state:paused;will-change:transform}
+.cd.playing .cover{animation-play-state:running}
+.cd .glare{position:absolute;inset:0;border-radius:50%;
+ background:conic-gradient(from 210deg,rgba(255,255,255,.14),rgba(255,255,255,.02) 40deg,rgba(255,255,255,.16) 80deg,rgba(255,255,255,.03) 130deg,rgba(255,255,255,.15) 190deg,rgba(255,255,255,.02) 260deg,rgba(255,255,255,.14) 320deg);
+ mix-blend-mode:screen;animation:spin 14s linear infinite;animation-play-state:paused}
+.cd.playing .glare{animation-play-state:running}
+.cd .hole{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px;
+ border-radius:50%;background:#0b0d13;border:1px solid rgba(255,255,255,.15);z-index:3}
+.cd .hole::after{content:'';position:absolute;inset:18px;border-radius:50%;background:#171b24}
+@keyframes spin{to{transform:rotate(360deg)}}
+.arm{position:absolute;right:-26px;top:-34px;width:200px;height:300px;z-index:4;pointer-events:none;
+ transform:rotate(-24deg);transform-origin:78% 14%;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
+.cdwrap.playing .arm{transform:rotate(6deg)}
+.now{margin-top:26px;text-align:center;max-width:360px}
+.now .t{font-size:20px;font-weight:700;color:#fff}
+.now .s{color:#8f9aac;font-size:13px;margin-top:5px}
+.now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
+.side{flex:1;display:flex;flex-direction:column;min-width:0}
+.lyrics{flex:1;overflow-y:auto;padding:26px 8px;text-align:center;scroll-behavior:smooth;
+ -webkit-mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent);
+ mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent)}
+.lyrics p{padding:9px 4px;color:#5c6675;font-size:15px;transition:all .25s}
+.lyrics p.on{color:#ffd76a;font-size:18px;font-weight:600;text-shadow:0 0 18px rgba(255,215,106,.35)}
+.ctrl{display:flex;align-items:center;gap:14px;padding:10px 2px 4px}
+.ctrl button{background:none;border:1px solid #333a47;color:#dfe3ec;border-radius:50%;width:44px;height:44px;flex:none;
+ font-size:17px;cursor:pointer;transition:.15s;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.ctrl button:hover{border-color:#ffd76a;color:#ffd76a}
+.ctrl .big{width:58px;height:58px;flex:none;font-size:21px;background:#ffd76a;color:#111;border:none;font-weight:700;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.ctrl .big:hover{background:#ffe28a;border:none;color:#111}
+.time{color:#8f9aac;font-size:12px;font-variant-numeric:tabular-nums}
+#seek{flex:1;min-width:0;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:#262c38;outline:none}
+#seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#ffd76a;cursor:pointer}
+.strip{flex:none;height:128px;display:flex;align-items:center;gap:12px;
+ overflow-x:auto;padding:8px 26px 14px;background:rgba(255,255,255,.025)}
+.strip::-webkit-scrollbar{height:6px}
+.strip::-webkit-scrollbar-thumb{background:#2a3040;border-radius:6px}
+.pl{flex:none;width:92px;cursor:pointer;text-align:center}
+.pl img{width:86px;height:86px;border-radius:10px;object-fit:cover;opacity:.62;transition:.2s;border:2px solid transparent}
+.pl:hover img{opacity:1}
+.pl.on img{opacity:1;border-color:#ffd76a}
+.pl div{font-size:11px;color:#8f9aac;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl.on div{color:#ffd76a}
+/* ---------- 视图状态 ---------- */
+body.vcd #classicView{display:none}
+body.vcd #cdView{display:flex}
+body.vcd{overflow:hidden;height:100vh;height:100dvh}
+body.vcd #gridCtrls{display:none}
+#cdCtrls{display:none}
+body.vcd #cdCtrls{display:block}
+@media (max-width:640px){
+  header{padding:14px 14px 8px}
+  header .hrow{gap:8px}
+  h1{font-size:18px}
+  .seg button{padding:6px 12px;font-size:12px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:14px}
+}
+@media (max-width:880px){
+  body.vcd{overflow:auto;overflow-x:hidden;height:auto}
+  main{flex-direction:column;align-items:center;gap:10px;padding:4px 16px 0}
+  .deck{flex:none}
+  .cdwrap{width:240px;height:240px;margin-top:2px}
+  .arm{width:146px;height:220px;right:-10px;top:-16px}
+  .now{margin-top:14px}
+  .now .t{font-size:17px}
+  .side{width:100%}
+  .lyrics{min-height:210px;padding:10px 2px}
+  .lyrics p{font-size:14px;padding:7px 3px}
+  .lyrics p.on{font-size:16px}
+  .strip{padding:8px 16px 12px}
+  .ctrl{gap:8px}
+  .ctrl .big{width:50px;height:50px}
+}
+</style></head><body data-view="grid">
+<canvas id="bg"></canvas>
+<header>
+ <div class="hrow">
+  <h1>__NICK__ 的全民K歌备份</h1>
+  <div class="seg">
+   <button id="segGrid" class="on" onclick="setView('grid')">📋 目录</button>
+   <button id="segCd" onclick="setView('cd')">🎧 复古CD机</button>
+  </div>
+ </div>
+ <div class="meta">__STAT__ · 总播放 __PLAYS__</div>
+ <div class="meta" id="gridCtrls">备份时间 __GENERATED__ · 本地文件仅供个人收藏 ·
+   <input id="q" placeholder="搜索歌名/介绍…" oninput="flt()">
+   <select onchange="flt()"><option value="new">最新在前</option><option value="old">最早在前</option><option value="hot">播放最多</option><option value="score">评分最高</option></select>
+ </div>
+ <div class="meta" id="cdCtrls">空格键 播放/暂停 · Alt+←/→ 切歌 · 切回目录视图音乐不断</div>
+</header>
+<div id="classicView">
+ <div class="grid" id="g">__CARDS__</div>
+</div>
+<div id="cdView">
+ <main>
+  <div class="deck">
+   <div class="cdwrap" id="cdwrap">
+    <div class="cd" id="cd">
+      <img class="cover" id="cover" alt="">
+      <div class="glare"></div><div class="hole"></div>
+    </div>
+    <svg class="arm" viewBox="0 0 200 300">
+      <circle cx="156" cy="42" r="26" fill="#20242e" stroke="#3a4150" stroke-width="3"/>
+      <circle cx="156" cy="42" r="8" fill="#0b0d13"/>
+      <rect x="148" y="52" width="16" height="150" rx="8" fill="#2a2f3a" stroke="#3a4150"/>
+      <rect x="138" y="196" width="52" height="26" rx="12" fill="#20242e" stroke="#3a4150" transform="rotate(-18 164 209)"/>
+    </svg>
+   </div>
+   <div class="now">
+    <div class="t" id="nTitle">—</div>
+    <div class="s" id="nSub">切到本视图，点 ▶ 开始播放</div>
+    <div class="c" id="nDesc"></div>
+   </div>
+  </div>
+  <div class="side">
+   <div class="lyrics" id="lyrics"><p style="color:#7c8496">♪ 选择一首歌开始播放</p></div>
+   <div class="ctrl">
+    <span class="time" id="tCur">0:00</span>
+    <input type="range" id="seek" min="0" max="1000" value="0">
+    <span class="time" id="tEnd">0:00</span>
+    <button onclick="prev()" title="上一首">⏮</button>
+    <button class="big" id="playBtn" onclick="togglePlay()" title="播放/暂停">▶</button>
+    <button onclick="next()" title="下一首">⏭</button>
+   </div>
+  </div>
+ </main>
+ <div class="strip" id="strip"></div>
+</div>
+<audio id="au" preload="none"></audio>
+<script>const SONGS = __DATA__;</script>
+<script>
+/* ============ 目录视图 ============ */
+function num(c){var t=c.querySelector('.stats').textContent.match(/▶ (\d+)/);return t?+t[1]:0;}
+function scoreNum(c){var t=c.querySelector('.stats').textContent.match(/★ (\d+)/);return t?+t[1]:0;}
+function seqNum(c){var t=c.querySelector('.title a').textContent.match(/^(\d+)/);return t?+t[1]:0;}
+function flt(){
+ var q=document.getElementById('q').value.toLowerCase();
+ var m=document.querySelector('select').value;
+ var cards=[...document.querySelectorAll('#classicView .card')];
+ cards.forEach(c=>c.classList.toggle('hidden', !!q && !c.dataset.title.toLowerCase().includes(q)));
+ if(m==='old'){cards.sort((a,b)=>seqNum(a)-seqNum(b));}
+ else if(m==='hot'){cards.sort((a,b)=>num(b)-num(a));}
+ else if(m==='score'){cards.sort((a,b)=>scoreNum(b)-scoreNum(a));}
+ else{cards.sort((a,b)=>seqNum(b)-seqNum(a));}
+ cards.forEach(c=>document.getElementById('g').appendChild(c));
+}
+/* ============ CD播放器 ============ */
+const au = document.getElementById('au');
+let cur = -1, lrc = [], lrcOn = -1, seeking = false, cdBuilt = false;
+const $ = s => document.querySelector(s);
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+/* 粒子背景 */
+const cv = document.getElementById('bg'), cx = cv.getContext('2d');
+let W, H, P = [];
+function rs(){ W = cv.width = innerWidth; H = cv.height = innerHeight; }
+rs(); addEventListener('resize', rs);
+for (let i = 0; i < 110; i++) P.push({
+  x: Math.random(), y: Math.random(), r: .6 + Math.random() * 2.1,
+  vy: .12 + Math.random() * .5, vx: (Math.random() - .5) * .16,
+  a: .08 + Math.random() * .3, ph: Math.random() * 6.28, warm: Math.random() < .28
+});
+(function tick(t){
+  cx.clearRect(0, 0, W, H);
+  for (const p of P) {
+    p.y -= p.vy / H * 3.2; p.x += p.vx / W * 3.2 + Math.sin(t / 2400 + p.ph) * .00045;
+    if (p.y < -.04) { p.y = 1.04; p.x = Math.random(); }
+    if (p.x < -.04) p.x = 1.04; if (p.x > 1.04) p.x = -.04;
+    const tw = .55 + .45 * Math.sin(t / 700 + p.ph);
+    cx.beginPath();
+    cx.arc(p.x * W, p.y * H, p.r, 0, 6.28);
+    cx.fillStyle = p.warm ? 'rgba(255,214,106,' + (p.a * tw) + ')' : 'rgba(190,205,255,' + (p.a * tw * .8) + ')';
+    cx.fill();
+  }
+  requestAnimationFrame(tick);
+})(0);
+/* LRC */
+function parseLrc(text){
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g);
+    if (!m) continue;
+    const txt = line.replace(/\[[^\]]*\]/g, '').trim();
+    for (const tm of m) {
+      const mm = tm.match(/\[(\d+):(\d+(?:\.\d+)?)\]/);
+      if (mm) out.push({ t: (+mm[1]) * 60 + (+mm[2]), text: txt });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+function renderLrc(){
+  const box = $('#lyrics');
+  if (!lrc.length) { box.innerHTML = '<p style="color:#7c8496">这首歌没有找到歌词文件</p>'; return; }
+  box.innerHTML = lrc.map((l, i) => `<p data-i="${i}">${l.text || '♪'}</p>`).join('');
+}
+function syncLrc(t){
+  if (!lrc.length) return;
+  let i = -1;
+  for (let k = 0; k < lrc.length; k++) if (lrc[k].t <= t) i = k;
+  if (i === lrcOn) return;
+  lrcOn = i;
+  const box = $('#lyrics');
+  [...box.querySelectorAll('p')].forEach((p, k) => p.classList.toggle('on', k === i));
+  const el = box.querySelector('p[data-i="' + i + '"]');
+  if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+function fmt(s){ s = Math.max(0, s | 0); return (s / 60 | 0) + ':' + String(s % 60).padStart(2, '0'); }
+function load(i, autoplay){
+  if (!SONGS.length) return;
+  cur = (i + SONGS.length) % SONGS.length;
+  const e = SONGS[cur];
+  au.src = e.audio;
+  $('#cover').src = e.cover || '';
+  $('#nTitle').textContent = e.title;
+  $('#nSub').textContent = '原唱：' + (e.singer ? e.singer + '《' + e.song + '》' : (e.song || '—'))
+    + '　·　' + e.time + (e.score ? '　·　评分 ' + e.score : '');
+  $('#nDesc').textContent = e.content || '';
+  $('#tEnd').textContent = fmt(au.duration || 0);
+  lrc = []; lrcOn = -1; renderLrc();
+  if (e.lrc) fetch(e.lrc).then(r => r.ok ? r.text() : '').then(t => {
+    if (e.audio === au.getAttribute('src') && t) { lrc = parseLrc(t); renderLrc(); syncLrc(au.currentTime || 0); }
+  }).catch(() => {});
+  [...document.querySelectorAll('.pl')].forEach((p, k) => p.classList.toggle('on', k === cur));
+  if (autoplay) play(); else pauseUi();
+  const on = document.querySelector('.pl.on');
+  if (on) on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+}
+function play(){ au.play().catch(() => {}); }
+function pauseUi(){ $('#cd').classList.remove('playing'); $('#cdwrap').classList.remove('playing'); $('#playBtn').textContent = '▶'; }
+function togglePlay(){
+  if (cur < 0) { load(0, true); return; }
+  if (au.paused) play(); else au.pause();
+}
+au.onplay = () => { $('#cd').classList.add('playing'); $('#cdwrap').classList.add('playing'); $('#playBtn').textContent = '⏸';
+  document.querySelectorAll('.card audio').forEach(a => { try { a.pause(); } catch(e){} }); };
+au.onpause = () => pauseUi();
+au.onended = () => load(cur + 1, true);
+au.ontimeupdate = () => {
+  if (!seeking && au.duration) $('#seek').value = au.currentTime / au.duration * 1000;
+  $('#tCur').textContent = fmt(au.currentTime);
+  $('#tEnd').textContent = fmt(au.duration || 0);
+  syncLrc(au.currentTime);
+};
+au.onloadedmetadata = () => { $('#tEnd').textContent = fmt(au.duration || 0); };
+$('#seek').addEventListener('input', () => { seeking = true; });
+$('#seek').addEventListener('change', () => {
+  if (au.duration) au.currentTime = $('#seek').value / 1000 * au.duration;
+  seeking = false;
+});
+function prev(){ load(cur - 1, true); }
+function next(){ load(cur + 1, true); }
+addEventListener('keydown', e => {
+  if (e.code === 'Space' && document.body.dataset.view === 'cd') { e.preventDefault(); togglePlay(); }
+  if (e.code === 'ArrowRight' && e.altKey) next();
+  if (e.code === 'ArrowLeft' && e.altKey) prev();
+});
+document.querySelectorAll('.card audio').forEach(a =>
+  a.addEventListener('play', () => { if (!au.paused) au.pause(); }));
+/* ============ 视图切换 ============ */
+function initCd(){
+  if (cdBuilt) return;
+  cdBuilt = true;
+  const strip = document.getElementById('strip');
+  SONGS.forEach((e, i) => {
+    const d = document.createElement('div');
+    d.className = 'pl';
+    d.innerHTML = `<img loading="lazy" src="${e.cover || ''}" onerror="this.style.visibility='hidden'"><div>${e.seq}. ${e.title}</div>`;
+    d.onclick = () => load(i, true);
+    strip.appendChild(d);
+  });
+  if (SONGS.length) load(0, false);
+}
+function setView(v){
+  document.body.classList.toggle('vcd', v === 'cd');
+  document.getElementById('classicView').style.display = (v === 'cd') ? 'none' : 'block';
+  document.getElementById('cdView').style.display = (v === 'cd') ? 'flex' : 'none';
+  document.getElementById('gridCtrls').style.display = (v === 'cd') ? 'none' : 'flex';
+  document.getElementById('cdCtrls').style.display = (v === 'cd') ? 'flex' : 'none';
+  document.getElementById('segGrid').classList.toggle('on', v !== 'cd');
+  document.getElementById('segCd').classList.toggle('on', v === 'cd');
+  try { localStorage.setItem('kgview', v); } catch(e) {}
+  if (v === 'cd') initCd();
+}
+(function(){ let v = 'grid';
+  try { v = localStorage.getItem('kgview') || 'grid'; } catch(e) {}
+  setView(v === 'cd' ? 'cd' : 'grid');
+})();
+</script></body></html>
+"""
+
+
 def write_html(out, entries, profile, generated):
     path = os.path.join(out, 'index.html')
     _write_icon(out)
@@ -702,340 +1036,31 @@ def write_html(out, entries, profile, generated):
         stat += f" · 评分最高《{esc(best['title'])}》{best['score']}分"
     if hot and hot.get('play_num'):
         stat += f" · 最热《{esc(hot['title'])}》{hot['play_num']}次"
-    doc = f'''<!DOCTYPE html>
-<html lang="zh-cn"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#111418">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="K歌歌单">
-<link rel="apple-touch-icon" href="kgicon.png">
-<title>{nick} 的全民K歌备份</title>
-<style>
- body{{font-family:"Microsoft YaHei",system-ui,sans-serif;margin:0;background:#111418;color:#eee}}
- header{{padding:22px 24px 12px;position:sticky;top:0;background:rgba(17,20,24,.96);backdrop-filter:blur(6px);z-index:9;border-bottom:1px solid #2a2f36}}
- h1{{margin:0 0 6px;font-size:22px}}
- .meta{{color:#9aa3ad;font-size:13px}}
- #q{{margin-left:16px;padding:7px 12px;border-radius:8px;border:1px solid #3a4149;background:#1b2026;color:#eee;width:200px}}
- select{{padding:7px;border-radius:8px;border:1px solid #3a4149;background:#1b2026;color:#eee}}
- .grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:20px}}
- .card{{background:#1a1f26;border-radius:12px;overflow:hidden;display:flex;flex-direction:column}}
- .card img,.noimg{{width:100%;height:190px;object-fit:cover;display:flex;align-items:center;justify-content:center;font-size:48px;color:#555;background:#232932}}
- .body{{padding:12px 14px 14px;display:flex;flex-direction:column;gap:5px}}
- .title a{{color:#fff;font-weight:600;text-decoration:none;font-size:15px}}
- .title a:hover{{color:#7cb8ff}}
- .sub{{color:#aab4bf;font-size:13px}}
- .time,.stats{{color:#8b95a1;font-size:12px}}
- .content{{color:#cfd6dd;font-size:13px;background:#222932;border-left:3px solid #3f6ea5;padding:6px 9px;border-radius:0 6px 6px 0;white-space:pre-wrap}}
- audio{{width:100%;height:34px;margin-top:4px}}
- .hidden{{display:none}}
-</style></head><body>
-<header>
- <h1>{nick} 的全民K歌备份 <span class="meta">{stat} · 总播放 {plays}</span></h1>
- <div class="meta">备份时间 {esc(generated)} · 本地文件仅供个人收藏 ·
-   <a href="cd.html" style="color:#ffd76a;text-decoration:none">✨ 复古CD播放器</a> ·
-   <input id="q" placeholder="搜索歌名/介绍…" oninput="flt()">
-   <select onchange="flt()"><option value="new">最新在前</option><option value="old">最早在前</option><option value="hot">播放最多</option><option value="score">评分最高</option></select>
- </div>
-</header>
-<div class="grid" id="g">{''.join(cards)}</div>
-<script>
-function num(c){{var t=c.querySelector('.stats').textContent.match(/▶ (\\d+)/);return t?+t[1]:0;}}
-function scoreNum(c){{var t=c.querySelector('.stats').textContent.match(/★ (\\d+)/);return t?+t[1]:0;}}
-function seqNum(c){{var t=c.querySelector('.title a').textContent.match(/^(\\d+)/);return t?+t[1]:0;}}
-function flt(){{
- var q=document.getElementById('q').value.toLowerCase();
- var m=document.querySelector('select').value;
- var cards=[...document.querySelectorAll('.card')];
- cards.forEach(c=>c.classList.toggle('hidden', !!q && !c.dataset.title.toLowerCase().includes(q)));
- if(m==='old'){{cards.sort((a,b)=>seqNum(a)-seqNum(b));}}
- else if(m==='hot'){{cards.sort((a,b)=>num(b)-num(a));}}
- else if(m==='score'){{cards.sort((a,b)=>scoreNum(b)-scoreNum(a));}}
- else{{cards.sort((a,b)=>seqNum(b)-seqNum(a));}}
- cards.forEach(c=>document.getElementById('g').appendChild(c));
-}}
-</script></body></html>'''
+
+    data = []
+    for e in sorted(entries, key=lambda x: x['seq']):
+        if not e.get('audio'):
+            continue
+        data.append({
+            'seq': e['seq'], 'title': e.get('title') or '未命名',
+            'song': e.get('song_name') or '', 'singer': e.get('singer_name') or '',
+            'time': (e.get('time') or '')[:10], 'score': e.get('score'),
+            'content': e.get('content') or '',
+            'audio': e.get('audio') or '', 'cover': e.get('cover') or '',
+            'lrc': e.get('lrc') or '',
+        })
+    data_json = json.dumps(data, ensure_ascii=False).replace('</', '<\\/')
+
+    doc = (PAGE_TEMPLATE
+           .replace('__DATA__', data_json)
+           .replace('__CARDS__', ''.join(cards))
+           .replace('__NICK__', nick)
+           .replace('__STAT__', esc(stat))
+           .replace('__PLAYS__', str(plays))
+           .replace('__GENERATED__', esc(generated[:10])))
     with open(path, 'w', encoding='utf-8') as f:
         f.write(doc)
     return path
-
-
-# ---------------------------------------------------------------- 备份主流程
-
-def backup_one(target, args, job=None):
-    """备份一个账号。job 用于进度回调与取消（GUI）；CLI 传 None 自动创建。"""
-    job = job or Job()
-    job.started_at = ts2str(time.time())
-    try:
-        _backup_one(target, args, job)
-        job.state = 'stopped' if job.cancelled else 'done'
-        job.finished_at = ts2str(time.time())
-    except Exception as e:
-        job.state = 'error'
-        job.error = str(e)
-        job.finished_at = ts2str(time.time())
-        raise
-    return job
-
-
-def _backup_one(target, args, job):
-    uid = parse_uid(target)
-    cookie = args.cookie
-    if getattr(args, 'cookie_file', ''):
-        with open(args.cookie_file, encoding='utf-8-sig') as f:
-            cookie = f.read().strip()
-
-    client = KGClient(cookie, args.proxy, args.timeout, args.retries)
-    client.share_uid = uid
-    job.log(f'目标 uid: {uid}（{"已带 Cookie，可含私密作品" if cookie else "未登录，仅公开作品"}）')
-
-    job.state = 'listing'
-    d1 = client.get_work_page(uid, 1)
-    profile = {'uid': uid, 'nickname': d1.get('nickname', ''),
-               'head_img_url': d1.get('head_img_url', ''),
-               'ugc_total_count': d1.get('ugc_total_count'), 'level': d1.get('level'),
-               'levelname': d1.get('levelname'), 'follower': d1.get('follower'),
-               'following': d1.get('following'), 'fetched_at': ts2str(time.time())}
-    job.profile = profile
-    job.log(f"账号: {profile['nickname'] or uid} · 可见作品总数: {profile['ugc_total_count']}")
-
-    out = args.out or f'kg_backup_{safe_name(profile["nickname"] or uid, 30)}'
-    os.makedirs(out, exist_ok=True)
-    if not args.list_only and not getattr(args, 'flat', False):
-        for sub in ('audio', 'covers', 'meta'):
-            os.makedirs(os.path.join(out, sub), exist_ok=True)
-    if profile.get('head_img_url') and not args.list_only:
-        try:
-            client.download(profile['head_img_url'], os.path.join(out, 'avatar.jpg'), min_size=100)
-        except Exception:
-            pass
-    job.out_dir = out
-
-    idx_path = os.path.join(out, 'index.json')
-    index = {}
-    if os.path.exists(idx_path) and not args.force:
-        try:
-            with open(idx_path, encoding='utf-8') as f:
-                index = json.load(f).get('works', {})
-            if index:
-                # 统一键名：tkey(稳定键) > ugcid > 原键，避免同一作品多个旧条目
-                index = {(e.get('tkey') or e.get('ugcid') or k): e
-                         for k, e in index.items()}
-                job.log(f'增量模式：已有 {len(index)} 首备份（--force 强制重来）')
-        except Exception:
-            index = {}
-
-    # 翻页抓全列表
-    works = list(d1.get('ugclist') or [])
-    page, has_more, misses = 2, d1.get('has_more'), 0
-    while has_more and page <= 3000:
-        if job.cancelled:
-            job.log('已取消，停止翻页')
-            break
-        time.sleep(args.page_sleep)
-        try:
-            d = client.get_work_page(uid, page)
-            misses = 0
-        except Exception as e:
-            misses += 1
-            if misses >= 3:
-                job.log(f'连续 3 页失败，停止翻页: {e}')
-                break
-            page += 1
-            continue
-        wl = d.get('ugclist') or []
-        if not wl:
-            break
-        works.extend(wl)
-        job.log(f'  列表进度 {len(works)} 首…')
-        if not d.get('has_more'):
-            has_more = False
-            break
-        has_more = d.get('has_more')
-        page += 1
-    job.log(f'列表抓取完成：{len(works)} 首（账号显示 {profile["ugc_total_count"]}；'
-            f'差值一般是 仅自己可见 的私密作品，需登录 Cookie 才能取到）')
-
-    seen, uniq = set(), []
-    for w in works:
-        tkey = f"{w.get('time') or 0}_{w.get('ksong_mid') or ''}"
-        if w.get('shareid') and tkey not in seen:
-            seen.add(tkey)
-            uniq.append(w)
-    uniq.sort(key=lambda w: w.get('time') or 0)
-    job.stats['total_list'] = len(uniq)
-
-    # 增量跳过（tkey 稳定键 + 旧索引兼容），并检测"已备份但文件丢失"的自动补下
-    legacy_key = {(e.get('time'), e.get('title')): k
-                  for k, e in index.items() if not e.get('tkey')}
-    seen_ugcids = {e.get('ugcid') for e in index.values() if e.get('ugcid')}
-
-    since = args.since and dt.date.fromisoformat(args.since)
-    until = args.until and dt.date.fromisoformat(args.until)
-    todo, repair = [], []
-    for w in uniq:
-        tkey = f"{w.get('time') or 0}_{w.get('ksong_mid') or ''}"
-        old_key, e = None, index.get(tkey)
-        if e is None:
-            old_key = legacy_key.get((ts2str(w.get('time')), w.get('title')))
-            if old_key:
-                e = index[old_key]
-        if e is not None:
-            # 已备份过：音频文件还在就跳过，丢了就登记补下（不受 --max 限制）
-            if e.get('audio') and not os.path.exists(os.path.join(out, e['audio'])):
-                repair.append((w, e.get('seq'), old_key))
-            continue
-        t = w.get('time')
-        if t and (since or until):
-            d = dt.date.fromtimestamp(t)
-            if (since and d < since) or (until and d > until):
-                continue
-        todo.append(w)
-    if args.max:
-        todo = todo[:args.max]
-    if repair:
-        job.log(f'检测到 {len(repair)} 首已备份但音频缺失，自动补下')
-    plan = [(w, None, None) for w in todo] + repair
-
-    if args.list_only:
-        csv_path = write_list_csv(out, todo if (since or until or args.max) else uniq)
-        job.log(f'清单模式完成：{len(todo if (since or until or args.max) else uniq)} 首 → {csv_path}')
-        return
-
-    job.stats['new'] = len(todo)
-    job.stats['repair'] = len(repair)
-    job.log(f'本次待处理 {len(plan)} 首（新增 {len(todo)}，补下 {len(repair)}），'
-            f'并发 {args.workers}，标签嵌入{"开" if not args.no_tags and ffmpeg_available() else "关"}')
-    job.state = 'running'
-    if job.cancelled:
-        job.log('已取消')
-        return
-
-    opts = {'no_audio': args.no_audio, 'no_cover': args.no_cover,
-            'no_comments': args.no_comments, 'no_meta': args.no_meta,
-            'no_lyric': getattr(args, 'no_lyric', False),
-            'flat': getattr(args, 'flat', False),
-            'want_video': args.video, 'seen_ugcids': seen_ugcids,
-            'force': args.force, 'job': job,
-            'tags': (not args.no_tags) and ffmpeg_available()}
-    lock = threading.Lock()
-    counter = {'seq': max([e.get('seq', 0) for e in index.values()] or [0])}
-    fail_map = {}  # shareid -> {'plan_item','title','shareid','error'}（重试成功会移除）
-
-    def task(plan_item, is_retry=False):
-        # 暂停 = 挂在此处等待（每首歌是原子单位，暂停不会撕裂下载）
-        while job.paused and not job.cancelled:
-            time.sleep(0.3)
-        if job.cancelled:
-            return
-        item, force_seq, old_key = plan_item
-        sid = item.get('shareid') or ''
-        with lock:
-            if force_seq:
-                seq = force_seq  # 补下文件沿用原序号，文件名不变
-            else:
-                counter['seq'] += 1
-                seq = counter['seq']
-        try:
-            e = process_work(client, out, seq, item, opts, force=bool(force_seq))
-            with lock:
-                if e is None:
-                    if not is_retry:
-                        job.stats['done'] += 1
-                    job.log(f"  ○ {item.get('title')}: 重复作品，跳过")
-                    return
-                if old_key and old_key in index and old_key != e['tkey']:
-                    del index[old_key]
-                index[e['tkey']] = e
-                if e['ugcid']:
-                    opts['seen_ugcids'].add(e['ugcid'])
-                fail_map.pop(sid, None)
-                job.stats['ok'] += 1
-                if not is_retry:
-                    job.stats['done'] += 1
-                job.log(f"  {'✓ [重试成功] ' if is_retry else '✓ '}"
-                        f"[{job.stats['done']}/{len(plan)}] #{seq:04d} {e['title']}"
-                        + ('（仅MV）' if e['audio'].endswith('_MV.mp4') else '')
-                        + ('（补下）' if force_seq else ''))
-        except Exception as ex:
-            with lock:
-                fail_map[sid] = {'plan_item': plan_item, 'shareid': sid,
-                                 'title': item.get('title'), 'error': str(ex)}
-                if not is_retry:
-                    job.stats['done'] += 1
-                    job.stats['fail'] += 1
-                    job.log(f"  ✗ [{job.stats['done']}/{len(plan)}] {item.get('title')}: {ex}"
-                            f"（多数为瞬时网络问题，稍后自动重试）")
-                else:
-                    job.log(f"  ✗ [重试仍失败] {item.get('title')}: {ex}（已记入 failed.json，重跑命令可再补）")
-
-    if plan:
-        with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
-            list(ex.map(task, plan))
-
-    # 整批跑完后，把 ✗ 的当场自动重试一轮（多为瞬时网络/链接过期，换个新请求往往就好）
-    if fail_map and not job.cancelled:
-        retry = [rec['plan_item'] for rec in fail_map.values()]
-        pass1_fail = len(fail_map)
-        job.log(f'—— {len(retry)} 首失败，自动重试一轮 ——')
-        with cf.ThreadPoolExecutor(max_workers=max(1, args.workers)) as ex:
-            list(ex.map(lambda pi: task(pi, True), retry))
-        rescued = pass1_fail - len(fail_map)
-        if rescued > 0:
-            job.log(f'✅ 首轮失败的 {pass1_fail} 首中，{rescued} 首已自动重试救回，'
-                    f'文件正常无需处理；剩余 {len(fail_map)} 首见 failed.json')
-
-    job.stats['fail'] = len(fail_map)
-    job.stats['index'] = len(index)
-    job.stats['bytes'] = client.bytes_downloaded
-
-    if job.cancelled:
-        job.log('用户已停止，正在保存已完成的进度…')
-
-    if args.mp3:
-        convert_mp3(out, list(index.values()), job=job)
-
-    profile['backup_count'] = len(index)
-    generated = ts2str(time.time())
-    with open(idx_path, 'w', encoding='utf-8') as f:
-        json.dump({'profile': profile, 'generated': generated, 'works': index},
-                  f, ensure_ascii=False, indent=1)
-    with open(os.path.join(out, 'profile.json'), 'w', encoding='utf-8') as f:
-        json.dump(profile, f, ensure_ascii=False, indent=1)
-
-    entries = list(index.values())
-    csv_path = write_csv(out, entries) if entries else ''
-    html_path = write_html(out, entries, profile, generated) if entries and not args.no_html else ''
-    cd_path = write_cd_page(out, entries, profile, generated) if entries and not args.no_html else ''
-
-    zip_path = ''
-    if args.zip and entries:
-        parent = os.path.dirname(os.path.abspath(out))
-        zp = shutil.make_archive(os.path.abspath(out), 'zip',
-                                 root_dir=parent, base_dir=os.path.basename(out))
-        zip_path = f'{zp}（{os.path.getsize(zp) / 1048576:.0f}MB）'
-
-    job.log('=' * 56)
-    job.log(f'完成：本次成功 {job.stats["ok"]}，失败 {job.stats["fail"]}，索引总计 {len(index)} 首')
-    if client.bytes_downloaded:
-        job.log(f'本次下载: {client.bytes_downloaded / 1048576:.1f} MB')
-    if profile.get('ugc_total_count') and len(uniq) < profile['ugc_total_count'] and cookie:
-        job.log(f'注意：有 {profile["ugc_total_count"] - len(uniq)} 首未能获取——'
-                f'Cookie 可能已过期（重新复制一次），或这些作品仅 App 内可见')
-    job.log(f'输出目录: {os.path.abspath(out)}')
-    if csv_path:
-        job.log(f'目录清单: {csv_path}')
-    if html_path:
-        job.log(f'HTML歌单: {html_path} （双击用浏览器打开即可试听）')
-    if cd_path:
-        job.log(f'CD播放器: {cd_path} （复古CD机 · 歌词滚动 · 可与歌单互相切换）')
-    if zip_path:
-        job.log(f'ZIP打包: {zip_path}')
-    if fail_map:
-        fp = os.path.join(out, 'failed.json')
-        with open(fp, 'w', encoding='utf-8') as f:
-            json.dump([{'shareid': r['shareid'], 'title': r['title'], 'error': r['error']}
-                       for r in fail_map.values()], f, ensure_ascii=False, indent=1)
-        job.log(f'失败清单: {fp}（直接重跑本命令即可自动重试失败项）')
 
 
 # ---------------------------------------------------------------- CD 播放器页面
