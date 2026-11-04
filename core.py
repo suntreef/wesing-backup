@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.7.2'
+APP_VERSION = '1.8.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1911,10 +1911,6 @@ def _backup_one(target, args, job):
             job.log(f'✅ 首轮失败的 {pass1_fail} 首中，{rescued} 首已自动重试救回，'
                     f'文件正常无需处理；剩余 {len(fail_map)} 首见 failed.json')
 
-    # 旧版本备份原地升级：补歌词 LRC + 无损重嵌标签（不重新下载音频）
-    if not args.list_only:
-        upgrade_old_entries(client, out, index, job, profile)
-
     job.stats['fail'] = len(fail_map)
     job.stats['index'] = len(index)
     job.stats['bytes'] = client.bytes_downloaded
@@ -1934,6 +1930,14 @@ def _backup_one(target, args, job):
         json.dump(profile, f, ensure_ascii=False, indent=1)
 
     entries = list(index.values())
+    if not args.list_only:
+        # 旧版本备份原地升级：补歌词 LRC + 无损重嵌标签（不重新下载音频），并刷新页面
+        try:
+            upgraded = upgrade_index_dir(out, client, job, profile)
+            if upgraded:
+                entries = upgraded
+        except Exception as e:
+            job.log(f'⚠ 升级通道异常（不影响备份文件）: {e}')
     csv_path = write_csv(out, entries) if entries else ''
     html_path = write_html(out, entries, profile, generated) if entries and not args.no_html else ''
     cd_path = write_cd_page(out, entries, profile, generated) if entries and not args.no_html else ''
@@ -1971,6 +1975,32 @@ def _backup_one(target, args, job):
 
 
 
+def upgrade_index_dir(dir_path, client, job, profile=None):
+    """独立升级一个旧备份目录：补歌词/标签/重生成页面（不重新下载音频）。返回更新后的 entries。"""
+    idx_path = os.path.join(dir_path, 'index.json')
+    if not os.path.exists(idx_path):
+        job.log(f'目录中没有 index.json：{dir_path}')
+        return []
+    with open(idx_path, encoding='utf-8') as f:
+        doc = json.load(f)
+    index = doc.get('works', {})
+    profile = profile or doc.get('profile') or {}
+    if not index:
+        job.log('目录为空，无需升级')
+        return []
+    upgrade_old_entries(client, dir_path, index, job, profile)
+    generated = ts2str(time.time())
+    with open(idx_path, 'w', encoding='utf-8') as f:
+        json.dump({'profile': profile, 'generated': generated, 'works': index},
+                  f, ensure_ascii=False, indent=1)
+    entries = list(index.values())
+    write_csv(dir_path, entries)
+    write_html(dir_path, entries, profile, generated)
+    write_cd_page(dir_path, entries, profile, generated)
+    job.log('🆙 目录升级完成：index.html / cd.html / csv 已更新为最新版式')
+    return entries
+
+
 def upgrade_old_entries(client, out, index, job, profile):
     """旧版本备份原地升级：补歌词 LRC + 无损重嵌标签（不重新下载音频）。"""
     todo = []
@@ -1993,6 +2023,14 @@ def upgrade_old_entries(client, out, index, job, profile):
             tkey = e.get('tkey') or ''
             if '_' in tkey:
                 ksong_mid = tkey.split('_', 1)[1]
+            if not ksong_mid and e.get('meta'):
+                mp = os.path.join(out, e['meta'])
+                if os.path.exists(mp):
+                    try:
+                        with open(mp, encoding='utf-8') as mf:
+                            ksong_mid = (json.load(mf).get('detail') or {}).get('ksong_mid') or ''
+                    except Exception:
+                        pass
             lyric = ''
             if ksong_mid and not e.get('lrc'):
                 lyric = client.fetch_lyric(ksong_mid)
@@ -2108,7 +2146,14 @@ header .gold{color:#ffd76a}
 .bar .bt{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .bs{color:#8f9aac;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar button{background:none;border:1px solid #3a415a;color:#dfe3ec;border-radius:50%;width:40px;height:40px;flex:none;
- font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center}
+ font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
+ padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none}
+.bar button:focus-visible{outline:2px solid #ffd76a}
+.bar .bp:focus-visible{outline:2px solid #ffd76a}
+.bar-lyric{display:none;width:100%;text-align:center;color:#ffd76a;font-size:13px;padding:2px 4px 0;
+ white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-lyric.show{display:block}
+.item .ud{padding:0 11px 10px;font-size:11px;color:#ffd76a}
 .bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:17px}
 .bar .bp:hover{background:#ffe28a}
 </style></head><body>
@@ -2136,6 +2181,7 @@ header .gold{color:#ffd76a}
  <div class="history" id="history"></div>
 </div>
 <div class="bar" id="bar">
+ <div class="bar-lyric" id="barLyric"></div>
  <img id="barCover" alt="">
  <div class="bi"><div class="bt" id="barTitle">—</div><div class="bs" id="barSub"></div></div>
  <button onclick="barPrev()">⏮</button>
@@ -2149,6 +2195,32 @@ const $ = s => document.querySelector(s);
 const au = document.getElementById('au');
 let cur = -1;
 const unlocked = SONGS.filter(s => !s.locked);
+const dateMap = {};
+HISTORY.forEach(h => { dateMap[h.uk] = h.date; });
+/* 已解锁的排前面（按解锁日期倒序），未解锁按发行时间 */
+SONGS.sort((a, b) => {
+  if (a.today) return -1;
+  if (b.today) return 1;
+  const au_ = !a.locked, bu_ = !b.locked;
+  if (au_ !== bu_) return au_ ? -1 : 1;
+  if (au_) return (dateMap[b.uk] || '').localeCompare(dateMap[a.uk] || '');
+  return a.seq - b.seq;
+});
+/* LRC */
+function parseLrc(text){
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g);
+    if (!m) continue;
+    const txt = line.replace(/\[[^\]]*\]/g, '').trim();
+    for (const tm of m) {
+      const mm = tm.match(/\[(\d+):(\d+(?:\.\d+)?)\]/);
+      if (mm) out.push({ t: (+mm[1]) * 60 + (+mm[2]), text: txt });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+let glrc = [], glrcOn = -1;
 function fmt(s){ s = Math.max(0, s|0); return (s/60|0) + ':' + String(s%60).padStart(2,'0'); }
 /* 今日盲盒 */
 const today = SONGS.find(s => s.today);
@@ -2212,7 +2284,8 @@ SONGS.forEach(s => {
   d.innerHTML = `<img src="${s.locked ? '' : (s.cover || '')}" alt="" ${s.locked ? '' : 'loading="lazy"'}>` +
     (s.locked ? '<div class="q">❓</div>' : '') +
     (s.today ? '<div class="tag">今日</div>' : (s.locked ? '<div class="tag">🔒</div>' : '')) +
-    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>`;
+    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
+    (!s.locked && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk]} 掉落</div>` : '');
   d.onclick = () => {
     if (s.locked) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
     playSong(SONGS.indexOf(s));
@@ -2235,6 +2308,10 @@ function playSong(i){
   if (cur === i && !au.paused) { au.pause(); return; }
   cur = i;
   au.src = s.audio;
+  glrc = []; glrcOn = -1;
+  if (s.lrc) fetch(s.lrc).then(r => r.ok ? r.text() : '').then(t => {
+    if (SONGS[cur] === s && t) { glrc = parseLrc(t); }
+  }).catch(() => {});
   au.play().catch(()=>{});
   document.getElementById('barCover').src = s.cover || '';
   document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
@@ -2242,8 +2319,18 @@ function playSong(i){
   document.getElementById('bar').classList.add('show');
 }
 au.onplay = () => document.getElementById('barPlay').textContent = '⏸';
-au.onpause = () => document.getElementById('barPlay').textContent = '▶';
-au.ontimeupdate = () => {};
+au.onpause = () => { document.getElementById('barPlay').textContent = '▶';
+  const bl = document.getElementById('barLyric'); if (bl) bl.classList.remove('show'); };
+au.ontimeupdate = () => {
+  if (!glrc.length) return;
+  let i = -1;
+  for (let k = 0; k < glrc.length; k++) if (glrc[k].t <= au.currentTime) i = k;
+  if (i === glrcOn) return;
+  glrcOn = i;
+  const bl = document.getElementById('barLyric');
+  bl.textContent = glrc[i] ? (glrc[i].text || '♪') : '♪';
+  bl.classList.add('show');
+};
 function barToggle(){ if (!au.src) { if (unlocked.length) playSong(SONGS.indexOf(unlocked[0])); return; } if (au.paused) au.play(); else au.pause(); }
 function barStep(step){
   if (!unlocked.length) return;
@@ -2294,6 +2381,7 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_key, today
             'time': (e.get('time') or '')[:10],
             'cover': '' if locked else '/g/' + (e.get('cover') or ''),
             'audio': '' if locked else '/g/' + (e.get('audio') or ''),
+            'lrc': '' if locked else '/g/' + (e.get('lrc') or ''),
             'locked': locked, 'today': is_today,
         })
     hist = [{'date': h['date'], 'title': h['title'], 'singer': h.get('singer') or ''} for h in history]

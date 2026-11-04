@@ -362,9 +362,23 @@ function shareModal(){
     <div style="display:flex;gap:8px;margin:10px 0">
       <input id="shDir" placeholder="备份目录完整路径（默认最近一次备份）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
       <button class="btn small" onclick="setShare()">设为分享</button>
+      <button class="btn small" onclick="runUpgrade()" title="补歌词/标签/刷新页面，不重新下载">🆙 升级此目录</button>
     </div>
     <div id="shQr" style="min-height:170px;display:flex;align-items:center;justify-content:center"></div>
     <div id="shUrl" style="font-size:12px;color:var(--text2);margin-top:8px;word-break:break-all"></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">🔐 访问控制（盲盒页）</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
+        <select id="shAuthMode" onchange="authFields()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+          <option value="none">无需验证</option>
+          <option value="user">仅账号</option>
+          <option value="userpass">账号+密码</option>
+        </select>
+        <input id="shAuthUser" placeholder="账号" style="width:110px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);display:none">
+        <input id="shAuthPass" type="password" placeholder="密码" style="width:110px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);display:none">
+        <button class="btn small" onclick="saveAuth()">保存</button>
+      </div>
+    </div>
     <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
       朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
       同一 Wi-Fi 直接访问；公网分享需要端口转发或内网穿透（frp/Tailscale）。<br>
@@ -385,7 +399,9 @@ async function refreshShare(){
     return;
   }
   st.innerHTML = `当前分享：<b style="word-break:break-all">${esc(s.dir)}</b><br>` +
-    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）');
+    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）');
+  if(document.getElementById('shAuthMode')) document.getElementById('shAuthMode').value = s.authMode || 'none';
+  authFields();
   const qr = document.getElementById('shQr'), url = s.guestUrl;
   if(url && window.qrcode){
     const q = qrcode(0, 'M'); q.addData(url); q.make();
@@ -395,6 +411,29 @@ async function refreshShare(){
     qr.innerHTML = url ? '' : '<div style="color:var(--text2);font-size:13px;padding:30px 0">打开 📱 手机访问 开关后出现二维码</div>';
   }
   document.getElementById('shUrl').textContent = url;
+}
+function authFields(){
+  const mode = document.getElementById('shAuthMode').value;
+  document.getElementById('shAuthUser').style.display = mode === 'none' ? 'none' : 'inline-block';
+  document.getElementById('shAuthPass').style.display = mode === 'userpass' ? 'inline-block' : 'none';
+}
+async function saveAuth(){
+  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({auth_mode: document.getElementById('shAuthMode').value,
+      auth_user: document.getElementById('shAuthUser').value,
+      auth_pass: document.getElementById('shAuthPass').value})});
+  const j = await r.json().catch(()=>({}));
+  if(j.ok){ const st = document.getElementById('shState'); if(st) st.innerHTML = '✓ 访问控制已保存：' + esc(j.auth); }
+  else alert(j.error || '保存失败');
+}
+async function runUpgrade(){
+  const dir = (document.getElementById('shDir').value.trim()) || (await (await fetch('/api/share')).json()).dir;
+  if(!dir){ alert('没有可升级的目录'); return; }
+  const r = await fetch('/api/upgrade', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({dir})});
+  const j = await r.json().catch(()=>({}));
+  if(j.ok){ document.getElementById('shMask').remove(); document.getElementById('progCard').classList.remove('hidden');
+    document.getElementById('progCard').scrollIntoView({behavior:'smooth'}); }
+  else alert(j.error || '升级启动失败');
 }
 async function setShare(){
   const dir = document.getElementById('shDir').value.trim();

@@ -353,11 +353,14 @@ class Handler(BaseHTTPRequestHandler):
             ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
             url = f'http://{ips[0]}:{port}/guest' if ips else ''
+            gport = _STATE.get('guest_port') or 0
+            gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else url
             return self._send(200, {
                 'dir': (load_shares().get('dir') or ''),
-                'guestUrl': url, 'unlocked': len(unlocked), 'total': len(entries),
+                'guestUrl': gurl, 'unlocked': len(unlocked), 'total': len(entries),
                 'today': (today_key and next((e.get('title') for e in entries if _uk(e) == today_key), '')) or '',
-                'ips': ips})
+                'ips': ips, 'guestPort': gport,
+                'authMode': (load_shares().get('auth') or {}).get('mode') or 'none'})
         if self.path == '/guest':
             entries, profile, unlocked, history, today_key, today_date = blindbox_state()
             if not entries:
@@ -456,6 +459,13 @@ class Handler(BaseHTTPRequestHandler):
                     save_shares(sh)
                     return self._send(200, {'ok': True, 'dir': d})
                 return self._send(400, {'error': '目录不存在或还没有 index.json（先完成一次备份）'})
+            if 'auth_mode' in p:
+                sh = load_shares()
+                sh['auth'] = {'mode': str(p.get('auth_mode') or 'none'),
+                              'user': str(p.get('auth_user') or ''),
+                              'pass': str(p.get('auth_pass') or '')}
+                save_shares(sh)
+                return self._send(200, {'ok': True, 'auth': sh['auth']['mode']})
             entries, profile, unlocked, history, today_key, today_date = blindbox_state()
             ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
@@ -465,11 +475,38 @@ class Handler(BaseHTTPRequestHandler):
                 'guestUrl': url, 'unlocked': len(unlocked), 'total': len(entries),
                 'today': (today_key and next((e.get('title') for e in entries if _uk(e) == today_key), '')) or '',
                 'ips': ips})
+        if self.path == '/api/upgrade':
+            if _STATE['thread'] and _STATE['thread'].is_alive():
+                return self._send(409, {'error': '已有任务在进行中'})
+            p = self._body()
+            d = str(p.get('dir') or '').strip()
+            if not d or not os.path.exists(os.path.join(d, 'index.json')):
+                return self._send(400, {'error': '目录不存在或没有 index.json'})
+            job = Job()
+            _STATE['job'] = job
+            t = threading.Thread(target=_run_upgrade, args=(d, job), daemon=True)
+            _STATE['thread'] = t
+            t.start()
+            return self._send(200, {'ok': True})
         if self.path == '/api/quit':
             self._send(200, {'ok': True})
             threading.Timer(0.4, _quit).start()
             return
         return self._send(404, {'error': 'not found'})
+
+
+def _run_upgrade(d, job):
+    try:
+        from core import KGClient, upgrade_index_dir
+        client = KGClient('', '', 30, 3)
+        job.out_dir = d
+        upgrade_index_dir(d, client, job)
+        job.state = 'done'
+        job.finished_at = __import__('core').ts2str(time.time())
+        job.log('🆙 升级完成')
+    except BaseException as e:
+        job.state = 'error'
+        job.error = str(e)
 
 
 def _run_job(target, args, job):
@@ -494,6 +531,43 @@ def _quit():
     os._exit(0)
 
 
+class GuestHandler(Handler):
+    """独立盲盒端口：只提供 /guest 与 /g/*，不暴露任何管理功能。"""
+
+    def _auth_ok(self):
+        cfg = load_shares().get('auth') or {}
+        mode = cfg.get('mode') or 'none'
+        if mode == 'none':
+            return True
+        import base64
+        auth = self.headers.get('Authorization') or ''
+        if not auth.startswith('Basic '):
+            return False
+        try:
+            user, _, pwd = base64.b64decode(auth[6:]).decode('utf-8').partition(':')
+        except Exception:
+            return False
+        if mode == 'user':
+            return user == (cfg.get('user') or '')
+        if mode == 'userpass':
+            return user == (cfg.get('user') or '') and pwd == (cfg.get('pass') or '')
+        return True
+
+    def do_GET(self):
+        if not self._auth_ok():
+            self.send_response(401)
+            self.send_header('WWW-Authenticate', 'Basic realm="KG Blindbox"')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+        if self.path == '/guest' or self.path.startswith('/g/'):
+            return Handler.do_GET(self)
+        return self._send(404, b'not found', 'text/plain; charset=utf-8')
+
+    def do_POST(self):
+        return self._send(404, b'not found', 'text/plain; charset=utf-8')
+
+
 def main():
     # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击 exe 叠开一堆窗口
     port = 0
@@ -504,6 +578,9 @@ def main():
         port = int(argv[argv.index('--port') + 1])
     if '--lan' in argv:
         lan = True
+    guest_port = int(os.environ.get('GUEST_PORT') or 0)
+    if '--guest-port' in argv:
+        guest_port = int(argv[argv.index('--guest-port') + 1])
     if '--host' in argv:
         host = argv[argv.index('--host') + 1]
         lan = host != '127.0.0.1'
@@ -532,6 +609,16 @@ def main():
     if not os.environ.get('KG_NO_BROWSER'):
         threading.Timer(0.8, webbrowser.open, args=(url,)).start()
     threading.Thread(target=srv.serve_forever, daemon=True).start()
+    if guest_port > 0:
+        try:
+            gsrv = ThreadingHTTPServer(('0.0.0.0', guest_port), GuestHandler)
+            threading.Thread(target=gsrv.serve_forever, daemon=True).start()
+            _STATE['guest_port'] = guest_port
+            if sys.stdout:
+                print(f'🎁 盲盒访客端口已开放: http://0.0.0.0:{guest_port}/guest', flush=True)
+        except OSError as e:
+            if sys.stdout:
+                print(f'盲盒访客端口 {guest_port} 启动失败: {e}', flush=True)
     try:
         while True:
             time.sleep(3600)

@@ -10,9 +10,10 @@ COPY core.py kg_app.py ./
 COPY static ./static
 
 ENV KG_NO_BROWSER=1
+ENV GUEST_PORT=8766
 RUN mkdir -p /data
 WORKDIR /data
 VOLUME /data
-EXPOSE 8765
+EXPOSE 8765 8766
 
 CMD ["python", "/app/kg_app.py", "--host", "0.0.0.0", "--port", "8765"]

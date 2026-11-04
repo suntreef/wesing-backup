@@ -5,7 +5,8 @@ services:
     # image: ghcr.io/suntreef/wesing-backup:latest
     container_name: wesing-backup
     ports:
-      - "8765:8765"
+      - "8765:8765"    # 工具页（管理）
+      - "8766:8766"    # 盲盒页（分享给朋友）
     volumes:
       - "./backups:/data"
     restart: unless-stopped
