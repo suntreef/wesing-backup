@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.8.3'
+APP_VERSION = '1.8.4'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -692,30 +692,44 @@ audio{width:100%;height:34px;margin-top:4px}
 body.vvinyl #skinVinyl,body.vtape #skinTape,body.vspectrum #skinSpectrum,body.vjukebox #skinJuke{display:flex}
 body:not(.vgrid) #classicView{display:none}
 body:not(.vgrid) #strip{display:flex}
+#dmask{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.45);display:none}
+body.dopen #dmask{display:block}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(390px,94vw);z-index:60;
+ background:rgba(14,17,26,.92);backdrop-filter:blur(18px);border-left:1px solid #2a3040;
+ transform:translateX(105%);transition:transform .34s cubic-bezier(.2,.8,.2,1);
+ display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.45)}
+body.dopen #drawer{transform:translateX(0)}
+#drawer .dhead{padding:18px 18px 12px;border-bottom:1px solid #222836}
+#drawer .dtitle{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+#drawer .dtitle b{font-size:16px;color:#fff}
+#drawer .dtitle span{font-size:11px;color:#7c8496;margin-left:8px}
+#drawer .dclose{background:none;border:none;color:#8f9aac;font-size:20px;cursor:pointer;line-height:1;padding:4px 8px;border-radius:8px}
+#drawer .dclose:hover{color:#fff;background:#232a38}
+#dq{width:100%;padding:10px 14px;border-radius:12px;border:1px solid #2e3542;background:#14181f;color:#eee;font-size:13.5px;outline:none;transition:.15s}
+#dq:focus{border-color:#ffd76a;box-shadow:0 0 0 3px rgba(255,215,106,.15)}
+#dcount{font-size:11px;color:#7c8496;margin:10px 18px 4px}
+#dlist{flex:1;overflow-y:auto;padding:6px 12px 18px}
+.ditem{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:14px;cursor:pointer;transition:background .15s;border-left:3px solid transparent}
+.ditem:hover{background:#1a2130}
+.ditem.playing{background:rgba(255,215,106,.07);border-left-color:#ffd76a}
+.ditem .n{flex:none;width:34px;color:#69737f;font-size:11.5px;font-variant-numeric:tabular-nums}
+.ditem.playing .n{color:#ffd76a}
+.ditem img{width:50px;height:50px;border-radius:10px;object-fit:cover;flex:none;background:#202634}
+.ditem .c{flex:1;min-width:0}
+.ditem .t{font-size:14px;font-weight:600;color:#e8eaf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ditem .s{font-size:11.5px;color:#8f9aac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.ditem .eq{display:none;gap:2.5px;align-items:flex-end;height:16px;flex:none}
+.ditem.playing .eq{display:flex}
+.eq i{width:3px;background:#ffd76a;border-radius:1.5px;animation:eqb .9s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:.18s}
+.eq i:nth-child(3){animation-delay:.36s}
+@keyframes eqb{0%,100%{height:5px}50%{height:16px}}
 #fab{display:none;position:fixed;right:18px;bottom:20px;z-index:30;width:52px;height:52px;border-radius:50%;
  background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#221d38;border:none;font-size:20px;cursor:pointer;
  box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 22px rgba(255,215,106,.35);-webkit-appearance:none;appearance:none;
  align-items:center;justify-content:center;line-height:1}
 body:not(.vgrid) #fab{display:inline-flex}
 #fab:hover{transform:scale(1.06)}
-#drawer{position:fixed;top:0;right:-400px;bottom:0;width:min(370px,94vw);z-index:60;
- background:rgba(16,19,28,.97);backdrop-filter:blur(12px);border-left:1px solid #2a3040;
- transition:right .32s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
-#drawer.open{right:0}
-#drawer .dhead{padding:14px 16px;display:flex;gap:8px;align-items:center;border-bottom:1px solid #2a3040}
-#dq{flex:1;padding:9px 12px;border-radius:10px;border:1px solid #3a4150;background:#14181f;color:#eee;font-size:13px;outline:none}
-#dq:focus{border-color:#ffd76a}
-#dlist{flex:1;overflow-y:auto;padding:8px}
-.ditem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;cursor:pointer}
-.ditem:hover{background:#1c222e}
-.ditem.on{background:#252e40}
-.ditem .n{flex:none;width:36px;color:#7c8496;font-size:12px;font-variant-numeric:tabular-nums}
-.ditem img{width:44px;height:44px;border-radius:9px;object-fit:cover;flex:none}
-.ditem .c{flex:1;min-width:0}
-.ditem .t{font-size:13.5px;font-weight:600;color:#e8eaf0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ditem .s{font-size:11px;color:#8f9aac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#drawer .dmask{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.35);display:none}
-#drawer.open ~ .dmask{display:block}
 #cdCtrls{display:none}
 body:not(.vgrid) #cdCtrls{display:flex}
 .lyrics{flex:1;overflow-y:auto;text-align:center;scroll-behavior:smooth;
@@ -820,7 +834,12 @@ body.vspectrum.playing .spec-cover{animation-play-state:running}
 .spec-sub{color:#b9c2d4;font-size:13px}
 .spec-line{min-height:30px;color:#ffd76a;font-size:16px;font-weight:600;text-shadow:0 2px 14px rgba(0,0,0,.55)}
 #specCanvas{width:min(640px,92vw);height:90px}
-.sctrl{width:min(640px,92vw);display:flex;align-items:center;gap:12px}
+.sprog{width:100%;display:flex;align-items:center;gap:12px}
+.sp-track{flex:1;height:6px;border-radius:4px;background:rgba(255,255,255,.16);position:relative;cursor:pointer;transition:height .15s}
+.sp-track:hover{height:9px}
+.sp-fill{height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,#ffd76a,#ff9d5c);box-shadow:0 0 12px rgba(255,215,106,.35);position:relative}
+.sp-fill::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:50%;
+ background:#ffd76a;box-shadow:0 0 12px rgba(255,215,106,.7)}
 /* ---------- 点唱机 ---------- */
 #skinJuke{justify-content:center;align-items:flex-start;overflow-y:auto;overflow-x:hidden;padding:30px 12px;
  background:radial-gradient(900px 600px at 50% 0%,#241426,#120a14 55%,#0a0710)}
@@ -1014,9 +1033,9 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   <div class="spec-sub jsSub"></div>
   <div class="spec-line" id="specLyric">♪</div>
   <canvas id="specCanvas"></canvas>
-  <div class="sctrl">
+  <div class="sprog">
    <span class="time jsCur">0:00</span>
-   <input type="range" class="jsSeek" min="0" max="1000" value="0">
+   <div class="sp-track" id="spTrack" title="点击跳转"><div class="sp-fill" id="spFill"></div></div>
    <span class="time jsEnd">0:00</span>
   </div>
   <div class="ctrl">
@@ -1050,15 +1069,17 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   </div>
   <div class="jk-lights"><i></i><i></i><i></i><i></i><i></i></div>
  </div>
-
-<button id="fab" onclick="toggleDrawer()" title="歌单">☰</button>
-<div id="drawer">
+</div>
+<div id="dmask" onclick="closeDrawer()"></div>
+<aside id="drawer">
  <div class="dhead">
-  <input id="dq" oninput="fltDrawer()" placeholder="搜索歌单…">
-  <button class="btn small" onclick="closeDrawer()">✕</button>
+  <div class="dtitle"><b>歌单</b><span id="dcount"></span><button class="dclose" onclick="closeDrawer()" title="关闭">✕</button></div>
+  <input id="dq" oninput="fltDrawer()" placeholder="搜索歌名 / 原唱…">
  </div>
  <div id="dlist"></div>
-</div>
+</aside>
+<button id="fab" onclick="toggleDrawer()" title="歌单">☰</button>
+
 <audio id="au" preload="none"></audio>
 <script>const SONGS = __DATA__;const CARDS = __CARDS__;</script>
 <script>
@@ -1207,7 +1228,7 @@ function load(i, autoplay){
   if (e.lrc) fetch(e.lrc).then(r => r.ok ? r.text() : '').then(t => {
     if (e.audio === au.getAttribute('src') && t) { lrc = parseLrc(t); renderLrc(); syncLrc(au.currentTime || 0); }
   }).catch(() => {});
-  $$('.pl').forEach((p, k) => p.classList.toggle('on', k === cur));
+  $$('.ditem').forEach((d, k) => d.classList.toggle('playing', k === cur));
   if (autoplay) play(); else pauseUi();
   const on = document.querySelector('.pl.on');
   if (on) on.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
@@ -1230,12 +1251,22 @@ au.onplay = () => {
 au.onpause = () => pauseUi();
 au.onended = () => load(cur + 1, true);
 au.ontimeupdate = () => {
-  if (!seeking) $$('.jsSeek').forEach(el => el.value = au.duration ? au.currentTime / au.duration * 1000 : 0);
+  if (au.duration) {
+    if (!seeking) $$('.jsSeek').forEach(el => el.value = au.currentTime / au.duration * 1000);
+    const sp = document.getElementById('spFill');
+    if (sp) sp.style.width = (au.currentTime / au.duration * 100) + '%';
+  }
   $$('.jsCur').forEach(el => el.textContent = fmt(au.currentTime));
   $$('.jsEnd').forEach(el => el.textContent = fmt(au.duration || 0));
   document.getElementById('ledTime').textContent = fmtL(au.currentTime);
   syncLrc(au.currentTime);
 };
+const spTrack = document.getElementById('spTrack');
+if (spTrack) spTrack.addEventListener('click', e => {
+  if (!au.duration) return;
+  const r = spTrack.getBoundingClientRect();
+  au.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * au.duration;
+});
 au.onloadedmetadata = () => { $$('.jsEnd').forEach(el => el.textContent = fmt(au.duration || 0)); };
 $$('.jsSeek').forEach(el => {
   el.addEventListener('input', () => { seeking = true; });
@@ -1302,7 +1333,8 @@ function initCd(){
     d.className = 'ditem';
     d.innerHTML = `<span class="n">${String(e.seq).padStart(4, '0')}</span>` +
       (e.cover ? `<img loading="lazy" src="${e.cover}" onerror="this.remove()">` : '') +
-      `<span class="c"><span class="t">${e.title}</span><span class="s">${e.singer ? e.singer + '《' + e.song + '》' : e.song} · ${e.time}</span></span>`;
+      `<span class="c"><span class="t">${e.title}</span><span class="s">${e.singer ? e.singer + '《' + e.song + '》' : e.song} · ${e.time}</span></span>` +
+      `<span class="eq"><i></i><i></i><i></i></span>`;
     d.onclick = () => { load(i, true); closeDrawer(); };
     list.appendChild(d);
   });
@@ -1319,8 +1351,12 @@ function initCd(){
   }
   if (SONGS.length) load(0, false);
 }
-function toggleDrawer(){ const d = document.getElementById('drawer'); d.classList.toggle('open'); fltDrawer(); }
-function closeDrawer(){ document.getElementById('drawer').classList.remove('open'); }
+function toggleDrawer(){ const d = document.getElementById('drawer');
+  const open = d.classList.toggle('open');
+  document.body.classList.toggle('dopen', open);
+  if (open) fltDrawer(); }
+function closeDrawer(){ document.getElementById('drawer').classList.remove('open');
+  document.body.classList.remove('dopen'); }
 function fltDrawer(){
   const q = (document.getElementById('dq') || {value: ''}).value.toLowerCase();
   [...document.querySelectorAll('.ditem')].forEach(it =>
