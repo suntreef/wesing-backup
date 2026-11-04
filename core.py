@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.8.1'
+APP_VERSION = '1.8.2'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -822,50 +822,70 @@ body.vspectrum.playing .spec-cover{animation-play-state:running}
 #specCanvas{width:min(640px,92vw);height:90px}
 .sctrl{width:min(640px,92vw);display:flex;align-items:center;gap:12px}
 /* ---------- 点唱机 ---------- */
-#skinJuke{justify-content:center;align-items:center;padding:26px;background:
- radial-gradient(900px 600px at 50% 0%,#231a33,#131020 55%,#0a0812)}
-.juke{width:min(460px,94vw);margin:0 auto;text-align:center}
-.juke-arch{position:relative;height:380px;border-radius:230px 230px 24px 24px / 190px 190px 24px 24px;
- background:linear-gradient(180deg,#241a3a,#181226 60%,#100c1a);
- box-shadow:0 0 0 5px #2c2145,0 0 34px rgba(124,77,255,.35),0 26px 70px rgba(0,0,0,.6);overflow:hidden;display:flex;align-items:flex-end;justify-content:center}
-.juke-arch .neon{position:absolute;border-radius:50%;pointer-events:none;filter:blur(1px);opacity:.9}
-.neon.n1{inset:14px;border:6px solid transparent;
- background:conic-gradient(from 0deg,#ff4fa3,#ffd76a,#4fe3ff,#7cffb2,#ff4fa3) border-box;
- -webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
- animation:huerot 6s linear infinite}
-.neon.n2{inset:34px;border:3px solid rgba(255,215,106,.8);box-shadow:0 0 18px rgba(255,215,106,.5)}
-.neon.n3{inset:52px;border:3px solid rgba(79,227,255,.55);box-shadow:0 0 16px rgba(79,227,255,.45)}
+#skinJuke{justify-content:center;align-items:flex-start;overflow-y:auto;overflow-x:hidden;padding:30px 12px;
+ background:radial-gradient(900px 600px at 50% 0%,#241426,#120a14 55%,#0a0710)}
+.juke{width:min(430px,94vw);margin:0 auto}
+.jk-cab{position:relative;border-radius:210px 210px 20px 20px / 150px 150px 20px 20px;
+ background:linear-gradient(180deg,#5c2032,#3c1424 42%,#2a0d1a 80%,#200a14);
+ box-shadow:0 0 0 6px #170911,0 0 0 8px #c9a44a,0 0 44px rgba(255,79,163,.22),0 34px 90px rgba(0,0,0,.75);
+ padding:30px 30px 22px;overflow:hidden}
+.jk-arch{position:absolute;inset:0 0 auto 0;height:170px;overflow:hidden;pointer-events:none}
+.arc{position:absolute;left:50%;transform:translateX(-50%);border-radius:50%;border-style:solid;border-color:transparent}
+.arc.a1{width:600px;height:600px;top:-430px;border-width:5px;border-top-color:#ff4fa3;
+ box-shadow:0 0 20px rgba(255,79,163,.55);animation:huerot 8s linear infinite}
+.arc.a2{width:680px;height:680px;top:-478px;border-width:3px;border-top-color:#4fe3ff;
+ box-shadow:0 0 14px rgba(79,227,255,.45);animation:huerot 8s linear infinite reverse}
+.arc.a3{width:640px;height:640px;top:-452px;border-width:2px;border-top-color:#ffd76a;
+ box-shadow:0 0 12px rgba(255,215,106,.4)}
 @keyframes huerot{to{filter:hue-rotate(360deg)}}
-.jk-win{position:relative;z-index:2;width:min(300px,72%);margin:30px auto 22px;padding:12px;border-radius:18px;
- background:linear-gradient(180deg,#241a3a,#191230);border:6px solid #2e2348;
- box-shadow:0 0 30px rgba(0,0,0,.6),0 0 24px rgba(124,77,255,.28) inset;animation:breathe 4.5s ease-in-out infinite;animation-play-state:paused}
-body.vjukebox.playing .jk-win{animation-play-state:running}
-@keyframes breathe{50%{transform:scale(1.02)}}
-.jk-cover{width:100%;aspect-ratio:1;object-fit:cover;border-radius:12px;display:block;
- box-shadow:0 10px 30px rgba(0,0,0,.5)}
-.jk-card{margin-top:12px;padding:12px 14px;border-radius:12px;text-align:center;
- background:linear-gradient(180deg,#2c2145,#1c1530);border:1px solid #3a2d5e}
-.jk-t{display:block;font-size:16px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.jk-s{display:block;color:#9d92c9;font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.juke-panel{background:linear-gradient(180deg,#2a2140,#171126);border-radius:0 0 26px 26px;
- margin-top:-2px;padding:16px 22px 20px;box-shadow:0 0 0 4px #2c2145,0 0 26px rgba(124,77,255,.25)}
-.jk-row{display:flex;align-items:center;justify-content:center;gap:16px}
-.jk-ctrl{background:none;border:1px solid #453a68;color:#c9bfe8;border-radius:50%;width:44px;height:44px;
- font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.15s}
+.jk-logo{position:relative;text-align:center;font-size:12px;letter-spacing:7px;color:#ffd76a;font-weight:700;
+ text-shadow:0 0 14px rgba(255,215,106,.65);margin:6px 0 16px}
+.jk-window{position:relative;border-radius:16px;overflow:hidden;padding:20px;text-align:center;
+ background:radial-gradient(circle at 50% 28%,#2c1520,#170a12 72%);
+ box-shadow:0 8px 26px rgba(0,0,0,.65) inset,0 0 0 4px #c9a44a,0 0 0 7px #6b4e1e}
+.jk-disc{position:relative;width:212px;height:212px;margin:0 auto;border-radius:50%;overflow:hidden;
+ background:radial-gradient(circle,#141414 30%,#0d0d0d 31%,#090909 62%,#060606 63%);
+ box-shadow:0 0 0 3px rgba(255,255,255,.1),0 10px 34px rgba(0,0,0,.6);
+ animation:jspin 5.5s linear infinite;animation-play-state:paused}
+body.playing .jk-disc{animation-play-state:running}
+.jk-disc img{position:absolute;left:50%;top:50%;width:86px;height:86px;margin:-43px;border-radius:50%;object-fit:cover;
+ box-shadow:0 0 0 3px rgba(255,255,255,.18),0 0 18px rgba(0,0,0,.5);z-index:2}
+.jk-disc::after{content:'';position:absolute;inset:0;border-radius:50%;
+ background:repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.055) 0 2px,transparent 2px 4.5px)}
+@keyframes jspin{to{transform:rotate(360deg)}}
+.jk-strips{margin:16px auto 4px;width:88%}
+.jk-strip{background:linear-gradient(180deg,#ffe9a8,#e2bd62);color:#3a2410;font-weight:800;font-size:15px;
+ border-radius:7px 7px 0 0;padding:8px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+ box-shadow:0 2px 0 #9a7a32}
+.jk-strip2{background:linear-gradient(180deg,#fdf3cf,#e2c274);color:#6b5220;font-size:12px;
+ border-radius:0 0 7px 7px;padding:5px 12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+ box-shadow:0 3px 0 #9a7a32}
+.jk-btns{display:grid;grid-template-columns:repeat(6,1fr);gap:9px;margin:18px auto 4px;width:88%}
+.jkb{padding:10px 0;border-radius:8px;border:1px solid #8a6a2e;cursor:pointer;
+ background:linear-gradient(180deg,#fdf3cf,#dfbd6c);color:#3a2410;font-weight:800;font-size:12px;
+ box-shadow:0 2px 0 #9a7a32;transition:.1s;font-family:inherit;-webkit-appearance:none;appearance:none}
+.jkb:active{transform:translateY(2px);box-shadow:none}
+.jk-grille{height:36px;border-radius:9px;margin:14px auto 2px;width:88%;
+ background:repeating-linear-gradient(90deg,#160a10 0 7px,#421826 7px 10px);
+ box-shadow:0 3px 10px rgba(0,0,0,.45) inset}
+.jk-panel{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:18px}
+.jk-ctrl{background:none;border:1px solid #8a5c72;color:#e8c9d8;border-radius:50%;width:46px;height:46px;flex:none;
+ font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
+ padding:0;line-height:1;transition:.15s}
 .jk-ctrl:hover{border-color:#ffd76a;color:#ffd76a}
-.jk-play{width:58px;height:58px;border:none;border-radius:50%;cursor:pointer;font-size:20px;font-weight:700;
- background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#2c2145;-webkit-appearance:none;appearance:none;
- display:inline-flex;align-items:center;justify-content:center;
- box-shadow:0 0 22px rgba(255,215,106,.45),0 4px 0 #b8923a;line-height:1}
-.jk-play:active{transform:translateY(3px);box-shadow:0 0 22px rgba(255,215,106,.45)}
-.juke-lights{display:flex;gap:10px;justify-content:center;margin-top:16px}
-.juke-lights i{width:10px;height:10px;border-radius:50%;background:#7c4dff;box-shadow:0 0 12px #7c4dff;
- animation:blink 1.6s infinite}
-.juke-lights i:nth-child(2){background:#ff4fa3;box-shadow:0 0 12px #ff4fa3;animation-delay:.2s}
-.juke-lights i:nth-child(3){background:#4fe3ff;box-shadow:0 0 12px #4fe3ff;animation-delay:.4s}
-.juke-lights i:nth-child(4){background:#7cffb2;box-shadow:0 0 12px #7cffb2;animation-delay:.6s}
-.juke-lights i:nth-child(5){background:#ffd76a;box-shadow:0 0 12px #ffd76a;animation-delay:.8s}
-@keyframes blink{50%{opacity:.25}}
+.jk-play{width:60px;height:60px;flex:none;border:none;border-radius:50%;cursor:pointer;font-size:20px;font-weight:700;
+ background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#3a2410;-webkit-appearance:none;appearance:none;
+ display:inline-flex;align-items:center;justify-content:center;padding:0;line-height:1;
+ box-shadow:0 0 26px rgba(255,215,106,.5),0 5px 0 #9a7a32}
+.jk-play:active{transform:translateY(4px);box-shadow:0 0 26px rgba(255,215,106,.5)}
+.jk-lights{display:flex;gap:11px;justify-content:center;margin-top:16px}
+.jk-lights i{width:9px;height:9px;border-radius:50%;background:#ff4fa3;box-shadow:0 0 12px #ff4fa3;animation:blink 1.6s infinite}
+.jk-lights i:nth-child(2){background:#ffd76a;box-shadow:0 0 12px #ffd76a;animation-delay:.2s}
+.jk-lights i:nth-child(3){background:#4fe3ff;box-shadow:0 0 12px #4fe3ff;animation-delay:.4s}
+.jk-lights i:nth-child(4){background:#7cffb2;box-shadow:0 0 12px #7cffb2;animation-delay:.6s}
+.jk-lights i:nth-child(5){background:#c9a44a;box-shadow:0 0 12px #c9a44a;animation-delay:.8s}
+body.playing .jk-lights i{animation-duration:.65s}
+@keyframes blink{50%{opacity:.22}}
 /* ---------- 视图状态 ---------- */
 body.vvinyl #classicView,body.vtape #classicView,body.vspectrum #classicView,body.vjukebox #classicView{display:none}
 body.vgrid #classicView{display:block}
@@ -1009,24 +1029,27 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
 
 <div class="skin-view" id="skinJuke">
  <div class="juke">
-  <div class="juke-arch">
-   <div class="neon n1"></div><div class="neon n2"></div><div class="neon n3"></div>
-   <div class="jk-win">
-     <img class="jk-cover jsCover" alt="">
-     <div class="jk-card"><span class="jk-t jsTitle">—</span><span class="jk-s jsSub"></span></div>
+  <div class="jk-cab">
+   <div class="jk-arch"><div class="arc a1"></div><div class="arc a2"></div><div class="arc a3"></div></div>
+   <div class="jk-logo">✦ K·SONG ✦</div>
+   <div class="jk-window">
+    <div class="jk-disc"><img class="jsCover" alt=""></div>
    </div>
-  </div>
-  <div class="juke-panel">
-   <div class="jk-row">
-    <button class="jk-ctrl jsPrev" onclick="prev()" title="上一首">⏮</button>
-    <button class="jk-play jsPlay" onclick="togglePlay()">▶</button>
-    <button class="jk-ctrl jsNext" onclick="next()" title="下一首">⏭</button>
-    <button class="jk-ctrl" onclick="toggleDrawer()" title="歌单">☰</button>
+   <div class="jk-strips">
+    <div class="jk-strip jsTitle">—</div>
+    <div class="jk-strip2 jsSub"></div>
    </div>
-   <div class="juke-lights"><i></i><i></i><i></i><i></i><i></i></div>
+   <div class="jk-btns" id="jkBtns"></div>
+   <div class="jk-grille"></div>
   </div>
+  <div class="jk-panel">
+   <button class="jk-ctrl jsPrev" onclick="prev()" title="上一首">⏮</button>
+   <button class="jk-play jsPlay" onclick="togglePlay()" title="播放/暂停">▶</button>
+   <button class="jk-ctrl jsNext" onclick="next()" title="下一首">⏭</button>
+   <button class="jk-ctrl" onclick="toggleDrawer()" title="歌单">☰</button>
+  </div>
+  <div class="jk-lights"><i></i><i></i><i></i><i></i><i></i></div>
  </div>
-</div>
 
 <button id="fab" onclick="toggleDrawer()" title="歌单">☰</button>
 <div id="drawer">
@@ -1283,6 +1306,17 @@ function initCd(){
     d.onclick = () => { load(i, true); closeDrawer(); };
     list.appendChild(d);
   });
+  const jb = document.getElementById('jkBtns');
+  if (jb && !jb.children.length) {
+    ['A1','A2','A3','A4','A5','A6','B1','B2','B3','B4','B5','B6'].forEach((lab, k) => {
+      const b = document.createElement('button');
+      b.className = 'jkb';
+      b.textContent = lab;
+      if (SONGS[k]) b.title = SONGS[k].title;
+      b.onclick = () => { if (SONGS[k]) load(k, true); };
+      jb.appendChild(b);
+    });
+  }
   if (SONGS.length) load(0, false);
 }
 function toggleDrawer(){ const d = document.getElementById('drawer'); d.classList.toggle('open'); fltDrawer(); }
