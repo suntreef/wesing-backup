@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.10.0'
+APP_VERSION = '1.10.1'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2240,6 +2240,7 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 .bar button:focus-visible{outline:2px solid #ffd76a}
 .bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:17px}
 .bar .bp:hover{background:#ffe28a}
+.listen-timer{user-select:none}
 .bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:13px;padding:0 4px;white-space:nowrap;
  overflow:hidden;text-overflow:ellipsis;min-height:18px}
 </style></head><body class="__FEST_CLASS__">
@@ -2269,7 +2270,9 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 <div class="bar" id="bar">
  <div class="bar-lyric" id="barLyric"></div>
  <img id="barCover" alt="">
- <div class="bi"><div class="bt" id="barTitle">—</div><div class="bs" id="barSub"></div></div>
+ <div class="bi"><div class="bt" id="barTitle">—</div><div class="bs" id="barSub"></div>
+  <div class="listen-timer" id="listenTimer" style="display:none;color:#7c8496;font-size:10px;margin-top:2px">收听 <span id="listenSec">0</span>s / 30s 计一次</div>
+ </div>
  <button onclick="barPrev()">⏮</button>
  <button class="bp" id="barPlay" onclick="barToggle()">▶</button>
  <button onclick="barNext()">⏭</button>
@@ -2476,9 +2479,36 @@ HISTORY.forEach(h => {
   his.appendChild(d);
 });
 /* 播放条 */
+let listenTimer = null, listenSec = 0, countedUk = '';
+function startListenTimer(s){
+  stopListenTimer();
+  listenSec = 0;
+  countedUk = s.uk;
+  const tm = document.getElementById('listenTimer');
+  if (tm) { tm.style.display = 'block'; document.getElementById('listenSec').textContent = '0'; }
+  listenTimer = setInterval(() => {
+    listenSec++;
+    const secEl = document.getElementById('listenSec');
+    if (secEl) secEl.textContent = listenSec;
+    if (listenSec >= 30 && s.uk === countedUk) {
+      stopListenTimer();
+      fetch('/api/g-play', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({uk: s.uk})}).catch(()=>{});
+      const t2 = document.getElementById('listenTimer');
+      if (t2) t2.innerHTML = '<span style="color:#ffd76a">✓ 已计入收听统计</span>';
+      setTimeout(() => { const t3 = document.getElementById('listenTimer'); if (t3) t3.style.display = 'none'; }, 3000);
+    }
+  }, 1000);
+}
+function stopListenTimer(){
+  if (listenTimer) { clearInterval(listenTimer); listenTimer = null; }
+  const tm = document.getElementById('listenTimer');
+  if (tm) tm.style.display = 'none';
+}
 function playSong(i){
   const s = SONGS[i]; if (!s || s.locked) return;
   if (cur === i && !au.paused) { au.pause(); return; }
+  stopListenTimer();
   cur = i;
   au.src = s.audio;
   glrc = []; glrcOn = -1;
@@ -2489,9 +2519,9 @@ function playSong(i){
   document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
   document.getElementById('bar').classList.add('show');
 }
-au.onplay = () => document.getElementById('barPlay').textContent = '⏸';
-au.onpause = () => { document.getElementById('barPlay').textContent = '▶';
-  const bl = document.getElementById('barLyric'); if (bl) bl.classList.remove('show'); };
+
+au.onplay = () => { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s);
+  document.getElementById('barPlay').textContent = '⏸'; };
 au.ontimeupdate = () => {
   if (!glrc.length) return;
   let i = -1;
@@ -2511,7 +2541,7 @@ function barStep(step){
 }
 function barPrev(){ barStep(-1); }
 function barNext(){ barStep(1); }
-au.onended = () => barNext();
+au.onended = () => { stopListenTimer(); barNext(); };
 /* 已揭晓状态初始化 */
 if (revealed && todaySongs.length) {
   document.getElementById('gift').style.display = 'none';
