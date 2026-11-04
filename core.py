@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.8.0'
+APP_VERSION = '1.8.1'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2075,6 +2075,12 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh-cn"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0f1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="盲盒歌单">
+<link rel="manifest" href="/static/guest-manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/icon-192.png">
 <title>🎁 __NICK__ 的盲盒歌单</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}

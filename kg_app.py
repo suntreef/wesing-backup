@@ -339,6 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             name = os.path.basename(self.path[len('/static/'):])
             allow = {'qrcode.min.js': 'application/javascript; charset=utf-8',
                      'manifest.json': 'application/manifest+json',
+                     'guest-manifest.json': 'application/manifest+json',
                      'icon-192.png': 'image/png', 'icon-512.png': 'image/png'}
             if name in allow:
                 fp = os.path.join(static_dir(), name)
@@ -560,7 +561,9 @@ class GuestHandler(Handler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return
-        if self.path == '/guest' or self.path.startswith('/g/'):
+        if (self.path == '/guest' or self.path.startswith('/g/') or
+                self.path in ('/static/guest-manifest.json', '/static/icon-192.png',
+                              '/static/icon-512.png')):
             return Handler.do_GET(self)
         return self._send(404, b'not found', 'text/plain; charset=utf-8')
 
