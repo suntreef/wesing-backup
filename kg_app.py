@@ -349,6 +349,14 @@ class Handler(BaseHTTPRequestHandler):
                 except OSError:
                     pass
             return self._send(404, {'error': 'not found'})
+        if self.path == '/api/authors':
+            try:
+                with open(os.path.join(os.getcwd(), 'authors.json'), encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+            authors = sorted(data.values(), key=lambda x: x.get('last') or '', reverse=True)
+            return self._send(200, {'authors': authors})
         if self.path == '/api/share':
             entries, profile, unlocked, history, today_key, today_date = blindbox_state()
             ips = lan_ips() if _STATE.get('lan') else []
@@ -514,6 +522,10 @@ def _run_job(target, args, job):
     try:
         backup_one(target, args, job)
         if job.out_dir:
+            try:
+                save_author_preset(job.profile.get('uid') or '', job.profile.get('nickname') or '', job.out_dir)
+            except Exception:
+                pass
             sh = load_shares()
             sh['dir'] = os.path.abspath(job.out_dir)
             if not sh.get('since'):

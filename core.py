@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.8.2'
+APP_VERSION = '1.8.3'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1983,6 +1983,8 @@ def _backup_one(target, args, job):
                                  root_dir=parent, base_dir=os.path.basename(out))
         zip_path = f'{zp}（{os.path.getsize(zp) / 1048576:.0f}MB）'
 
+    save_author_preset(uid, profile.get('nickname') or uid, out)
+
     job.log('=' * 56)
     job.log(f'完成：本次成功 {job.stats["ok"]}，失败 {job.stats["fail"]}，索引总计 {len(index)} 首')
     if client.bytes_downloaded:
@@ -2436,6 +2438,26 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_key, today
            .replace('__TOTAL__', str(len(data)))
            .replace('__TODAY__', esc(today_date)))
     return doc
+
+
+
+def save_author_preset(uid, nickname, out_dir):
+    """记录备份过的作者（uid→输出目录），供下次一键增量更新。"""
+    try:
+        fp = os.path.join(os.getcwd(), 'authors.json')
+        data = {}
+        if os.path.exists(fp):
+            try:
+                with open(fp, encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+        data[uid] = {'uid': uid, 'nickname': nickname or uid,
+                     'dir': os.path.abspath(out_dir), 'last': ts2str(time.time())}
+        with open(fp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
 
 # ---------------------------------------------------------------- CLI 入口
 

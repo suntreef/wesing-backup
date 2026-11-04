@@ -130,6 +130,9 @@ footer a{color:var(--text2)}
     <label class="fl">全民K歌个人主页链接（或 uid）</label>
     <input type="text" id="target" placeholder="https://kg.qq.com/node/personal?uid=xxxxxxxx…" autocomplete="off">
     <div class="hint">App 内：「我的」→「…」→「分享主页」→ 复制链接，粘贴到这里。</div>
+    <div id="authorsRow" class="hidden" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="font-size:12px;color:var(--text2)">📂 备份过的作者：</span>
+    </div>
 
     <details>
       <summary>登录 Cookie（备份“仅自己可见”的私密作品时才需要）</summary>
@@ -267,7 +270,7 @@ async function poll(){
     const eb = $('#errbox');
     if(st === 'error'){ eb.classList.remove('hidden'); eb.textContent = s.error || '未知错误，请查看日志'; }
     else eb.classList.add('hidden');
-    if((st==='done'||st==='stopped') && !doneNoted){ doneNoted = true; }
+    if((st==='done'||st==='stopped') && !doneNoted){ doneNoted = true; loadAuthors(); }
     if(st==='running'||st==='listing'){ doneNoted = false; }
   }
 }
@@ -317,6 +320,31 @@ async function quitApp(){
   await fetch('/api/quit', {method:'POST'});
   const m = document.createElement('div'); m.className='quitmask'; m.textContent='程序已退出，可以关闭此页面';
   document.body.appendChild(m);
+}
+async function loadAuthors(){
+  try {
+    const j = await (await fetch('/api/authors')).json();
+    const row = document.getElementById('authorsRow');
+    if (!row) return;
+    const list = j.authors || [];
+    // 清掉旧标签（保留说明文字）
+    [...row.querySelectorAll('button')].forEach(b => b.remove());
+    if (!list.length) { row.classList.add('hidden'); return; }
+    row.classList.remove('hidden');
+    list.forEach(a => {
+      const b = document.createElement('button');
+      b.className = 'btn ghost small';
+      b.style.padding = '5px 12px';
+      b.textContent = `🎤 ${a.nickname}`;
+      b.title = `${a.uid} · 上次备份 ${a.last} · 目录 ${a.dir}`;
+      b.onclick = () => {
+        document.getElementById('target').value = a.uid;
+        document.getElementById('out').value = a.dir;
+        document.getElementById('target').dispatchEvent(new Event('input'));
+      };
+      row.appendChild(b);
+    });
+  } catch(e){}
 }
 async function checkCookie(btn){
   const target = $('#target').value.trim();
@@ -491,6 +519,7 @@ async function toggleLan(cb){
   refreshLan();
 }
 $('#target').addEventListener('keydown', e=>{ if(e.key==='Enter') start(); });
+loadAuthors();
 </script>
 <script src="/static/qrcode.min.js"></script>
 <script>
