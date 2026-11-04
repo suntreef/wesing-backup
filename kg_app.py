@@ -241,6 +241,53 @@ def open_with_system(path):
         return False
 
 
+
+
+# ---------------------------------------------------------------- 访客互动数据
+
+def _guest_data_file(share_dir, name):
+    return os.path.join(share_dir, name)
+
+
+def _load_json_safe(path):
+    try:
+        with open(path, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _save_json_safe(path, data):
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=1)
+    except Exception:
+        pass
+
+
+def guest_comments(share_dir):
+    return _load_json_safe(_guest_data_file(share_dir, 'guest_comments.json'))
+
+
+def add_guest_comment(share_dir, uk, name, text):
+    path = _guest_data_file(share_dir, 'guest_comments.json')
+    data = _load_json_safe(path)
+    lst = data.setdefault(uk, [])
+    lst.append({'name': name[:20], 'text': text[:200], 'time': time.strftime('%Y-%m-%d %H:%M')})
+    _save_json_safe(path, data)
+
+
+def guest_plays(share_dir):
+    return _load_json_safe(_guest_data_file(share_dir, 'guest_plays.json'))
+
+
+def add_guest_play(share_dir, uk):
+    path = _guest_data_file(share_dir, 'guest_plays.json')
+    data = _load_json_safe(path)
+    data[uk] = data.get(uk, 0) + 1
+    _save_json_safe(path, data)
+    return data[uk]
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f'KGBackup/{APP_VERSION}'  # HTTP 头仅允许 latin-1，中文放不进去
 
@@ -497,6 +544,54 @@ class Handler(BaseHTTPRequestHandler):
                 'guestUrl': url, 'unlocked': len(unlocked), 'total': len(entries),
                 'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
                 'ips': ips})
+        if self.path == '/api/auto-update':
+            cfg_path = os.path.join(os.getcwd(), 'auto_update.json')
+            if self.command == 'GET':
+                cfg = _load_json_safe(cfg_path)
+                cfg['running'] = bool(_auto_thread and _auto_thread.is_alive())
+                return self._send(200, cfg)
+            p = self._body()
+            cfg = _load_json_safe(cfg_path)
+            if 'enabled' in p:
+                cfg['enabled'] = bool(p['enabled'])
+                if cfg['enabled']:
+                    start_auto_update()
+                else:
+                    _auto_stop.set()
+            if 'interval_hours' in p:
+                cfg['interval_hours'] = max(1, int(p['interval_hours']))
+            if 'cookie' in p:
+                cfg['cookie'] = str(p['cookie'])
+            if 'authors' in p:
+                cfg['authors'] = p['authors']
+            _save_json_safe(cfg_path, cfg)
+            return self._send(200, cfg)
+        if self.path == '/api/health-check':
+            p = self._body()
+            d = str(p.get('dir') or '').strip()
+            if not d or not os.path.isdir(d):
+                return self._send(400, {'error': '目录不存在'})
+            audio_files = []
+            for sub_d in ('audio', ''):
+                scan = os.path.join(d, sub_d) if sub_d else d
+                if not os.path.isdir(scan):
+                    continue
+                for f in os.listdir(scan):
+                    if f.endswith(('.m4a', '.mp4')):
+                        audio_files.append(os.path.join(scan, f))
+            ok, bad = 0, []
+            for af in audio_files:
+                try:
+                    r = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                                        '-of', 'json', af], capture_output=True, timeout=15)
+                    j = json.loads(r.stdout)
+                    if float(j['format']['duration']) > 1:
+                        ok += 1
+                    else:
+                        bad.append(os.path.basename(af))
+                except Exception:
+                    bad.append(os.path.basename(af))
+            return self._send(200, {'ok': ok, 'bad': bad, 'total': len(audio_files)})
         if self.path == '/api/upgrade':
             if _STATE['thread'] and _STATE['thread'].is_alive():
                 return self._send(409, {'error': '已有任务在进行中'})
@@ -586,6 +681,12 @@ class GuestHandler(Handler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return
+        if self.path == '/api/g-data':
+            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+            sh_dir = load_shares().get('dir') or ''
+            comments = guest_comments(sh_dir) if sh_dir else {}
+            plays = guest_plays(sh_dir) if sh_dir else {}
+            return self._send(200, {'comments': comments, 'plays': plays})
         if (self.path == '/guest' or self.path.startswith('/g/') or
                 self.path in ('/static/guest-manifest.json', '/static/icon-192.png',
                               '/static/icon-512.png')):
@@ -593,8 +694,87 @@ class GuestHandler(Handler):
         return self._send(404, b'not found', 'text/plain; charset=utf-8')
 
     def do_POST(self):
+        if not self._auth_ok():
+            return self._send(401, {'error': '需要登录'})
+        if self.path == '/api/g-comment':
+            try:
+                p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
+                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+                uk = str(p.get('uk') or '')
+                if uk not in unlocked:
+                    return self._send(403, {'error': '该歌曲尚未解锁'})
+                add_guest_comment(load_shares().get('dir') or os.getcwd(), uk,
+                                  str(p.get('name') or '匿名')[:20], str(p.get('text') or '')[:200])
+                return self._send(200, {'ok': True})
+            except Exception as e:
+                return self._send(400, {'error': str(e)})
+        if self.path == '/api/g-play':
+            try:
+                p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
+                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+                uk = str(p.get('uk') or '')
+                if uk not in unlocked:
+                    return self._send(403, {'error': '该歌曲尚未解锁'})
+                count = add_guest_play(load_shares().get('dir') or os.getcwd(), uk)
+                return self._send(200, {'ok': True, 'plays': count})
+            except Exception as e:
+                return self._send(400, {'error': str(e)})
         return self._send(404, b'not found', 'text/plain; charset=utf-8')
 
+
+
+
+# ---------------------------------------------------------------- 定时自动更新
+
+_auto_thread = None
+_auto_stop = threading.Event()
+
+
+def _auto_update_loop():
+    """定时检查订阅作者的新歌并自动下载。"""
+    while not _auto_stop.is_set():
+        try:
+            cfg = _load_json_safe(os.path.join(os.getcwd(), 'auto_update.json'))
+            if not cfg.get('enabled'):
+                _auto_stop.wait(300)
+                continue
+            interval_h = max(1, cfg.get('interval_hours', 6))
+            authors = cfg.get('authors') or []
+            for a in authors:
+                if _auto_stop.is_set():
+                    break
+                uid, out_dir = a.get('uid'), a.get('dir')
+                if not uid or not out_dir or not os.path.isdir(out_dir):
+                    continue
+                try:
+                    job = Job()
+                    from core import KGClient
+                    client = KGClient(cfg.get('cookie') or '', cfg.get('proxy') or '', 30, 3)
+                    client.share_uid = uid
+                    args = types.SimpleNamespace(
+                        out=out_dir, cookie=cfg.get('cookie') or '', cookie_file='',
+                        proxy=cfg.get('proxy') or '', workers=2, page_sleep=1.0,
+                        retries=3, timeout=30, max=0, since='', until='',
+                        no_audio=False, no_cover=False, no_comments=False, no_meta=False,
+                        no_html=False, no_tags=False, video=False, mp3=False, zip=False,
+                        list_only=False, force=False, flat=bool(cfg.get('flat')))
+                    from core import _backup_one
+                    _backup_one(uid, args, job)
+                    job.log(f'⏰ 定时更新完成: {a.get("nickname") or uid}')
+                except Exception as e:
+                    job.log(f'⏰ 定时更新失败: {e}')
+        except Exception:
+            pass
+        _auto_stop.wait(3600 * max(1, interval_h) if 'interval_h' in dir() else 3600)
+
+
+def start_auto_update():
+    global _auto_thread
+    if _auto_thread and _auto_thread.is_alive():
+        return
+    _auto_stop.clear()
+    _auto_thread = threading.Thread(target=_auto_update_loop, daemon=True)
+    _auto_thread.start()
 
 def main():
     # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击 exe 叠开一堆窗口
