@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.8.4'
+APP_VERSION = '1.9.0'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2153,44 +2153,52 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <link rel="manifest" href="/static/guest-manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" href="/static/icon-192.png">
-<title>🎁 __NICK__ 的盲盒歌单</title>
+<title>__FEST_TITLE____NICK__ 的盲盒歌单</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(900px 600px at 50% -8%,#1d1a33,#0f1220 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
- font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:96px}
-header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.94);
+body{background:radial-gradient(900px 600px at 50% -8%,__BG1__,__BG2__ 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:110px;
+ -webkit-tap-highlight-color:transparent}
+canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
+header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.9);
  backdrop-filter:blur(8px);border-bottom:1px solid #2a2f3e}
 header h1{font-size:19px}
 header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
 header .gold{color:#ffd76a}
-.wrap{max-width:760px;margin:0 auto;padding:22px 16px 0}
+.fest-banner{display:none;margin-top:10px;font-size:14px;font-weight:700;color:#ffd76a;
+ text-shadow:0 0 16px rgba(255,215,106,.5)}
+body.fest .fest-banner{display:block}
+.wrap{max-width:760px;margin:0 auto;padding:22px 16px 0;position:relative;z-index:2}
 /* 今日盲盒 */
-.today{position:relative;text-align:center;border-radius:22px;padding:30px 22px 26px;
- background:linear-gradient(180deg,#221d38,#171428);box-shadow:0 0 0 1px #38315a inset,0 20px 60px rgba(0,0,0,.5);margin-bottom:30px}
+.today{position:relative;text-align:center;border-radius:22px;padding:30px 22px 26px;margin-bottom:30px;
+ background:linear-gradient(180deg,#221d38,#171428);box-shadow:0 0 0 1px #38315a inset,0 20px 60px rgba(0,0,0,.5)}
+body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180deg,#2e1420,#1c0f1c)}
 .today .day{color:#9aa3b8;font-size:12px;letter-spacing:2px}
 .gift{font-size:84px;line-height:1.15;display:inline-block;cursor:pointer;user-select:none;
  animation:sway 2.6s ease-in-out infinite;filter:drop-shadow(0 14px 26px rgba(255,215,106,.28));transition:transform .5s}
 @keyframes sway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg) translateY(-8px)}}
 .gift.opened{animation:pop .55s ease-out}
 @keyframes pop{40%{transform:scale(1.35) rotate(9deg)}70%{transform:scale(.94)}100%{transform:scale(1)}}
-.rev-cover{width:min(260px,64vw);height:min(260px,64vw);border-radius:18px;object-fit:cover;margin:6px auto;
- box-shadow:0 22px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.1);display:none;
+.rev-area{display:none;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+.rev-area.show{display:flex}
+.rev-card{width:min(230px,42vw);border-radius:16px;overflow:hidden;background:#1a1e2e;border:1px solid #3a415a;
  animation:reveal .7s cubic-bezier(.2,.9,.3,1.2)}
-.rev-cover.show{display:block}
+.rev-card:nth-child(2){animation-delay:.35s}
 @keyframes reveal{0%{transform:scale(.5) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
-.rev-title{font-size:21px;font-weight:800;color:#ffd76a;display:none;margin-top:10px}
+.rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.rev-card .rt{font-size:15px;font-weight:800;color:#ffd76a;padding:10px 8px 2px}
+.rev-card .rs{font-size:11.5px;color:#9aa3b8;padding:0 8px 12px}
+.rev-play{display:block;width:100%;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;
+ background:linear-gradient(180deg,#7cb8ff,#5a9ae8);color:#0d1522;padding:9px 0;-webkit-appearance:none;appearance:none}
+.rev-play:hover{filter:brightness(1.1)}
+.rev-title{font-size:19px;font-weight:800;color:#ffd76a;display:none;margin-top:12px}
 .rev-title.show{display:block}
-.rev-sub{color:#9aa3b8;font-size:13px;display:none;margin-top:6px}
-.rev-sub.show{display:block}
 .btn{display:inline-block;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;color:#221d38;
  background:linear-gradient(180deg,#ffd76a,#e8b64c);border-radius:999px;padding:13px 34px;margin-top:16px;
  box-shadow:0 0 26px rgba(255,215,106,.4),0 4px 0 #b8923a;-webkit-appearance:none;appearance:none;transition:.15s}
 .btn:active{transform:translateY(3px);box-shadow:0 0 26px rgba(255,215,106,.4)}
-.btn.play{background:linear-gradient(180deg,#7cb8ff,#5a9ae8);color:#0d1522;box-shadow:0 0 26px rgba(124,184,255,.35),0 4px 0 #3f74b0}
 .count{color:#8f9aac;font-size:12.5px;margin-top:14px}
 .count b{color:#ffd76a;font-variant-numeric:tabular-nums}
-.confetti{position:absolute;top:38%;left:50%;font-size:22px;pointer-events:none;animation:conf 1.1s ease-out forwards;z-index:5}
-@keyframes conf{0%{transform:translate(0,0) rotate(0) scale(.6);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(540deg) scale(1.15);opacity:0}}
 /* 解锁柜 */
 .sec{margin:26px 0 14px;display:flex;align-items:baseline;gap:10px}
 .sec h2{font-size:16px}
@@ -2201,12 +2209,15 @@ header .gold{color:#ffd76a}
 .item img{width:100%;height:118px;object-fit:cover;display:block}
 .item .nm{padding:9px 11px 3px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .dt{padding:0 11px 10px;font-size:11px;color:#8f9aac}
+.item .ud{padding:0 11px 10px;font-size:11px;color:#ffd76a}
 .item.locked{cursor:default}
 .item.locked img{filter:brightness(.12) blur(6px)}
 .item .q{position:absolute;inset:0 0 34px;display:flex;align-items:center;justify-content:center;font-size:34px;color:#4a5468}
 .item .tag{position:absolute;top:8px;left:8px;font-size:10px;background:rgba(255,215,106,.9);color:#221d38;
- border-radius:6px;padding:2px 7px;font-weight:700}
+ border-radius:6px;padding:2px 7px;font-weight:700;z-index:2}
 .item.locked .tag{background:rgba(124,140,180,.35);color:#c7d1e8}
+.item .ftag{position:absolute;top:8px;right:8px;font-size:10px;background:rgba(255,79,163,.9);color:#fff;
+ border-radius:6px;padding:2px 7px;font-weight:700;z-index:2}
 .item.shake{animation:shk .4s}
 @keyframes shk{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
 .history{margin-top:8px;display:flex;flex-direction:column;gap:8px}
@@ -2215,9 +2226,9 @@ header .gold{color:#ffd76a}
 .hrow .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .s{color:#8f9aac;font-size:11px;margin-left:auto;flex:none}
 .empty{text-align:center;color:#6b7488;padding:40px 10px;font-size:14px;line-height:2}
-/* 底部播放条 */
+/* 播放条 */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(20,24,38,.97);backdrop-filter:blur(8px);
- border-top:1px solid #2a2f3e;padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;align-items:center;gap:12px}
+ border-top:1px solid #2a2f3e;padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;align-items:center;gap:12px;flex-wrap:wrap}
 .bar.show{display:flex}
 .bar img{width:44px;height:44px;border-radius:8px;object-fit:cover}
 .bar .bi{flex:1;min-width:0}
@@ -2227,26 +2238,23 @@ header .gold{color:#ffd76a}
  font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
  padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none}
 .bar button:focus-visible{outline:2px solid #ffd76a}
-.bar .bp:focus-visible{outline:2px solid #ffd76a}
-.bar-lyric{display:none;width:100%;text-align:center;color:#ffd76a;font-size:13px;padding:2px 4px 0;
- white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar-lyric.show{display:block}
-.item .ud{padding:0 11px 10px;font-size:11px;color:#ffd76a}
 .bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:17px}
 .bar .bp:hover{background:#ffe28a}
-</style></head><body>
+.bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:13px;padding:0 4px;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;min-height:18px}
+</style></head><body class="__FEST_CLASS__">
+<canvas id="fx"></canvas>
 <header>
- <h1>🎁 <span class="gold">__NICK__</span> 的盲盒歌单</h1>
+ <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
  <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
+ <div class="fest-banner" id="festBanner"></div>
 </header>
 <div class="wrap">
  <div class="today">
-  <div class="day">__TODAY__ · 今日盲盒</div>
+  <div class="day">__TODAY__ · 今日盲盒<span id="festTag"></span></div>
   <div id="giftArea">
    <div class="gift" id="gift" onclick="reveal()">🎁</div>
-   <div class="rev-cover" id="revCover"><img class="jsCover rev-img" style="width:100%;height:100%;border-radius:18px;object-fit:cover" alt=""></div>
-   <div class="rev-title" id="revTitle"></div>
-   <div class="rev-sub" id="revSub"></div>
+   <div class="rev-area" id="revArea"></div>
    <button class="btn" id="openBtn" onclick="reveal()">开启今日盲盒</button>
   </div>
   <div class="count">下一首盲盒 <b id="cd">--:--:--</b> 后掉落 · 记得回来看看</div>
@@ -2267,21 +2275,21 @@ header .gold{color:#ffd76a}
  <button onclick="barNext()">⏭</button>
 </div>
 <audio id="au" preload="none"></audio>
-<script>const SONGS = __DATA__;const HISTORY = __HISTORY__;</script>
+<script>const SONGS = __DATA__;const HISTORY = __HISTORY__;const FEST = __FEST__;</script>
 <script>
 const $ = s => document.querySelector(s);
 const au = document.getElementById('au');
 let cur = -1;
 const unlocked = SONGS.filter(s => !s.locked);
 const dateMap = {};
-HISTORY.forEach(h => { dateMap[h.uk] = h.date; });
-/* 已解锁的排前面（按解锁日期倒序），未解锁按发行时间 */
+HISTORY.forEach(h => { dateMap[h.uk] = h; });
+/* 已解锁的排前面（按掉落日期倒序），未解锁按发行时间 */
 SONGS.sort((a, b) => {
   if (a.today) return -1;
   if (b.today) return 1;
   const au_ = !a.locked, bu_ = !b.locked;
   if (au_ !== bu_) return au_ ? -1 : 1;
-  if (au_) return (dateMap[b.uk] || '').localeCompare(dateMap[a.uk] || '');
+  if (au_) return (dateMap[b.uk] ? dateMap[b.uk].date : '').localeCompare(dateMap[a.uk] ? dateMap[a.uk].date : '');
   return a.seq - b.seq;
 });
 /* LRC */
@@ -2299,14 +2307,94 @@ function parseLrc(text){
   return out.sort((a, b) => a.t - b.t);
 }
 let glrc = [], glrcOn = -1;
-function fmt(s){ s = Math.max(0, s|0); return (s/60|0) + ':' + String(s%60).padStart(2,'0'); }
+/* 节日横幅 */
+if (FEST) {
+  const b = document.getElementById('festBanner');
+  b.textContent = FEST.double ? ('🧨 ' + FEST.name + '快乐！今日双倍盲盒掉落') : ('🎉 ' + FEST.name + ' 彩蛋装扮中');
+  b.parentElement.querySelector('h1').firstElementChild.textContent = FEST.gift;
+  const tag = document.getElementById('festTag');
+  tag.textContent = ' · ' + FEST.gift + ' ' + FEST.name + '彩蛋';
+}
+/* 节日特效层 */
+const FX = FEST ? FEST.effect : null;
+const fcv = document.getElementById('fx'), fxc = fcv.getContext('2d');
+function fxResize(){ fcv.width = innerWidth; fcv.height = innerHeight; }
+fxResize(); addEventListener('resize', fxResize);
+let fparts = [], rockets = [], lastRocket = 0;
+function spawnCount(){ return {snow:90,petals:46,hearts:26,lanterns:16,balloons:14}[FX] || 0; }
+function spawn(i){
+  if (FX === 'snow') return {x:Math.random()*fcv.width, y:-12, r:1+Math.random()*2.6, vy:.4+Math.random()*1.1, vx:(Math.random()-.5)*.6, o:.25+Math.random()*.55, ph:Math.random()*6.3};
+  if (FX === 'petals') return {x:Math.random()*fcv.width, y:-14, r:3+Math.random()*4, vy:.5+Math.random()*.9, vx:(Math.random()-.5)*.9, rot:Math.random()*6.3, vr:(Math.random()-.5)*.09, o:.35+Math.random()*.4};
+  if (FX === 'hearts') return {x:Math.random()*fcv.width, y:fcv.height+16, r:5+Math.random()*7, vy:.5+Math.random()*.8, vx:(Math.random()-.5)*.4, o:.28+Math.random()*.4, ph:Math.random()*6.3};
+  if (FX === 'lanterns') return {x:Math.random()*fcv.width, y:fcv.height+24, r:9+Math.random()*11, vy:.32+Math.random()*.5, vx:(Math.random()-.5)*.3, o:.32+Math.random()*.35, ph:Math.random()*6.3};
+  if (FX === 'balloons') return {x:Math.random()*fcv.width, y:fcv.height+24, r:8+Math.random()*9, vy:.4+Math.random()*.6, vx:(Math.random()-.5)*.4, o:.4+Math.random()*.3, hue:Math.random()*360};
+  return null;
+}
+if (FX && FX !== 'fireworks') { const n = spawnCount(); for (let i = 0; i < n; i++) { const p = spawn(i); if (p) { if (FX !== 'snow') p.y = Math.random() * fcv.height; fparts.push(p); } } }
+function drawFireworks(t){
+  if (t - lastRocket > 1500 && rockets.length < 3) {
+    lastRocket = t;
+    rockets.push({x: fcv.width * (.15 + Math.random() * .7), y: fcv.height, vy: -(6 + Math.random() * 4), ty: fcv.height * (.18 + Math.random() * .3), hue: Math.random() * 360, boom: false, parts: []});
+  }
+  for (const r of rockets) {
+    if (!r.boom) {
+      r.y += r.vy;
+      fxc.fillStyle = 'hsla(' + r.hue + ',100%,75%,.9)';
+      fxc.fillRect(r.x - 1.5, r.y, 3, 10);
+      if (r.y <= r.ty) { r.boom = true;
+        for (let i = 0; i < 46; i++) { const a = Math.random() * 6.28, sp = 1 + Math.random() * 3.4;
+          r.parts.push({x: r.x, y: r.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1, hue: r.hue + Math.random() * 50 - 25}); }
+      }
+    } else {
+      for (const pt of r.parts) {
+        pt.x += pt.vx; pt.y += pt.vy; pt.vy += .045; pt.life -= .016;
+        if (pt.life > 0) { fxc.fillStyle = 'hsla(' + pt.hue + ',100%,' + (55 + pt.life * 25) + '%,' + pt.life + ')'; fxc.fillRect(pt.x, pt.y, 2.6, 2.6); }
+      }
+    }
+  }
+  for (let i = rockets.length - 1; i >= 0; i--) if (rockets[i].boom && rockets[i].parts.every(p => p.life <= 0)) rockets.splice(i, 1);
+}
+(function fxTick(t){
+  fxc.clearRect(0, 0, fcv.width, fcv.height);
+  if (FX === 'fireworks') drawFireworks(t);
+  for (const p of fparts) {
+    p.y += p.vy; p.x += p.vx;
+    if (FX === 'petals') { p.rot += p.vr; p.x += Math.sin(t / 1400 + p.ph) * .7; }
+    if (FX === 'hearts' || FX === 'lanterns') p.x += Math.sin(t / 1800 + p.ph) * .5;
+    if (p.y > fcv.height + 30) { p.y = -24; p.x = Math.random() * fcv.width; }
+    if (p.y < -30) { p.y = fcv.height + 24; p.x = Math.random() * fcv.width; }
+    if (p.x > fcv.width + 30) p.x = -20; if (p.x < -30) p.x = fcv.width + 20;
+    fxc.save();
+    if (FX === 'snow') { fxc.beginPath(); fxc.arc(p.x, p.y, p.r, 0, 6.28); fxc.fillStyle = 'rgba(255,255,255,' + p.o + ')'; fxc.fill(); }
+    else if (FX === 'petals') { fxc.translate(p.x, p.y); fxc.rotate(p.rot); fxc.fillStyle = 'rgba(255,168,200,' + p.o + ')'; fxc.beginPath(); fxc.ellipse(0, 0, p.r, p.r * .55, 0, 0, 6.28); fxc.fill(); fxc.setTransform(1,0,0,1,0,0); }
+    else if (FX === 'hearts') { fxc.font = p.r * 2.6 + 'px serif'; fxc.fillStyle = 'rgba(255,107,149,' + p.o + ')'; fxc.fillText('♥', p.x, p.y); }
+    else if (FX === 'lanterns') { const g = fxc.createRadialGradient(p.x, p.y, 1, p.x, p.y, p.r); g.addColorStop(0, 'rgba(255,176,32,' + p.o + ')'); g.addColorStop(1, 'rgba(255,80,40,' + p.o * .5 + ')'); fxc.fillStyle = g; fxc.beginPath(); fxc.arc(p.x, p.y, p.r, 0, 6.28); fxc.fill(); fxc.fillStyle = 'rgba(255,220,120,' + p.o + ')'; fxc.fillRect(p.x - p.r * .45, p.y - p.r * 1.15, p.r * .9, 3); }
+    else if (FX === 'balloons') { fxc.fillStyle = 'hsla(' + p.hue + ',85%,65%,' + p.o + ')'; fxc.beginPath(); fxc.ellipse(p.x, p.y, p.r * .8, p.r, 0, 0, 6.28); fxc.fill(); fxc.strokeStyle = 'rgba(255,255,255,.35)'; fxc.beginPath(); fxc.moveTo(p.x, p.y + p.r); fxc.quadraticCurveTo(p.x + 4, p.y + p.r + 8, p.x, p.y + p.r + 15); fxc.stroke(); }
+    fxc.restore();
+  }
+  requestAnimationFrame(fxTick);
+})(0);
+/* LRC */
+function parseLrc(text){
+  const out = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g);
+    if (!m) continue;
+    const txt = line.replace(/\[[^\]]*\]/g, '').trim();
+    for (const tm of m) {
+      const mm = tm.match(/\[(\d+):(\d+(?:\.\d+)?)\]/);
+      if (mm) out.push({ t: (+mm[1]) * 60 + (+mm[2]), text: txt });
+    }
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+let glrc = [], glrcOn = -1;
 /* 今日盲盒 */
-const today = SONGS.find(s => s.today);
+const todaySongs = SONGS.filter(s => s.today);
 let revealed = false;
 try { revealed = localStorage.getItem('kgreveal_' + '__TODAY__') === '1'; } catch(e){}
-function reveal(first){
-  if (revealed && !first) { playSong(SONGS.indexOf(today)); return; }
-  if (revealed) return;
+function reveal(){
+  if (revealed) { playSong(SONGS.indexOf(todaySongs[0])); return; }
   revealed = true;
   try { localStorage.setItem('kgreveal_' + '__TODAY__', '1'); } catch(e){}
   const g = document.getElementById('gift');
@@ -2322,27 +2410,31 @@ function reveal(first){
   setTimeout(() => {
     g.style.display = 'none';
     document.getElementById('openBtn').style.display = 'none';
-    const cover = document.getElementById('revCover');
-    cover.querySelector('img').src = today.cover || '';
-    cover.classList.add('show');
-    document.getElementById('revTitle').textContent = '🎉 今日揭晓：《' + today.title + '》';
-    document.getElementById('revTitle').classList.add('show');
-    document.getElementById('revSub').textContent = '原唱：' + (today.singer ? today.singer + '《' + today.song + '》' : today.song)
-      + ' · ' + today.time + ' · 点下方封面播放';
-    document.getElementById('revSub').classList.add('show');
-    unlockCardUi(today);
-    setTimeout(() => playSong(SONGS.indexOf(today)), 600);
+    const area = document.getElementById('revArea');
+    area.classList.add('show');
+    todaySongs.forEach((s, k) => {
+      const card = document.createElement('div');
+      card.className = 'rev-card';
+      card.innerHTML = `<img src="${s.cover || ''}" alt=""><div class="rt">${k > 0 ? '🎁 加更 · ' : ''}${s.title}</div>` +
+        `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time}</div>` +
+        `<button class="rev-play" onclick="playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))">▶ 播放这首歌</button>`;
+      area.appendChild(card);
+    });
+    unlockCardUi();
+    setTimeout(() => playSong(SONGS.indexOf(todaySongs[0])), 700);
   }, 620);
 }
-function unlockCardUi(song){
-  const el = document.querySelector('.item[data-uk="' + song.uk + '"]');
-  if (el && el.classList.contains('locked')) {
-    el.classList.remove('locked');
-    el.querySelector('img').src = song.cover || '';
-    el.querySelector('img').style.filter = '';
-    const q = el.querySelector('.q'); if (q) q.remove();
-    el.querySelector('.nm').textContent = song.seq + '. ' + song.title;
-  }
+function unlockCardUi(){
+  todaySongs.forEach(s => {
+    const el = document.querySelector('.item[data-uk="' + s.uk + '"]');
+    if (el && el.classList.contains('locked')) {
+      el.classList.remove('locked');
+      el.querySelector('img').src = s.cover || '';
+      el.querySelector('img').style.filter = '';
+      const q = el.querySelector('.q'); if (q) q.remove();
+      el.querySelector('.nm').textContent = s.seq + '. ' + s.title;
+    }
+  });
 }
 /* 倒计时 */
 function tickCd(){
@@ -2353,8 +2445,10 @@ function tickCd(){
   document.getElementById('cd').textContent = h + ':' + m + ':' + s;
 }
 tickCd(); setInterval(tickCd, 1000);
-/* 歌柜 */
+/* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');
+const dateMap = {};
+HISTORY.forEach(h => { dateMap[h.uk] = h; });
 SONGS.forEach(s => {
   const d = document.createElement('div');
   d.className = 'item' + (s.locked ? ' locked' : '');
@@ -2362,14 +2456,15 @@ SONGS.forEach(s => {
   d.innerHTML = `<img src="${s.locked ? '' : (s.cover || '')}" alt="" ${s.locked ? '' : 'loading="lazy"'}>` +
     (s.locked ? '<div class="q">❓</div>' : '') +
     (s.today ? '<div class="tag">今日</div>' : (s.locked ? '<div class="tag">🔒</div>' : '')) +
+    (s.festival ? '<div class="ftag">🧧</div>' : '') +
     `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
-    (!s.locked && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk]} 掉落</div>` : '');
+    (!s.locked && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
   d.onclick = () => {
     if (s.locked) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
     playSong(SONGS.indexOf(s));
   };
   cab.appendChild(d);
-  if (s.today && revealed) unlockCardUi(s);
+  if (s.today && revealed) unlockCardUi();
 });
 /* 掉落日历 */
 const his = document.getElementById('history');
@@ -2377,7 +2472,7 @@ if (!HISTORY.length) his.innerHTML = '<div class="empty">盲盒从今天开始�
 HISTORY.forEach(h => {
   const d = document.createElement('div');
   d.className = 'hrow';
-  d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》</span><span class="s">原唱 ${h.singer || '—'}</span>`;
+  d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》${h.festival ? ' 🧧' : ''}</span><span class="s">原唱 ${h.singer || '—'}</span>`;
   his.appendChild(d);
 });
 /* 播放条 */
@@ -2387,10 +2482,8 @@ function playSong(i){
   cur = i;
   au.src = s.audio;
   glrc = []; glrcOn = -1;
-  if (s.lrc) fetch(s.lrc).then(r => r.ok ? r.text() : '').then(t => {
-    if (SONGS[cur] === s && t) { glrc = parseLrc(t); }
-  }).catch(() => {});
-  au.play().catch(()=>{});
+  const bl = document.getElementById('barLyric'); bl.classList.remove('show'); bl.textContent = '';
+  if (s.lrc) fetch(s.lrc).then(r => r.ok ? r.text() : '').then(t => { if (SONGS[cur] === s && t) { glrc = parseLrc(t); } }).catch(() => {});
   document.getElementById('barCover').src = s.cover || '';
   document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
   document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
@@ -2420,22 +2513,67 @@ function barPrev(){ barStep(-1); }
 function barNext(){ barStep(1); }
 au.onended = () => barNext();
 /* 已揭晓状态初始化 */
-if (revealed && today) {
+if (revealed && todaySongs.length) {
   document.getElementById('gift').style.display = 'none';
   document.getElementById('openBtn').style.display = 'none';
-  const cover = document.getElementById('revCover');
-  cover.querySelector('img').src = today.cover || '';
-  cover.classList.add('show');
-  document.getElementById('revTitle').textContent = '🎉 今日已揭晓：《' + today.title + '》';
-  document.getElementById('revTitle').classList.add('show');
-  document.getElementById('revSub').textContent = '原唱：' + (today.singer ? today.singer + '《' + today.song + '》' : today.song) + ' · ' + today.time + ' · 点上方封面再听一遍';
-  document.getElementById('revSub').classList.add('show');
+  const area = document.getElementById('revArea');
+  area.classList.add('show');
+  todaySongs.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'rev-card';
+    card.innerHTML = `<img src="${s.cover || ''}" alt=""><div class="rt">${s.title}</div>` +
+      `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time} · 点下方按钮再听</div>` +
+      `<button class="rev-play" onclick="playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))">▶ 播放</button>`;
+    area.appendChild(card);
+    unlockCardUi();
+  });
 }
-</script></body></html>
-"""
+</script></body></html>"""
 
 
-def render_guest_page(entries, profile, unlocked_keys, history, today_key, today_date):
+
+# ---------------------------------------------------------------- 节日彩蛋
+FESTIVALS = [
+    ('01-01', '元旦', 'newyear', 'fireworks', True, '🧨'),
+    ('02-14', '情人节', 'valentine', 'hearts', False, '💝'),
+    ('03-08', '妇女节', 'spring', 'petals', False, '🌸'),
+    ('05-01', '劳动节', 'labour', 'fireworks', False, '🎆'),
+    ('06-01', '儿童节', 'children', 'balloons', False, '🎈'),
+    ('10-01', '国庆节', 'national', 'fireworks', True, '🎆'),
+    ('12-24', '平安夜', 'christmas', 'snow', True, '🎄'),
+    ('12-25', '圣诞节', 'christmas', 'snow', True, '🎄'),
+    ('12-31', '跨年夜', 'newyear', 'fireworks', True, '🧨'),
+    ('2026-02-16', '除夕', 'cny', 'fireworks', True, '🧧'),
+    ('2026-02-17', '春节', 'cny', 'fireworks', True, '🧧'),
+    ('2026-03-03', '元宵节', 'lantern', 'lanterns', True, '🏮'),
+    ('2026-06-19', '端午节', 'duanwu', 'petals', False, '🚣'),
+    ('2026-08-19', '七夕', 'qixi', 'hearts', True, '💝'),
+    ('2026-09-25', '中秋节', 'midautumn', 'lanterns', True, '🥮'),
+    ('2027-02-05', '除夕', 'cny', 'fireworks', True, '🧧'),
+    ('2027-02-06', '春节', 'cny', 'fireworks', True, '🧧'),
+    ('2027-02-20', '元宵节', 'lantern', 'lanterns', True, '🏮'),
+    ('2027-06-09', '端午节', 'duanwu', 'petals', False, '🚣'),
+    ('2027-08-08', '七夕', 'qixi', 'hearts', True, '💝'),
+    ('2027-09-15', '中秋节', 'midautumn', 'lanterns', True, '🥮'),
+    ('2028-01-25', '除夕', 'cny', 'fireworks', True, '🧧'),
+    ('2028-01-26', '春节', 'cny', 'fireworks', True, '🧧'),
+    ('2028-02-09', '元宵节', 'lantern', 'lanterns', True, '🏮'),
+    ('2028-05-28', '端午节', 'duanwu', 'petals', False, '🚣'),
+    ('2028-08-26', '七夕', 'qixi', 'hearts', True, '💝'),
+    ('2028-10-03', '中秋节', 'midautumn', 'lanterns', True, '🥮'),
+]
+
+
+def get_festival(date_str):
+    """date_str: YYYY-MM-DD。命中节日返回 {name, theme, effect, double, gift}，否则 None。"""
+    md = date_str[5:] if len(date_str) >= 10 else ''
+    for f in FESTIVALS:
+        if f[0] == date_str or f[0] == md:
+            return {'name': f[1], 'theme': f[2], 'effect': f[3], 'double': f[4], 'gift': f[5]}
+    return None
+
+
+def render_guest_page(entries, profile, unlocked_keys, history, today_keys, today_date, festival=None):
     """生成朋友盲盒页（kg_app 动态调用）。unlocked_keys 为已解锁歌曲键集合。"""
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
@@ -2450,7 +2588,7 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_key, today
             continue
         k = uk(e)
         locked = k not in unlocked_keys
-        is_today = (k == today_key)
+        is_today = (k in today_keys)
         if is_today:
             today = e
         data.append({
@@ -2461,18 +2599,24 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_key, today
             'audio': '' if locked else '/g/' + (e.get('audio') or ''),
             'lrc': '' if locked else '/g/' + (e.get('lrc') or ''),
             'locked': locked, 'today': is_today,
+            'festival': e.get('_fest') or '',
         })
     hist = [{'date': h['date'], 'title': h['title'], 'singer': h.get('singer') or ''} for h in history]
     nick = esc(profile.get('nickname', ''))
     unlocked_n = sum(1 for d in data if not d['locked'])
+    fest_json = json.dumps(festival, ensure_ascii=False) if festival else 'null'
+    fest_class = ('fest-' + festival['theme']) if festival else ''
+    fest_emoji = festival['gift'] if festival else '🎁'
     doc = (GUEST_TEMPLATE
-           .replace('__DATA__', json.dumps(data, ensure_ascii=False).replace('</', '<\\/')[:0] +
-                    json.dumps(data, ensure_ascii=False).replace('</', '<\\/'))
-           .replace('__HISTORY__', json.dumps(hist, ensure_ascii=False))
+           .replace('__DATA__', json.dumps(data, ensure_ascii=False).replace('</', '<\\/'))
+           .replace('__HISTORY__', json.dumps(hist, ensure_ascii=False).replace('</', '<\\/'))
            .replace('__NICK__', nick)
            .replace('__UNLOCKED__', str(unlocked_n))
            .replace('__TOTAL__', str(len(data)))
-           .replace('__TODAY__', esc(today_date)))
+           .replace('__TODAY__', esc(today_date))
+           .replace('__FEST__', fest_json)
+           .replace('__FEST_CLASS__', fest_class)
+           .replace('__FEST_EMOJI__', fest_emoji))
     return doc
 
 

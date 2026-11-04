@@ -82,12 +82,12 @@ def _pick_for_date(entries, day):
 
 
 def blindbox_state():
-    """返回 (entries, profile, unlocked_keys, history, today_pick_key, today_date)。"""
+    """返回 (entries, profile, unlocked_keys, history, today_keys, today_date, festival)。"""
     entries, profile, sh = share_entries()
     if not entries:
         return entries, profile, set(), [], None, ''
     start_file = os.path.join(sh.get('dir') or '.', 'guest_start')
-    today = dt_date.today().isoformat()
+    today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     if not os.path.exists(start_file):
         try:
             with open(start_file, 'w') as f:
@@ -101,20 +101,33 @@ def blindbox_state():
         start = today
     history, unlocked = [], set()
     d = dt_date.fromisoformat(start)
-    end = dt_date.today()
+    end = dt_date.fromisoformat(today)
     guard = 0
     while d <= end and guard < 3650:
         day = d.isoformat()
-        pick = _pick_for_date(entries, day)
-        if pick is not None:
+        fest = __import__('core').get_festival(day)
+        picks = [_pick_for_date(entries, day)]
+        if fest and fest.get('double'):
+            picks.append(_pick_for_date(entries, day + '|bonus'))
+        for pi, pick in enumerate(picks):
+            if pick is None:
+                continue
             unlocked.add(_uk(pick))
             history.append({'date': day, 'title': pick.get('title') or '',
-                            'singer': pick.get('singer_name') or '', 'uk': _uk(pick)})
+                            'singer': pick.get('singer_name') or '', 'uk': _uk(pick),
+                            'festival': (fest['name'] + (pi > 0 and '加更' or '')) if fest and fest.get('double') else (fest['name'] if fest else '')})
         d += dt.timedelta(days=1)
         guard += 1
     today_pick = _pick_for_date(entries, today)
-    today_key = _uk(today_pick) if today_pick else None
-    return entries, profile, unlocked, history, today_key, today
+    today_keys = {_uk(today_pick)} if today_pick else set()
+    festival = __import__('core').get_festival(today)
+    # 节日双倍：加更歌也标记为 today 并加入解锁集
+    if festival and festival.get('double') and today_pick is not None:
+        bonus = _pick_for_date(entries, today + '|bonus')
+        if bonus is not None:
+            unlocked.add(_uk(bonus))
+            today_keys.add(_uk(bonus))
+    return entries, profile, unlocked, history, today_key, today, festival
 
 
 def lan_ips():
@@ -262,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
             rel = urllib.request.url2pathname(rel).replace('\\', '/').lstrip('/')
         except Exception:
             return self._send(400, b'bad path', 'text/plain; charset=utf-8')
-        entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+        entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
         if not entries:
             return self._send(404, b'no share', 'text/plain; charset=utf-8')
         sh = load_shares()
@@ -358,24 +371,24 @@ class Handler(BaseHTTPRequestHandler):
             authors = sorted(data.values(), key=lambda x: x.get('last') or '', reverse=True)
             return self._send(200, {'authors': authors})
         if self.path == '/api/share':
-            entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
             ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
-            url = f'http://{ips[0]}:{port}/guest' if ips else ''
             gport = _STATE.get('guest_port') or 0
-            gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else url
+            gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else (f'http://{ips[0]}:{port}/guest' if ips else '')
             return self._send(200, {
                 'dir': (load_shares().get('dir') or ''),
                 'guestUrl': gurl, 'unlocked': len(unlocked), 'total': len(entries),
-                'today': (today_key and next((e.get('title') for e in entries if _uk(e) == today_key), '')) or '',
+                'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
                 'ips': ips, 'guestPort': gport,
-                'authMode': (load_shares().get('auth') or {}).get('mode') or 'none'})
+                'authMode': (load_shares().get('auth') or {}).get('mode') or 'none',
+                'festival': (festival or {}).get('name') or ''})
         if self.path == '/guest':
-            entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
             if not entries:
                 return self._send(200, '还没有可分享的备份目录。先在工具页跑一次备份，或通过 /api/share 设置目录。'
                                   .encode(), 'text/html; charset=utf-8')
-            html = render_guest_page(entries, profile, unlocked, history, today_key, today_date)
+            html = render_guest_page(entries, profile, unlocked, history, today_keys, today_date, festival)
             return self._send(200, html.encode(), 'text/html; charset=utf-8')
         if self.path.startswith('/g/'):
             return self._serve_guest_file(self.path[3:])
@@ -475,14 +488,14 @@ class Handler(BaseHTTPRequestHandler):
                               'pass': str(p.get('auth_pass') or '')}
                 save_shares(sh)
                 return self._send(200, {'ok': True, 'auth': sh['auth']['mode']})
-            entries, profile, unlocked, history, today_key, today_date = blindbox_state()
+            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
             ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
             url = f'http://{ips[0]}:{port}/guest' if ips else ''
             return self._send(200, {
                 'ok': True, 'dir': (load_shares().get('dir') or ''),
                 'guestUrl': url, 'unlocked': len(unlocked), 'total': len(entries),
-                'today': (today_key and next((e.get('title') for e in entries if _uk(e) == today_key), '')) or '',
+                'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
                 'ips': ips})
         if self.path == '/api/upgrade':
             if _STATE['thread'] and _STATE['thread'].is_alive():
