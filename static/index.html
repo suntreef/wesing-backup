@@ -420,9 +420,14 @@ function shareModal(){
     <div id="shUrl" style="font-size:12px;color:var(--text2);margin-top:8px;word-break:break-all"></div>
     <button class="btn small" onclick="window.open('/guest','_blank')" style="margin-top:10px">👁 打开盲盒页（本机预览）</button>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <a href="/api/download/index.html" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ 歌单 HTML</a>
-      <a href="/api/download/index.csv" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ CSV 目录</a>
-      <a href="/api/download/cd.html" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ CD 播放器</a>
+      <a href="/preview/index.html" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">🎵 歌单页</a>
+      <a href="/preview/index.csv" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">📋 CSV 目录</a>
+      <a href="/preview/cd.html" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">💿 CD 播放器</a>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-top:6px">点击直接在浏览器打开对应页面（新标签）；需要下载可在页面内右键另存。</div>
+    <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+      <input id="shBase" placeholder="自定义朋友链接前缀（反代/域名，如 https://kg.example.com:8766），留空自动" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+      <button class="btn small ghost" onclick="saveBase()">保存链接</button>
     </div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
       <div style="font-size:13px;font-weight:700;margin-bottom:8px">🔐 访问控制（盲盒页）</div>
@@ -432,17 +437,19 @@ function shareModal(){
           <option value="user">仅账号</option>
           <option value="userpass">账号+密码</option>
         </select>
+        <button class="btn small" onclick="saveAuth()">保存模式</button>
         <span id="shAuthAdd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="shAuthUser" placeholder="新账号" style="width:100px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
           <input id="shAuthPass" type="password" placeholder="密码（仅账号+密码模式）" style="width:130px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
-          <button class="btn small" onclick="saveAuth()">保存模式并添加</button>
+          <span style="font-size:11px;color:var(--text2)">填了账号会一并添加</span>
         </span>
       </div>
       <div id="shAccounts"></div>
     </div>
     <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
       朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
-      同一 Wi-Fi 直接访问；公网分享需要端口转发或内网穿透（frp/Tailscale）。<br>
+      同一 Wi-Fi 直接访问；公网用反代（lucky/nginx）时把目标指向 <b>8766</b> 端口，并在上方填入对外链接。<br>
+      若反代不转发 Authorization 登录头，「仅账号/账号+密码」会一直弹登录框，请改用「无需验证」或开启头转发。<br>
       工具页（本页）请勿直接暴露公网。
     </div>
     <button class="btn small" style="position:absolute;top:14px;right:16px" onclick="document.getElementById('shMask').remove()">关闭</button>
@@ -497,6 +504,8 @@ async function refreshShare(){
   const su = document.getElementById('shUrl');
   if (url) su.innerHTML = `🔗 朋友链接：<a href="${esc(url)}" target="_blank" style="color:#7cb8ff;word-break:break-all">${esc(url)}</a>（点击可测试）`;
   else su.textContent = '本机/局域网直开上方「打开盲盒页」即可；二维码在开放 📱 手机访问 后出现。';
+  const sb = document.getElementById('shBase');
+  if (sb && document.activeElement !== sb) sb.value = s.guestBase || '';
 }
 function loadOutList(d){
   // 输出目录自动补全：数据根目录下的已有目录
@@ -545,8 +554,15 @@ async function delAcc(i){
 }
 function authFields(){
   const mode = document.getElementById('shAuthMode').value;
+  // 只隐藏账号输入行，保存模式按钮必须常显（否则切回「无需验证」后无法保存）
   document.getElementById('shAuthAdd').style.display = mode === 'none' ? 'none' : 'inline-flex';
   document.getElementById('shAuthPass').style.display = mode === 'userpass' ? 'inline-block' : 'none';
+}
+async function saveBase(){
+  const base = document.getElementById('shBase').value.trim();
+  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({guest_base: base})});
+  const j = await r.json().catch(()=>({}));
+  if(j.ok) refreshShare(); else alert(j.error || '保存失败');
 }
 async function saveAuth(){
   const mode = document.getElementById('shAuthMode').value;

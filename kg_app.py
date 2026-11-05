@@ -472,7 +472,7 @@ class Handler(BaseHTTPRequestHandler):
                      '.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.mp4': 'video/mp4',
                      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
                      '.gif': 'image/gif', '.webp': 'image/webp', '.lrc': 'text/plain; charset=utf-8',
-                     '.json': 'application/json; charset=utf-8', '.csv': 'text/csv; charset=utf-8',
+                     '.json': 'application/json; charset=utf-8', '.csv': 'text/plain; charset=utf-8',
                      '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
                      '.txt': 'text/plain; charset=utf-8'}
 
@@ -576,16 +576,17 @@ class Handler(BaseHTTPRequestHandler):
                                     'dirs': dirs, 'current': (load_shares().get('dir') or '')})
         if self.path == '/api/share':
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+            ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
             gport = _STATE.get('guest_port') or 0
-            ips = lan_ips() if _STATE.get('lan') else []
-            # 优先用请求 Host 头构造盲盒地址（Docker/局域网都可达），失败再退回本机 IP
-            gurl = guest_url_from_host(self.headers.get('Host'), gport or port)
+            # 自定义前缀（反代/域名）优先，其次按请求 Host 头构造（Docker/局域网都可达），最后退回本机 IP
+            custom = (load_shares().get('guest_base') or '').rstrip('/')
+            gurl = custom + '/guest' if custom else guest_url_from_host(self.headers.get('Host'), gport or port)
             if not gurl:
                 gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else (f'http://{ips[0]}:{port}/guest' if ips else '')
             return self._send(200, {
                 'dir': (load_shares().get('dir') or ''),
-                'guestUrl': gurl, 'unlocked': len(unlocked), 'total': len(entries),
+                'guestUrl': gurl, 'guestBase': custom, 'unlocked': len(unlocked), 'total': len(entries),
                 'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
                 'ips': ips, 'guestPort': gport,
                 'authMode': (load_shares().get('auth') or {}).get('mode') or 'none',
@@ -709,6 +710,18 @@ class Handler(BaseHTTPRequestHandler):
                     save_shares(sh)
                     return self._send(200, {'ok': True, 'dir': d})
                 return self._send(400, {'error': '目录不存在或还没有 index.json（先完成一次备份）'})
+            if 'guest_base' in p:
+                # 自定义盲盒链接前缀（反代/域名/端口与直连不一致时用），空 = 自动生成
+                base = str(p.get('guest_base') or '').strip().rstrip('/')
+                sh = load_shares()
+                if base:
+                    if not base.startswith('http://') and not base.startswith('https://'):
+                        base = 'http://' + base
+                    sh['guest_base'] = base
+                else:
+                    sh.pop('guest_base', None)
+                save_shares(sh)
+                return self._send(200, {'ok': True, 'guest_base': base})
             if 'auth_mode' in p or 'auth_delete_user' in p or 'auth_account' in p:
                 sh = load_shares()
                 accounts = sh.get('accounts') or []
@@ -864,11 +877,13 @@ class GuestHandler(Handler):
     """独立盲盒端口：只提供 /guest 与 /g/*，不暴露任何管理功能。"""
 
     def _auth_ok(self):
-        cfg = load_shares().get('auth') or {}
+        sh = load_shares()
+        cfg = sh.get('auth') or {}
         mode = cfg.get('mode') or 'none'
         if mode == 'none':
             return True
-        accounts = cfg.get('accounts') or []
+        # 账号存在 shares.json 顶层 accounts（旧版误从 auth 节点读取导致永远 401）
+        accounts = sh.get('accounts') or []
         import base64
         auth = self.headers.get('Authorization') or ''
         if not auth.startswith('Basic '):
@@ -880,7 +895,10 @@ class GuestHandler(Handler):
         for acc in accounts:
             if acc.get('disabled'):
                 continue  # 已停用的账号不允许登录
-            if acc.get('user') == user and acc.get('pass') == pwd:
+            if acc.get('user') != user:
+                continue
+            # 仅账号模式：只校验用户名；账号+密码模式：两者都校验
+            if mode == 'user' or acc.get('pass') == pwd:
                 return True
         return False
 
