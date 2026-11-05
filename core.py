@@ -990,6 +990,7 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   </div>
   <div class="vside">
    <div class="lyrics" id="lyVinyl"><p style="color:#7c8496">♪ 选择一首歌开始播放</p></div>
+   <div class="offset-ctl" id="offsetCtl" style="display:none">歌词偏移: <button onclick="adjOffset(-0.5)">-0.5s</button><span id="offsetVal">0.0s</span><button onclick="adjOffset(0.5)">+0.5s</button></div>
    <div class="ctrl">
     <span class="time jsCur">0:00</span>
     <input type="range" class="jsSeek" min="0" max="1000" value="0">
@@ -2243,6 +2244,50 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 .listen-timer{user-select:none}
 .bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:13px;padding:0 4px;white-space:nowrap;
  overflow:hidden;text-overflow:ellipsis;min-height:18px}
+
+/* 留言板 */
+.comments-sec{margin:26px 0 14px}
+.comments-sec h2{font-size:16px;margin-bottom:12px}
+.comment-form{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+.comment-form input{padding:10px 12px;border-radius:10px;border:1px solid #2a2f3e;background:#1a1e2e;color:#eee;font-size:13px;outline:none;transition:.15s}
+.comment-form input:focus{border-color:#ffd76a}
+.comment-form .cname{width:90px}
+.comment-form .ctext{flex:1;min-width:0}
+.comment-form .cbtn{padding:10px 20px;border:none;border-radius:10px;background:#ffd76a;color:#221d38;font-weight:700;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none}
+.comment-form .cbtn:active{transform:scale(.97)}
+.clist{display:flex;flex-direction:column;gap:8px}
+.crow{background:#1a1e2e;border-radius:12px;padding:10px 14px;border:1px solid #2a2f3e}
+.crow .cn{font-size:12px;font-weight:700;color:#ffd76a}
+.crow .ct{font-size:13px;color:#cfd6dd;margin-top:3px;word-break:break-all}
+.crow .cd{font-size:10px;color:#6b7488;margin-top:3px}
+.cempty{color:#6b7488;text-align:center;padding:20px;font-size:13px}
+/* 最新收录 */
+.latest-sec{margin:26px 0 14px;display:flex;align-items:baseline;gap:10px}
+.latest-sec h2{font-size:16px}
+.latest-sec span{color:#8f9aac;font-size:12px}
+.latest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+.lcard{background:#1a1e2e;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid #2e4a3a;transition:.18s}
+.lcard:hover{transform:translateY(-3px);border-color:#7cffb2}
+.lcard img{width:100%;height:100px;object-fit:cover}
+.lcard .lt{padding:8px 10px 3px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lcard .ls{padding:0 10px 8px;font-size:10px;color:#7cffb2}
+/* 播放计数 */
+.pcount{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#8f9aac}
+/* 收听计时 */
+.listen-timer{user-select:none}
+/* 主题切换 */
+.theme-toggle{position:fixed;bottom:16px;left:16px;z-index:30;width:40px;height:40px;border-radius:50%;border:1px solid #3a415a;
+ background:#1a1f26;color:#ffd76a;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;
+ align-items:center;justify-content:center;transition:.2s}
+.theme-toggle:hover{border-color:#ffd76a}
+/* 歌词偏移 */
+.offset-ctl{display:flex;align-items:center;gap:6px;font-size:11px;color:#8f9aac;margin-top:4px}
+.offset-ctl button{background:#1a1f26;border:1px solid #3a4150;color:#ccc;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;font-family:inherit}
+.offset-ctl button:hover{border-color:#ffd76a;color:#ffd76a}
+/* 无脑化大按钮 */
+.gift{min-width:100px;min-height:100px;display:inline-flex;align-items:center;justify-content:center}
+.btn{padding:15px 38px;font-size:17px}
+.rev-play{padding:12px 0;font-size:14px}
 </style></head><body class="__FEST_CLASS__">
 <canvas id="fx"></canvas>
 <header>
@@ -2261,12 +2306,26 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
   <div class="count">下一首盲盒 <b id="cd">--:--:--</b> 后掉落 · 记得回来看看</div>
  </div>
 
+ <div class="latest-sec"><h2>🆕 最新收录</h2><span>最近加入盲盒的歌</span></div>
+ <div class="latest-grid" id="latestGrid"></div>
+
  <div class="sec"><h2>🔓 已解锁的歌柜</h2><span>点封面播放 · 全部可反复听</span></div>
  <div class="cabinet" id="cabinet"></div>
+
+ <div class="sec"><h2>💬 朋友的留言</h2><span>听完留一句吧</span></div>
+ <div class="comments-sec">
+  <div class="comment-form">
+   <input class="cname" id="cName" placeholder="你的昵称" maxlength="20">
+   <input class="ctext" id="cText" placeholder="说点什么…" maxlength="200">
+   <button class="cbtn" onclick="submitComment()">发留言</button>
+  </div>
+  <div class="clist" id="cList"></div>
+ </div>
 
  <div class="sec"><h2>📅 掉落日历</h2><span>每一首都有自己的日期</span></div>
  <div class="history" id="history"></div>
 </div>
+<button class="theme-toggle" onclick="toggleTheme()" title="切换主题">🌗</button>
 <div class="bar" id="bar">
  <div class="bar-lyric" id="barLyric"></div>
  <img id="barCover" alt="">
@@ -2286,6 +2345,9 @@ let cur = -1;
 const unlocked = SONGS.filter(s => !s.locked);
 const dateMap = {};
 HISTORY.forEach(h => { dateMap[h.uk] = h; });
+let playsMap = {};
+let lyricOffset = 0;
+try { lyricOffset = parseFloat(localStorage.getItem('kgoffset') || '0'); } catch(e){}
 /* 已解锁的排前面（按掉落日期倒序），未解锁按发行时间 */
 SONGS.sort((a, b) => {
   if (a.today) return -1;
@@ -2452,6 +2514,19 @@ tickCd(); setInterval(tickCd, 1000);
 const cab = document.getElementById('cabinet');
 const dateMap = {};
 HISTORY.forEach(h => { dateMap[h.uk] = h; });
+/* 最新收录 */
+const lg = document.getElementById('latestGrid');
+const recent = SONGS.filter(s => !s.locked && dateMap[s.uk])
+  .sort((a, b) => (dateMap[b.uk] ? dateMap[b.uk].date : '').localeCompare(dateMap[a.uk] ? dateMap[a.uk].date : ''))
+  .slice(0, 3);
+recent.forEach(s => {
+  const d = document.createElement('div');
+  d.className = 'lcard';
+  d.innerHTML = `<img src="${s.cover || ''}" loading="lazy"><div class="lt">${s.title}</div><div class="ls">📅 ${dateMap[s.uk] ? dateMap[s.uk].date : ''}</div>`;
+  d.onclick = () => playSong(SONGS.indexOf(s));
+  lg.appendChild(d);
+});
+
 SONGS.forEach(s => {
   const d = document.createElement('div');
   d.className = 'item' + (s.locked ? ' locked' : '');
@@ -2460,7 +2535,8 @@ SONGS.forEach(s => {
     (s.locked ? '<div class="q">❓</div>' : '') +
     (s.today ? '<div class="tag">今日</div>' : (s.locked ? '<div class="tag">🔒</div>' : '')) +
     (s.festival ? '<div class="ftag">🧧</div>' : '') +
-    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
+    const pc = playsMap[s.uk] || 0;
+    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}${pc ? ' · ▶ ' + pc + ' 次' : ''}</div>` +
     (!s.locked && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
   d.onclick = () => {
     if (s.locked) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
@@ -2558,6 +2634,45 @@ if (revealed && todaySongs.length) {
     unlockCardUi();
   });
 }
+
+/* ============ 留言板 + 播放统计 ============ */
+let playsMap = {};
+function loadComments(){
+  fetch('/api/g-data').then(r => r.json()).then(j => {
+    playsMap = j.plays || {};
+    renderComments(j.comments || {});
+    refreshPlayBadges();
+  }).catch(() => {});
+}
+function renderComments(comments){
+  const list = document.getElementById('cList');
+  if (!list) return;
+  const all = [];
+  for (const uk in comments) { for (const c of comments[uk]) all.push({...c, uk}); }
+  all.sort((a, b) => b.time.localeCompare(a.time));
+  list.innerHTML = all.length ? all.map(c =>
+    `<div class="crow"><div class="cn">${c.name}</div><div class="ct">${c.text}</div><div class="cd">${c.time}</div></div>`).join('')
+    : '<div class="cempty">还没有留言，来抢沙发！</div>';
+}
+function submitComment(){
+  const text = document.getElementById('cText').value.trim();
+  if (!text) { document.getElementById('cText').focus(); return; }
+  const name = document.getElementById('cName').value.trim() || '匿名';
+  const s = SONGS[cur] || SONGS[0];
+  fetch('/api/g-comment', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({uk: s.uk || '', name, text})})
+  .then(r => r.json()).then(j => { if (j.ok) { document.getElementById('cText').value = ''; loadComments(); } else alert(j.error); })
+  .catch(() => alert('网络错误'));
+}
+function refreshPlayBadges(){
+  document.querySelectorAll('.item').forEach(el => {
+    const uk = el.dataset.uk;
+    const pc = playsMap[uk] || 0;
+    const dt = el.querySelector('.dt');
+    if (dt && pc) { dt.textContent = dt.textContent.split(' · ')[0] + ' · ▶ ' + pc + ' 次'; }
+  });
+}
+loadComments();
 </script></body></html>"""
 
 
