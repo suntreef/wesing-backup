@@ -150,6 +150,10 @@ def blindbox_state(vid=None):
     entries, profile, sh = share_entries()
     if not entries:
         return entries, profile, set(), [], set(), '', None
+    # 盲盒池只收有音频文件的作品：纯 MV / 音频缺失的歌抽中了也没法听
+    pool = [e for e in entries if e.get('audio')]
+    if not pool:
+        return entries, profile, set(), [], set(), '', None
     share_dir = sh.get('dir') or '.'
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     salt = ''
@@ -183,9 +187,9 @@ def blindbox_state(vid=None):
     while d <= end and guard < 3650:
         day = d.isoformat()
         fest = __import__('core').get_festival(day)
-        picks = [_pick_for_date(entries, day, salt)]
+        picks = [_pick_for_date(pool, day, salt)]
         if fest and fest.get('double'):
-            picks.append(_pick_for_date(entries, day + '|bonus', salt))
+            picks.append(_pick_for_date(pool, day + '|bonus', salt))
         for pi, pick in enumerate(picks):
             if pick is None:
                 continue
@@ -195,12 +199,12 @@ def blindbox_state(vid=None):
                             'festival': (fest['name'] + (pi > 0 and '加更' or '')) if fest and fest.get('double') else (fest['name'] if fest else '')})
         d += dt.timedelta(days=1)
         guard += 1
-    today_pick = _pick_for_date(entries, today, salt)
+    today_pick = _pick_for_date(pool, today, salt)
     today_keys = {_uk(today_pick)} if today_pick else set()
     festival = __import__('core').get_festival(today)
     # 节日双倍：加更歌也标记为 today 并加入解锁集
     if festival and festival.get('double') and today_pick is not None:
-        bonus = _pick_for_date(entries, today + '|bonus', salt)
+        bonus = _pick_for_date(pool, today + '|bonus', salt)
         if bonus is not None:
             unlocked.add(_uk(bonus))
             today_keys.add(_uk(bonus))
@@ -373,11 +377,24 @@ def guest_comments(share_dir):
     return _load_json_safe(_guest_data_file(share_dir, 'guest_comments.json'))
 
 
-def add_guest_comment(share_dir, uk, name, text):
+def comments_of(comments, vid):
+    """只挑出某人自己的留言（旧版留言没有 vid，视为仅管理员可见）。"""
+    if not vid:
+        return {}
+    out = {}
+    for uk, lst in (comments or {}).items():
+        mine = [c for c in lst if (c.get('vid') or '') == vid]
+        if mine:
+            out[uk] = mine
+    return out
+
+
+def add_guest_comment(share_dir, uk, name, text, vid=''):
     path = _guest_data_file(share_dir, 'guest_comments.json')
     data = _load_json_safe(path)
     lst = data.setdefault(uk, [])
-    lst.append({'name': name[:20], 'text': text[:200], 'time': time.strftime('%Y-%m-%d %H:%M')})
+    lst.append({'name': name[:20], 'text': text[:200], 'time': time.strftime('%Y-%m-%d %H:%M'),
+                'vid': vid})
     _save_json_safe(path, data)
 
 
@@ -698,6 +715,18 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             authors = sorted(data.values(), key=lambda x: x.get('last') or '', reverse=True)
             return self._send(200, {'authors': authors})
+        if self.path == '/api/comments':
+            """管理端查看全部访客留言（留言已按访客隔离，这里负责汇总）。"""
+            sh_dir = load_shares().get('dir') or ''
+            comments = guest_comments(sh_dir) if sh_dir else {}
+            rows = []
+            for uk, lst in comments.items():
+                for c in lst:
+                    rows.append({'uk': uk, 'name': c.get('name') or '匿名',
+                                 'text': c.get('text') or '', 'time': c.get('time') or '',
+                                 'from': visitor_label(c.get('vid') or '')})
+            rows.sort(key=lambda x: x['time'], reverse=True)
+            return self._send(200, {'comments': rows, 'total': len(rows)})
         if self.path == '/api/dirs':
             """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
             root = data_root()
@@ -733,6 +762,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {
                 'dir': (load_shares().get('dir') or ''),
                 'guestUrl': gurl, 'guestBase': custom, 'unlocked': len(unlocked), 'total': len(entries),
+                'pool': sum(1 for e in entries if e.get('audio')),
                 'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
                 'ips': ips, 'guestPort': gport,
                 'authMode': (load_shares().get('auth') or {}).get('mode') or 'none',
@@ -1090,7 +1120,7 @@ class GuestHandler(Handler):
             vid = self._vid()
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(vid)
             sh_dir = load_shares().get('dir') or ''
-            comments = guest_comments(sh_dir) if sh_dir else {}
+            comments = comments_of(guest_comments(sh_dir) if sh_dir else {}, vid)
             plays = visitor_plays(sh_dir, vid) if sh_dir else {}
             return self._send(200, {'comments': comments, 'plays': plays,
                                     'me': visitor_label(vid),
@@ -1123,7 +1153,8 @@ class GuestHandler(Handler):
                 if uk not in unlocked:
                     return self._send(403, {'error': '该歌曲尚未解锁'})
                 add_guest_comment(load_shares().get('dir') or os.getcwd(), uk,
-                                  str(p.get('name') or '匿名')[:20], str(p.get('text') or '')[:200])
+                                  str(p.get('name') or '匿名')[:20], str(p.get('text') or '')[:200],
+                                  vid)
                 return self._send(200, {'ok': True})
             except Exception as e:
                 return self._send(400, {'error': str(e)})

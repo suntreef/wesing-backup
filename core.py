@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.7'
+APP_VERSION = '1.11.8'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -775,7 +775,10 @@ body:not(.vgrid) #cdCtrls{display:flex}
 .now .t{font-size:20px;font-weight:700;color:#fff}
 .now .s{color:#8f9aac;font-size:13px;margin-top:5px}
 .now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
-.vside{flex:1;display:flex;flex-direction:column;min-width:0;max-width:560px;padding:10px 0}
+.vside{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;max-width:560px;padding:10px 0}
+/* 歌词区必须能收缩并内部滚动，否则行数一多就把唱片顶出屏幕 */
+.vside .lyrics{flex:1 1 0;min-height:0;position:relative}
+@media (max-width:880px){.vside .lyrics{flex:none;max-height:46vh}}
 /* ---------- 卡座 ---------- */
 #skinTape{flex-direction:column;align-items:center;justify-content:center;padding:20px;
  background:linear-gradient(180deg,#20242e,#12151c 70%,#0b0d13)}
@@ -906,6 +909,9 @@ body.playing .jk-disc{animation-play-state:running}
 .jk-lights i:nth-child(4){background:#7cffb2;box-shadow:0 0 12px #7cffb2;animation-delay:.6s}
 .jk-lights i:nth-child(5){background:#c9a44a;box-shadow:0 0 12px #c9a44a;animation-delay:.8s}
 body.playing .jk-lights i{animation-duration:.65s}
+/* 播放时机身呼吸光晕（点唱机动效） */
+body.playing .jk-cab{animation:jukeGlow 2.6s ease-in-out infinite}
+@keyframes jukeGlow{50%{box-shadow:0 0 0 6px #170911,0 0 0 8px #c9a44a,0 0 70px rgba(255,79,163,.45),0 34px 90px rgba(0,0,0,.75)}}
 @keyframes blink{50%{opacity:.22}}
 /* ---------- 视图状态 ---------- */
 body.vvinyl #classicView,body.vtape #classicView,body.vspectrum #classicView,body.vjukebox #classicView{display:none}
@@ -1208,7 +1214,8 @@ function syncLrc(t){
   const box = $('#lyVinyl');
   [...box.querySelectorAll('p')].forEach((p, k) => p.classList.toggle('on', k === i));
   const el = box.querySelector('p[data-i="' + i + '"]');
-  if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  // 只在歌词框内部滚动。scrollIntoView 会连带滚动整个页面（黑胶界面被顶上去的元凶之一）
+  if (el) box.scrollTo({ top: el.offsetTop - box.clientHeight / 2 + el.clientHeight / 2, behavior: 'smooth' });
   const line = lrc[i] ? (lrc[i].text || '♪') : '';
   const sp = document.getElementById('specLyric');
   if (sp && document.body.dataset.view === 'spectrum') sp.textContent = line || '♪';
@@ -1239,6 +1246,7 @@ function load(i, autoplay){
 function play(){ au.play().catch(() => {}); }
 function pauseUi(){ $('#cd').classList.remove('playing'); $('#cdwrap').classList.remove('playing');
   document.getElementById('tapeWin').classList.remove('playing');
+  document.body.classList.remove('playing');  // 点唱机：body.playing 驱动唱片旋转/灯光加速
   $$('.jsPlay').forEach(el => el.textContent = el.classList.contains('tkey') ? '▶ PLAY' : '▶'); }
 function togglePlay(){
   if (cur < 0) { load(0, true); return; }
@@ -1247,6 +1255,7 @@ function togglePlay(){
 au.onplay = () => {
   $('#cd').classList.add('playing'); $('#cdwrap').classList.add('playing');
   document.getElementById('tapeWin').classList.add('playing');
+  document.body.classList.add('playing');  // 点唱机：唱片转起来、灯光加速、机身呼吸光
   $$('.jsPlay').forEach(el => el.textContent = el.classList.contains('tkey') ? '⏸ PAUSE' : '⏸');
   ensureAudioGraph();
   $$('.card audio').forEach(a => { try { a.pause(); } catch(e){} });
@@ -2174,12 +2183,14 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
- font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:84px;
- -webkit-tap-highlight-color:transparent}
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:92px;
+ -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button{touch-action:manipulation}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
-header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.96);
- backdrop-filter:blur(8px);border-bottom:1px solid #2a2f3e;transform:translateZ(0)}
-body.light header{background:rgba(247,248,252,.96)}
+header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.72);
+ backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
+ border-bottom:1px solid rgba(255,255,255,.07);transform:translateZ(0)}
+body.light header{background:rgba(247,248,252,.8);border-bottom-color:rgba(0,0,0,.06)}
 header h1{font-size:19px}
 header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
 header .gold{color:#ffd76a}
@@ -2188,8 +2199,9 @@ header .gold{color:#ffd76a}
 body.fest .fest-banner{display:block}
 .wrap{max-width:760px;margin:0 auto;padding:22px 16px 0;position:relative;z-index:2}
 /* 今日盲盒 */
-.today{position:relative;text-align:center;border-radius:22px;padding:30px 22px 26px;margin-bottom:30px;
- background:linear-gradient(180deg,#221d38,#171428);box-shadow:0 0 0 1px #38315a inset,0 20px 60px rgba(0,0,0,.5)}
+.today{position:relative;text-align:center;border-radius:26px;padding:30px 22px 26px;margin-bottom:30px;
+ background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
+ box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 18px 50px rgba(0,0,0,.45);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180deg,#2e1420,#1c0f1c)}
 .today .day{color:#9aa3b8;font-size:12px;letter-spacing:2px}
 .gift{font-size:84px;line-height:1.15;display:inline-block;cursor:pointer;user-select:none;
@@ -2203,19 +2215,23 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  animation:reveal .7s cubic-bezier(.2,.9,.3,1.2);text-align:center}
 .rev-card:nth-child(2){animation-delay:.35s}
 @keyframes reveal{0%{transform:scale(.5) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
-.rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:18px;
- box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:22px;cursor:pointer;
+ box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform .2s}
+.rev-card img:active{transform:scale(.97)}
 .rev-card .rt{font-size:15px;font-weight:800;color:#ffd76a;padding:12px 8px 2px}
 .rev-card .rs{font-size:11.5px;color:#9aa3b8;padding:0 8px 12px}
-.rev-play{display:block;width:100%;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;
- background:linear-gradient(180deg,#7cb8ff,#5a9ae8);color:#0d1522;padding:9px 0;-webkit-appearance:none;appearance:none}
-.rev-play:hover{filter:brightness(1.1)}
+/* iOS 毛玻璃胶囊按钮（点封面也能直接播放） */
+.rev-play{display:inline-block;margin-top:2px;border:1px solid rgba(255,255,255,.16);cursor:pointer;font-family:inherit;
+ font-size:13px;font-weight:700;color:#f2f4fa;background:rgba(255,255,255,.1);backdrop-filter:blur(14px);
+ -webkit-backdrop-filter:blur(14px);border-radius:999px;padding:10px 30px;-webkit-appearance:none;appearance:none;transition:transform .18s,background .18s}
+.rev-play:hover{background:rgba(255,255,255,.17)}
+.rev-play:active{transform:scale(.94)}
 .rev-title{font-size:19px;font-weight:800;color:#ffd76a;display:none;margin-top:12px}
 .rev-title.show{display:block}
 .btn{display:inline-block;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;color:#221d38;
  background:linear-gradient(180deg,#ffd76a,#e8b64c);border-radius:999px;padding:13px 34px;margin-top:16px;
- box-shadow:0 0 26px rgba(255,215,106,.4),0 4px 0 #b8923a;-webkit-appearance:none;appearance:none;transition:.15s}
-.btn:active{transform:translateY(3px);box-shadow:0 0 26px rgba(255,215,106,.4)}
+ box-shadow:0 10px 28px rgba(255,215,106,.3);-webkit-appearance:none;appearance:none;transition:transform .18s,box-shadow .18s}
+.btn:active{transform:scale(.95)}
 .count{color:#8f9aac;font-size:12.5px;margin-top:14px}
 .count b{color:#ffd76a;font-variant-numeric:tabular-nums}
 /* 解锁柜 */
@@ -2223,8 +2239,9 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 .sec h2{font-size:16px}
 .sec span{color:#8f9aac;font-size:12px}
 .cabinet{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
-.item{background:#1a1e2e;border-radius:14px;overflow:hidden;cursor:pointer;transition:.18s;position:relative;border:1px solid #2a2f3e}
-.item:hover{transform:translateY(-3px);border-color:#3a415a}
+.item{background:#171a26;border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .18s,border-color .18s;position:relative;border:1px solid rgba(255,255,255,.07)}
+.item:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.16)}
+.item:active{transform:scale(.97)}
 .item img{width:100%;height:118px;object-fit:cover;display:block}
 .item .nm{padding:9px 11px 3px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .item .dt{padding:0 11px 10px;font-size:11px;color:#8f9aac}
@@ -2239,47 +2256,54 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  border-radius:6px;padding:2px 7px;font-weight:700;z-index:2}
 .item.shake{animation:shk .4s}
 @keyframes shk{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
-.more-btn{display:block;margin:16px auto 4px;border:1px solid #3a415a;background:rgba(26,31,38,.6);color:#9aa3b8;
+.more-btn{display:block;margin:16px auto 4px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#9aa3b8;
  font-family:inherit;font-size:13px;font-weight:600;border-radius:999px;padding:10px 22px;cursor:pointer;
  -webkit-appearance:none;appearance:none;transition:.15s}
 .more-btn:hover{border-color:#ffd76a;color:#ffd76a}
 body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .history{margin-top:8px;display:flex;flex-direction:column;gap:8px}
-.hrow{display:flex;align-items:center;gap:12px;background:#1a1e2e;border-radius:12px;padding:10px 14px;border:1px solid #2a2f3e}
+.hrow{display:flex;align-items:center;gap:12px;background:#171a26;border-radius:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.07)}
 .hrow .d{color:#ffd76a;font-size:12px;font-variant-numeric:tabular-nums;flex:none}
 .hrow .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .s{color:#8f9aac;font-size:11px;margin-left:auto;flex:none}
 .empty{text-align:center;color:#6b7488;padding:40px 10px;font-size:14px;line-height:2}
-/* 播放条（紧凑单行） */
-.bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(20,24,38,.97);backdrop-filter:blur(8px);
- border-top:1px solid #2a2f3e;padding:6px 12px calc(6px + env(safe-area-inset-bottom));display:none;align-items:center;gap:10px;flex-wrap:wrap}
+/* 播放条（iOS 毛玻璃迷你播放器，高度恒定不跳动） */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(22,24,36,.78);
+ backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
+ border-top:1px solid rgba(255,255,255,.07);padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+ display:none;align-items:center;gap:10px;flex-wrap:wrap}
 .bar.show{display:flex}
-.bar img{width:38px;height:38px;border-radius:7px;object-fit:cover}
+.bar img{width:40px;height:40px;border-radius:9px;object-fit:cover;box-shadow:0 4px 14px rgba(0,0,0,.4)}
 .bar .bi{flex:1;min-width:0}
 .bar .bt{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar .bs{color:#8f9aac;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar button{background:none;border:1px solid #3a415a;color:#dfe3ec;border-radius:50%;width:36px;height:36px;flex:none;
+.bar button{background:rgba(255,255,255,.08);border:none;color:#f2f4fa;border-radius:50%;width:36px;height:36px;flex:none;
  font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
- padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none}
+ padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none;transition:transform .15s,background .15s}
+.bar button:hover{background:rgba(255,255,255,.15)}
+.bar button:active{transform:scale(.88)}
 .bar button:focus-visible{outline:2px solid #ffd76a}
-.bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:16px}
+.bar .bp{background:#ffd76a;color:#221d38;font-size:16px;width:40px;height:40px}
 .bar .bp:hover{background:#ffe28a}
-.listen-timer{user-select:none}
+/* 收听计时：悬浮小胶囊固定在播放栏上方，不占高度（否则播放/暂停时底部框会跳） */
+.listen-timer{display:none;position:absolute;top:-36px;right:14px;background:rgba(255,215,106,.15);color:#ffd76a;
+ border:1px solid rgba(255,215,106,.28);border-radius:999px;padding:5px 12px;font-size:11px;font-weight:600;
+ backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);user-select:none;white-space:nowrap}
 .bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:12px;padding:0 4px;white-space:nowrap;
- overflow:hidden;text-overflow:ellipsis;min-height:15px;line-height:1.2;margin-bottom:-2px}
+ overflow:hidden;text-overflow:ellipsis;min-height:16px;line-height:16px;margin-bottom:-2px}
 
 /* 留言板 */
 .comments-sec{margin:26px 0 14px}
 .comments-sec h2{font-size:16px;margin-bottom:12px}
 .comment-form{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.comment-form input{padding:10px 12px;border-radius:10px;border:1px solid #2a2f3e;background:#1a1e2e;color:#eee;font-size:13px;outline:none;transition:.15s}
-.comment-form input:focus{border-color:#ffd76a}
+.comment-form input{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#eef1f7;font-size:13px;outline:none;transition:.15s}
+.comment-form input:focus{border-color:#ffd76a;background:rgba(255,255,255,.09)}
 .comment-form .cname{width:90px}
 .comment-form .ctext{flex:1;min-width:0}
-.comment-form .cbtn{padding:10px 20px;border:none;border-radius:10px;background:#ffd76a;color:#221d38;font-weight:700;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none}
-.comment-form .cbtn:active{transform:scale(.97)}
+.comment-form .cbtn{padding:10px 20px;border:none;border-radius:999px;background:#ffd76a;color:#221d38;font-weight:700;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none;transition:transform .15s}
+.comment-form .cbtn:active{transform:scale(.94)}
 .clist{display:flex;flex-direction:column;gap:8px}
-.crow{background:#1a1e2e;border-radius:12px;padding:10px 14px;border:1px solid #2a2f3e}
+.crow{background:#171a26;border-radius:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.07)}
 .crow .cn{font-size:12px;font-weight:700;color:#ffd76a}
 .crow .ct{font-size:13px;color:#cfd6dd;margin-top:3px;word-break:break-all}
 .crow .cd{font-size:10px;color:#6b7488;margin-top:3px}
@@ -2289,8 +2313,9 @@ body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .latest-sec h2{font-size:16px}
 .latest-sec span{color:#8f9aac;font-size:12px}
 .latest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:14px}
-.lcard{background:#1a1e2e;border-radius:12px;overflow:hidden;cursor:pointer;border:1px solid #2e4a3a;transition:.18s}
+.lcard{background:#171a26;border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(127,255,178,.25);transition:transform .18s,border-color .18s}
 .lcard:hover{transform:translateY(-3px);border-color:#7cffb2}
+.lcard:active{transform:scale(.97)}
 .lcard img{width:100%;height:100px;object-fit:cover}
 .lcard .lt{padding:8px 10px 3px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lcard .ls{padding:0 10px 8px;font-size:10px;color:#7cffb2}
@@ -2299,12 +2324,13 @@ body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 /* 收听计时 */
 .listen-timer{user-select:none}
 /* 主题切换（固定右上角小按钮，不再挡歌柜） */
-.theme-toggle{position:fixed;top:10px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid #3a415a;
- background:rgba(26,31,38,.75);color:#ffd76a;font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;
- align-items:center;justify-content:center;transition:.2s}
+.theme-toggle{position:fixed;top:10px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
+ background:rgba(255,255,255,.07);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#ffd76a;font-size:14px;cursor:pointer;
+ -webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.2s}
 .theme-toggle:hover{border-color:#ffd76a}
+.theme-toggle:active{transform:scale(.9)}
 /* PWA 安装按钮 */
-.pwa-btn{display:none;margin-top:12px;border:1px solid #3a415a;background:rgba(26,31,38,.6);color:#9fb6d8;
+.pwa-btn{display:none;margin-top:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);
  font-family:inherit;font-size:12.5px;font-weight:600;border-radius:999px;padding:8px 18px;cursor:pointer;
  -webkit-appearance:none;appearance:none;transition:.15s}
 .pwa-btn:hover{border-color:#7cb8ff;color:#7cb8ff}
@@ -2325,14 +2351,15 @@ body.light .item .dt,body.light .hrow .s,body.light .item .q,body.light .pcount{
 body.light .item .q{color:#aab3c5}
 body.light .empty,body.light .cempty{color:#8a94a6}
 body.light .count,body.light .latest-sec span,body.light .sec span{color:#6a7488}
-body.light .bar{background:rgba(255,255,255,.97);border-top-color:#dfe3ec}
+body.light .bar{background:rgba(255,255,255,.78);border-top-color:rgba(0,0,0,.06)}
 body.light .bar .bt{color:#1d2430}
 body.light .bar .bs,body.light .bar-lyric{color:#7c8698}
 body.light .bar-lyric{color:#b8860b}
-body.light .bar button{border-color:#c9cfdd;color:#39414f}
+body.light .bar button{background:rgba(0,0,0,.06);color:#39414f}
+body.light .bar button:hover{background:rgba(0,0,0,.11)}
 body.light .comment-form input{background:#fff;border-color:#d8dce8;color:#1d2430}
 body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
-body.light .listen-timer{color:#7c8698}
+body.light .listen-timer{background:rgba(184,134,11,.12);color:#9a6b00;border-color:rgba(184,134,11,.3)}
 /* 彩带（揭晓动画） */
 .confetti{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;
  animation:confetti 1s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -2346,13 +2373,12 @@ body.light .listen-timer{color:#7c8698}
 /* 无脑化大按钮 */
 .gift{min-width:100px;min-height:100px;display:inline-flex;align-items:center;justify-content:center}
 .btn{padding:15px 38px;font-size:17px}
-.rev-play{padding:12px 0;font-size:14px}
+.rev-play{padding:12px 34px;font-size:14px}
 </style></head><body class="__FEST_CLASS__">
 <canvas id="fx"></canvas>
 <header>
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
  <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
- <div class="sub" id="whoami" style="opacity:.72;font-size:11px">🎫 你的盲盒进度单独记录，与朋友的掉落序列互不相通</div>
  <div class="fest-banner" id="festBanner"></div>
  <button class="pwa-btn" id="pwaBtn" onclick="installPwa()">📲 安装到桌面，每天回来开盲盒</button>
 </header>
@@ -2374,7 +2400,7 @@ body.light .listen-timer{color:#7c8698}
  <div class="sec"><h2>🔓 已解锁的歌柜</h2><span>点封面播放 · 全部可反复听</span></div>
  <div class="cabinet" id="cabinet"></div>
 
- <div class="sec"><h2>💬 朋友的留言</h2><span>听完留一句吧</span></div>
+ <div class="sec"><h2>💬 我的留言</h2><span>仅自己和机主可见</span></div>
  <div class="comments-sec">
   <div class="comment-form">
    <input class="cname" id="cName" placeholder="你的昵称" maxlength="20">
@@ -2718,22 +2744,21 @@ if (revealed && todaySongs.length) {
   todaySongs.forEach(s => {
     const card = document.createElement('div');
     card.className = 'rev-card';
-    card.innerHTML = `<img src="${s.cover || ''}" alt=""><div class="rt">${s.title}</div>` +
-      `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time} · 点下方按钮再听</div>` +
-      `<button class="rev-play" onclick="playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))">▶ 播放</button>`;
+    const playIt = `playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))`;
+    card.innerHTML = `<img src="${s.cover || ''}" alt="" onclick="${playIt}" title="点封面播放">` +
+      `<div class="rt">${s.title}</div>` +
+      `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time}</div>` +
+      `<button class="rev-play" onclick="${playIt}">▶&nbsp; 播放</button>`;
     area.appendChild(card);
     unlockCardUi();
   });
 }
 
 /* ============ 留言板 + 播放统计（播放次数按访客各算各的） ============ */
-let playsMap = {}, myName = '';
+let playsMap = {};
 function loadComments(){
   fetch('/api/g-data').then(r => r.json()).then(j => {
     playsMap = j.plays || {};
-    myName = j.me || '';
-    const w = document.getElementById('whoami');
-    if (w && myName) w.textContent = `🎫 当前身份：${myName} · 你的盲盒进度与播放次数单独记录，与朋友互不相通`;
     renderComments(j.comments || {});
     refreshPlayBadges();
   }).catch(() => {});

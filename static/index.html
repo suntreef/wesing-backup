@@ -446,6 +446,16 @@ function shareModal(){
       </div>
       <div id="shAccounts"></div>
     </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:700">💬 朋友留言（<span id="shCmtN">0</span>）</div>
+        <button class="btn small ghost" onclick="loadShComments()">刷新</button>
+      </div>
+      <div id="shComments" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:12px">
+        <div style="color:var(--text2)">加载中…</div>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">留言已按访客隔离：每人只能看到自己的，这里可查看全部（含来源身份）。</div>
+    </div>
     <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
       朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
       同一 Wi-Fi 直接访问；公网用反代（lucky/nginx）时把目标指向 <b>8766</b> 端口，并在上方填入对外链接。<br>
@@ -489,8 +499,11 @@ async function refreshShare(){
     return;
   }
   st.innerHTML = `当前分享：<b style="word-break:break-all">${esc(s.dir)}</b><br>` +
-    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）') +
+    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.pool ?? s.total}</b> 首` +
+      (s.pool != null && s.pool !== s.total ? `（备份 <b>${s.total}</b> 首，<b>${s.total - s.pool}</b> 首无音频未进盲盒池，多为纯 MV 或音频缺失）` : '') +
+      ` · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）') +
     `<br>🎫 已有 <b>${s.visitors||0}</b> 位朋友来过 · 每个人的掉落序列与播放次数各自独立，互不相通`;
+  loadShComments();
   if(document.getElementById('shAuthMode')) document.getElementById('shAuthMode').value = s.authMode || 'none';
   authFields();
   renderAccounts(s.accounts || []);
@@ -512,6 +525,26 @@ function loadOutList(d){
   // 输出目录自动补全：数据根目录下的已有目录
   const dl = document.getElementById('outList');
   if (dl) dl.innerHTML = (d.dirs||[]).map(x=>`<option value="${esc(x.name)}">`).join('');
+}
+async function loadShComments(){
+  const box = document.getElementById('shComments'), n = document.getElementById('shCmtN');
+  if(!box) return;
+  try{
+    const r = await (await fetch('/api/comments')).json();
+    if(n) n.textContent = r.total || 0;
+    box.innerHTML = (r.comments||[]).length ? r.comments.map(c=>
+      `<div style="padding:7px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
+        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+          <b style="color:#ffd76a;font-size:12px">${esc(c.name)}</b>
+          <span style="font-size:10px;color:var(--text2)">来自 ${esc(c.from)}</span>
+          <span style="font-size:10px;color:var(--text2);margin-left:auto">${esc(c.time)}</span>
+        </div>
+        <div style="margin-top:3px;word-break:break-all">${esc(c.text)}</div>
+      </div>`).join('')
+      : '<div style="color:var(--text2);padding:10px 0">还没有朋友留言</div>';
+  }catch(e){
+    box.innerHTML = '<div style="color:var(--text2)">留言加载失败</div>';
+  }
 }
 function renderAccounts(accounts){
   const el = document.getElementById('shAccounts');
