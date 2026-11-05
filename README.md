@@ -164,13 +164,31 @@ Run **locally only**; no data collection. Please back up only your own or author
 
 ```bash
 # 方式一：直接用发布镜像（推荐）
-docker run -d --name wesing-backup -p 8765:8765 \
+docker run -d --name wesing-backup -p 8765:8765 -p 8766:8766 \
   -v "$PWD/backups:/data" --restart unless-stopped \
   ghcr.io/suntreef/wesing-backup:latest
 
-# 方式二：本仓库构建
+# 方式二：本仓库构建（改了代码就用这个）
 git clone https://github.com/suntreef/wesing-backup && cd wesing-backup
-docker compose up -d
+docker compose build && docker compose up -d
+```
+
+**Docker 版专属说明：**
+
+- **指定下载目录**：工具页「高级选项 → 输出目录」可填子目录名（自动补全已备份目录），
+  实际落在数据卷 `/data` 下，即宿主机挂载的 `./backups`；留空则用 `kg_backup_昵称`
+- **打开 HTML 歌单 / 输出文件夹**：容器没有桌面环境，歌单改用浏览器新标签页在线播放
+  （走 `/preview/`，支持拖动进度条）；文件夹会弹窗显示容器内路径，请到宿主机挂载目录查看
+- **盲盒分享**：链接按你访问工具页的地址自动生成（换 `:8766` 端口），NAS 的局域网 IP / 域名都能用上；
+  直接在手机浏览器打开即可，可安装到桌面
+- **访问控制**：盲盒弹窗内可随时改账号的用户名 / 密码 / 备注，也可停用或删除账号，改完立即生效
+
+**镜像什么时候更新？** GitHub Actions 只在**打 tag（`v*`）**时构建并推送镜像，
+推 main 分支只跑单元测试。所以升级方式：
+
+```bash
+docker pull ghcr.io/suntreef/wesing-backup:latest && docker compose up -d --force-recreate
+# 或锁定版本：ghcr.io/suntreef/wesing-backup:1.11.1
 ```
 
 镜像内置 ffmpeg（自动嵌标签/MP3 副本）。旧备份目录放进挂载卷后重跑一次备份即可自动升级（补歌词/标签，无需重新下载音频）。镜像仅用于个人备份，请勿公开暴露到公网。
@@ -185,6 +203,14 @@ static/      前端单页（原生 HTML/CSS/JS，无构建）
 ```
 
 本地构建 exe：`pip install pyinstaller && pyinstaller --onefile --noconsole --name KG-Backup --add-data "static;static" kg_app.py`
+
+**发版流程**：改代码 → 同步 `core.py` 的 `APP_VERSION` 与 `version_info.txt` → 更新 [CHANGELOG.md](CHANGELOG.md)
+→ 提交 → 打 tag `vX.Y.Z` 推送。GitHub Actions 会自动构建 Windows exe 挂到 Release，并推送 Docker 镜像
+（`:X.Y.Z` + `:latest`）；未打 tag 时镜像不会更新。
+
+## 📋 更新日志
+
+完整版本历史见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 
