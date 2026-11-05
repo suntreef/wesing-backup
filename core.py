@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.4'
+APP_VERSION = '1.11.5'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2172,11 +2172,12 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
- font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:110px;
- -webkit-tap-highlight-color:transparent;transition:background .3s}
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:84px;
+ -webkit-tap-highlight-color:transparent}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
-header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.9);
- backdrop-filter:blur(8px);border-bottom:1px solid #2a2f3e}
+header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.96);
+ backdrop-filter:blur(8px);border-bottom:1px solid #2a2f3e;transform:translateZ(0)}
+body.light header{background:rgba(247,248,252,.96)}
 header h1{font-size:19px}
 header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
 header .gold{color:#ffd76a}
@@ -2235,29 +2236,34 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  border-radius:6px;padding:2px 7px;font-weight:700;z-index:2}
 .item.shake{animation:shk .4s}
 @keyframes shk{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+.more-btn{display:block;margin:16px auto 4px;border:1px solid #3a415a;background:rgba(26,31,38,.6);color:#9aa3b8;
+ font-family:inherit;font-size:13px;font-weight:600;border-radius:999px;padding:10px 22px;cursor:pointer;
+ -webkit-appearance:none;appearance:none;transition:.15s}
+.more-btn:hover{border-color:#ffd76a;color:#ffd76a}
+body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .history{margin-top:8px;display:flex;flex-direction:column;gap:8px}
 .hrow{display:flex;align-items:center;gap:12px;background:#1a1e2e;border-radius:12px;padding:10px 14px;border:1px solid #2a2f3e}
 .hrow .d{color:#ffd76a;font-size:12px;font-variant-numeric:tabular-nums;flex:none}
 .hrow .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .s{color:#8f9aac;font-size:11px;margin-left:auto;flex:none}
 .empty{text-align:center;color:#6b7488;padding:40px 10px;font-size:14px;line-height:2}
-/* 播放条 */
+/* 播放条（紧凑单行） */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(20,24,38,.97);backdrop-filter:blur(8px);
- border-top:1px solid #2a2f3e;padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:none;align-items:center;gap:12px;flex-wrap:wrap}
+ border-top:1px solid #2a2f3e;padding:6px 12px calc(6px + env(safe-area-inset-bottom));display:none;align-items:center;gap:10px;flex-wrap:wrap}
 .bar.show{display:flex}
-.bar img{width:44px;height:44px;border-radius:8px;object-fit:cover}
+.bar img{width:38px;height:38px;border-radius:7px;object-fit:cover}
 .bar .bi{flex:1;min-width:0}
-.bar .bt{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar .bs{color:#8f9aac;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bar button{background:none;border:1px solid #3a415a;color:#dfe3ec;border-radius:50%;width:40px;height:40px;flex:none;
- font-size:15px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
+.bar .bt{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .bs{color:#8f9aac;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar button{background:none;border:1px solid #3a415a;color:#dfe3ec;border-radius:50%;width:36px;height:36px;flex:none;
+ font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
  padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none}
 .bar button:focus-visible{outline:2px solid #ffd76a}
-.bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:17px}
+.bar .bp{background:#ffd76a;color:#221d38;border:none;font-size:16px}
 .bar .bp:hover{background:#ffe28a}
 .listen-timer{user-select:none}
-.bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:13px;padding:0 4px;white-space:nowrap;
- overflow:hidden;text-overflow:ellipsis;min-height:18px}
+.bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:12px;padding:0 4px;white-space:nowrap;
+ overflow:hidden;text-overflow:ellipsis;min-height:15px;line-height:1.2;margin-bottom:-2px}
 
 /* 留言板 */
 .comments-sec{margin:26px 0 14px}
@@ -2289,11 +2295,17 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 .pcount{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#8f9aac}
 /* 收听计时 */
 .listen-timer{user-select:none}
-/* 主题切换 */
-.theme-toggle{position:fixed;bottom:16px;left:16px;z-index:30;width:40px;height:40px;border-radius:50%;border:1px solid #3a415a;
- background:#1a1f26;color:#ffd76a;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;
+/* 主题切换（固定右上角小按钮，不再挡歌柜） */
+.theme-toggle{position:fixed;top:10px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid #3a415a;
+ background:rgba(26,31,38,.75);color:#ffd76a;font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;
  align-items:center;justify-content:center;transition:.2s}
 .theme-toggle:hover{border-color:#ffd76a}
+/* PWA 安装按钮 */
+.pwa-btn{display:none;margin-top:12px;border:1px solid #3a415a;background:rgba(26,31,38,.6);color:#9fb6d8;
+ font-family:inherit;font-size:12.5px;font-weight:600;border-radius:999px;padding:8px 18px;cursor:pointer;
+ -webkit-appearance:none;appearance:none;transition:.15s}
+.pwa-btn:hover{border-color:#7cb8ff;color:#7cb8ff}
+body.light .pwa-btn{background:#fff;border-color:#d8dce8;color:#5a7ea8}
 /* 明亮主题（body.light） */
 body.light{background:#f2f4f8;color:#2a3140}
 body.light header{background:rgba(247,248,252,.92);border-bottom-color:#dfe3ec}
@@ -2338,6 +2350,7 @@ body.light .listen-timer{color:#7c8698}
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
  <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
  <div class="fest-banner" id="festBanner"></div>
+ <button class="pwa-btn" id="pwaBtn" onclick="installPwa()">📲 安装到桌面，每天回来开盲盒</button>
 </header>
 <div class="wrap">
  <div class="today">
@@ -2345,6 +2358,7 @@ body.light .listen-timer{color:#7c8698}
   <div id="giftArea">
    <div class="gift" id="gift" onclick="reveal()">🎁</div>
    <div class="rev-area" id="revArea"></div>
+   <div class="rev-title" id="revTitle"></div>
    <button class="btn" id="openBtn" onclick="reveal()">开启今日盲盒</button>
   </div>
   <div class="count">下一首盲盒 <b id="cd">--:--:--</b> 后掉落 · 记得回来看看</div>
@@ -2463,7 +2477,7 @@ function drawFireworks(t){
   }
   for (let i = rockets.length - 1; i >= 0; i--) if (rockets[i].boom && rockets[i].parts.every(p => p.life <= 0)) rockets.splice(i, 1);
 }
-(function fxTick(t){
+if (FX) (function fxTick(t){
   fxc.clearRect(0, 0, fcv.width, fcv.height);
   if (FX === 'fireworks') drawFireworks(t);
   for (const p of fparts) {
@@ -2521,6 +2535,8 @@ function reveal(){
     document.getElementById('openBtn').style.display = 'none';
     const area = document.getElementById('revArea');
     area.classList.add('show');
+    const rt = document.getElementById('revTitle');
+    if (rt) { rt.innerHTML = '🎉 今日揭晓：《' + (todaySongs[0] ? todaySongs[0].title : '') + '》'; rt.classList.add('show'); }
     todaySongs.forEach((s, k) => {
       const card = document.createElement('div');
       card.className = 'rev-card';
@@ -2556,6 +2572,7 @@ function tickCd(){
 tickCd(); setInterval(tickCd, 1000);
 /* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');
+const lockedPool = [];
 /* 最新收录 */
 const lg = document.getElementById('latestGrid');
 const recent = SONGS.filter(s => !s.locked && dateMap[s.uk])
@@ -2570,22 +2587,46 @@ recent.forEach(s => {
 });
 
 SONGS.forEach(s => {
+  const hide = s.locked || (s.today && !revealed);  // 今日歌开盒前保持神秘
   const d = document.createElement('div');
-  d.className = 'item' + (s.locked ? ' locked' : '');
+  d.className = 'item' + (hide ? ' locked' : '');
   d.dataset.uk = s.uk;
-  d.innerHTML = `<img src="${s.locked ? '' : (s.cover || '')}" alt="" ${s.locked ? '' : 'loading="lazy"'}>` +
-    (s.locked ? '<div class="q">❓</div>' : '') +
-    (s.today ? '<div class="tag">今日</div>' : (s.locked ? '<div class="tag">🔒</div>' : '')) +
+  d.innerHTML = `<img src="${hide ? '' : (s.cover || '')}" alt="" ${hide ? '' : 'loading="lazy"'}>` +
+    (hide ? '<div class="q">❓</div>' : '') +
+    (s.today ? '<div class="tag">今日</div>' : (hide ? '<div class="tag">🔒</div>' : '')) +
     (s.festival ? '<div class="ftag">🧧</div>' : '') +
-    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
-    (!s.locked && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
+    `<div class="nm">${hide ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
+    (!hide && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
   d.onclick = () => {
-    if (s.locked) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
+    if (hide) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
     playSong(SONGS.indexOf(s));
   };
-  cab.appendChild(d);
-  if (s.today && revealed) unlockCardUi();
+  // 歌柜折叠：已解锁 + 前 8 张神秘卡直接展示，其余收进「展开全部」
+  if (hide && !(s.today)) {
+    lockedPool.push(d);
+  } else {
+    cab.appendChild(d);
+  }
 });
+if (lockedPool.length > 8) {
+  const extra = lockedPool.slice(8);
+  const box = document.createElement('div');
+  box.className = 'cabinet';
+  box.style.display = 'none';
+  extra.forEach(el => box.appendChild(el));
+  const more = document.createElement('button');
+  more.className = 'more-btn';
+  more.textContent = `🔐 还有 ${extra.length} 首神秘卡，点开看看 ▾`;
+  more.onclick = () => {
+    const open = box.style.display !== 'none';
+    box.style.display = open ? 'none' : 'grid';
+    more.textContent = open ? `🔐 还有 ${extra.length} 首神秘卡，点开看看 ▾` : '收起神秘卡 ▴';
+  };
+  cab.insertAdjacentElement('afterend', more);
+  more.insertAdjacentElement('afterend', box);
+} else {
+  lockedPool.slice(0, 8).forEach(el => cab.appendChild(el));
+}
 /* 掉落日历 */
 const his = document.getElementById('history');
 if (!HISTORY.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
@@ -2639,6 +2680,8 @@ function playSong(i){
 
 au.onplay = () => { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s);
   document.getElementById('barPlay').textContent = '⏸'; };
+au.onpause = () => { stopListenTimer();
+  document.getElementById('barPlay').textContent = '▶'; };
 au.ontimeupdate = () => {
   if (!glrc.length) return;
   let i = -1;
@@ -2665,6 +2708,8 @@ if (revealed && todaySongs.length) {
   document.getElementById('openBtn').style.display = 'none';
   const area = document.getElementById('revArea');
   area.classList.add('show');
+  const rt = document.getElementById('revTitle');
+  if (rt && todaySongs[0]) { rt.innerHTML = '🎉 今日揭晓：《' + todaySongs[0].title + '》'; rt.classList.add('show'); }
   todaySongs.forEach(s => {
     const card = document.createElement('div');
     card.className = 'rev-card';
@@ -2714,6 +2759,24 @@ function refreshPlayBadges(){
   });
 }
 loadComments();
+/* ============ PWA 安装到桌面 ============ */
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); installEvt = e;
+  const b = document.getElementById('pwaBtn'); if (b) b.style.display = 'inline-block';
+});
+function installPwa(){
+  if (installEvt) { installEvt.prompt(); installEvt = null; return; }
+  const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  alert(isiOS ? 'iPhone / iPad 安装方法：\n用 Safari 打开本页 → 底部「分享」→ 「添加到主屏幕」'
+              : 'Android 安装方法：\n浏览器菜单（⋮）→ 「添加到主屏幕 / 安装应用」');
+}
+/* 已安装（独立窗口运行）则不显示安装按钮 */
+try {
+  const pb = document.getElementById('pwaBtn');
+  if (pb && (matchMedia('(display-mode: standalone)').matches || navigator.standalone)) pb.style.display = 'none';
+  else if (pb) pb.style.display = 'inline-block';
+} catch(e){}
 </script></body></html>"""
 
 
