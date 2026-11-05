@@ -14,6 +14,7 @@ kg_app.py — 全民K歌备份工具 · 图形界面入口
 import hashlib
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -21,6 +22,7 @@ import threading
 import time
 import types
 import urllib.request
+import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -73,42 +75,117 @@ def _uk(e):
     return e.get('ugcid') or ('s' + str(e.get('seq')))
 
 
-def _pick_for_date(entries, day):
-    """确定性盲盒：同一日期永远抽中同一首。"""
+def _pick_for_date(entries, day, salt=''):
+    """确定性盲盒：同一日期 + 同一身份永远抽中同一首。
+
+    salt 是访客身份（账号名或浏览器 ID）：不同的人拿到的是完全不同的掉落序列，
+    但每个人自己每天的记录依旧是稳定、可重算的。
+    """
     if not entries:
         return None
-    seed = hashlib.md5((day + '|wesing-blindbox|' + str(len(entries))).encode()).hexdigest()
+    seed = hashlib.md5((day + '|wesing-blindbox|' + salt + '|' + str(len(entries))).encode()).hexdigest()
     return entries[int(seed, 16) % len(entries)]
 
 
-def blindbox_state():
-    """返回 (entries, profile, unlocked_keys, history, today_keys, today_date, festival)。"""
+# ------------------------------------------------ 访客身份（每人一套独立的盲盒进度）
+
+_VISITOR_FILE = 'guest_visitors.json'
+_VID_RE = re.compile(r'^[A-Za-z0-9_\-]{6,64}$')
+
+
+def _visitor_file(share_dir):
+    return _guest_data_file(share_dir, _VISITOR_FILE)
+
+
+def visitors(share_dir):
+    return _load_json_safe(_visitor_file(share_dir))
+
+
+def save_visitors(share_dir, data):
+    _save_json_safe(_visitor_file(share_dir), data)
+
+
+def visitor_state(share_dir, vid):
+    """取（必要时创建）某位访客自己的盲盒状态：开盒起点 + 播放次数。
+
+    新访客一律从"今天"起算，所以看不到别人的掉落日历，也不会继承别人的随机序列。
+    老版本只留了一份全局 guest_start：第一个到访的人继承它（老用户日历不被清空，
+    且沿用旧随机种子 salt='' → 之前抽到的歌不变），之后来的人各自重新开始。
+    """
+    data = visitors(share_dir)
+    st = data.get(vid)
+    if isinstance(st, dict):
+        return st, data
+    today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
+    st = {'start': today, 'plays': {}}
+    legacy_file = os.path.join(share_dir, 'guest_start')
+    if not data and os.path.exists(legacy_file):
+        try:
+            with open(legacy_file, encoding='utf-8') as f:
+                old = f.read().strip()
+        except Exception:
+            old = ''
+        if old:
+            st = {'start': old, 'plays': {}, 'legacy': True}
+    data[vid] = st
+    save_visitors(share_dir, data)
+    return st, data
+
+
+def visitor_label(vid):
+    """把内部 vid 还原成人能看的名字（账号 → 用户名，浏览器 → 短 ID）。"""
+    if not vid:
+        return '未登录访客'
+    if vid.startswith('u:'):
+        return vid[2:]
+    return '匿名·' + vid[2:8] if vid.startswith('v:') else vid[:8]
+
+
+def blindbox_state(vid=None):
+    """返回 (entries, profile, unlocked_keys, history, today_keys, today_date, festival)。
+
+    vid 为空 → 全局视角（管理后台统计"从分享第一天到今天"应有的进度）；
+    给了 vid → 这位访客自己的起点与掉落序列（互不相通）。
+    """
     entries, profile, sh = share_entries()
     if not entries:
         return entries, profile, set(), [], set(), '', None
-    start_file = os.path.join(sh.get('dir') or '.', 'guest_start')
+    share_dir = sh.get('dir') or '.'
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
-    if not os.path.exists(start_file):
+    salt = ''
+    if vid:
         try:
-            with open(start_file, 'w') as f:
-                f.write(today)
+            st, _ = visitor_state(share_dir, vid)
+            start = st.get('start') or today
+            salt = '' if st.get('legacy') else vid
         except Exception:
-            pass
-    try:
-        with open(start_file, encoding='utf-8') as f:
-            start = f.read().strip() or today
-    except Exception:
-        start = today
+            start, salt = today, vid
+    else:
+        start_file = os.path.join(share_dir, 'guest_start')
+        if not os.path.exists(start_file):
+            try:
+                with open(start_file, 'w') as f:
+                    f.write(today)
+            except Exception:
+                pass
+        try:
+            with open(start_file, encoding='utf-8') as f:
+                start = f.read().strip() or today
+        except Exception:
+            start = today
     history, unlocked = [], set()
-    d = dt_date.fromisoformat(start)
+    try:
+        d = dt_date.fromisoformat(start)
+    except ValueError:
+        d = dt_date.fromisoformat(today)
     end = dt_date.fromisoformat(today)
     guard = 0
     while d <= end and guard < 3650:
         day = d.isoformat()
         fest = __import__('core').get_festival(day)
-        picks = [_pick_for_date(entries, day)]
+        picks = [_pick_for_date(entries, day, salt)]
         if fest and fest.get('double'):
-            picks.append(_pick_for_date(entries, day + '|bonus'))
+            picks.append(_pick_for_date(entries, day + '|bonus', salt))
         for pi, pick in enumerate(picks):
             if pick is None:
                 continue
@@ -118,12 +195,12 @@ def blindbox_state():
                             'festival': (fest['name'] + (pi > 0 and '加更' or '')) if fest and fest.get('double') else (fest['name'] if fest else '')})
         d += dt.timedelta(days=1)
         guard += 1
-    today_pick = _pick_for_date(entries, today)
+    today_pick = _pick_for_date(entries, today, salt)
     today_keys = {_uk(today_pick)} if today_pick else set()
     festival = __import__('core').get_festival(today)
     # 节日双倍：加更歌也标记为 today 并加入解锁集
     if festival and festival.get('double') and today_pick is not None:
-        bonus = _pick_for_date(entries, today + '|bonus')
+        bonus = _pick_for_date(entries, today + '|bonus', salt)
         if bonus is not None:
             unlocked.add(_uk(bonus))
             today_keys.add(_uk(bonus))
@@ -305,15 +382,49 @@ def add_guest_comment(share_dir, uk, name, text):
 
 
 def guest_plays(share_dir):
+    """旧版全局播放次数（迁移前的数据，仍参与总量统计）。"""
     return _load_json_safe(_guest_data_file(share_dir, 'guest_plays.json'))
 
 
-def add_guest_play(share_dir, uk):
-    path = _guest_data_file(share_dir, 'guest_plays.json')
-    data = _load_json_safe(path)
-    data[uk] = data.get(uk, 0) + 1
-    _save_json_safe(path, data)
-    return data[uk]
+def visitor_plays(share_dir, vid):
+    """某位访客自己的播放次数 —— 各人各算，不互通。"""
+    if not vid:
+        return {}
+    try:
+        st, _ = visitor_state(share_dir, vid)
+        plays = st.get('plays')
+        return plays if isinstance(plays, dict) else {}
+    except Exception:
+        return {}
+
+
+def all_plays(share_dir):
+    """全部访客播放数合计（管理后台 / 统计用）。"""
+    total = dict(guest_plays(share_dir))
+    for st in (visitors(share_dir) or {}).values():
+        plays = (st or {}).get('plays') if isinstance(st, dict) else None
+        if not isinstance(plays, dict):
+            continue
+        for k, v in plays.items():
+            total[k] = total.get(k, 0) + int(v or 0)
+    return total
+
+
+def add_guest_play(share_dir, uk, vid=''):
+    """记一次收听。有身份时只加自己的计数，返回本人该曲播放次数。"""
+    if not vid:
+        path = _guest_data_file(share_dir, 'guest_plays.json')
+        data = _load_json_safe(path)
+        data[uk] = data.get(uk, 0) + 1
+        _save_json_safe(path, data)
+        return data[uk]
+    st, data = visitor_state(share_dir, vid)
+    plays = st.setdefault('plays', {})
+    plays[uk] = int(plays.get(uk) or 0) + 1
+    st['last'] = time.strftime('%Y-%m-%d %H:%M')
+    data[vid] = st
+    save_visitors(share_dir, data)
+    return plays[uk]
 
 class Handler(BaseHTTPRequestHandler):
     server_version = f'KGBackup/{APP_VERSION}'  # HTTP 头仅允许 latin-1，中文放不进去
@@ -322,12 +433,18 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # ---------- 工具 ----------
+    def _vid(self):
+        """访客身份。管理端口一律无身份（全局视角），盲盒端口在 GuestHandler 里重写。"""
+        return None
+
     def _send(self, code, body, ctype='application/json; charset=utf-8'):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-store')
+        for k, v in (getattr(self, '_extra_hdrs', None) or ()):
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(data)
 
@@ -349,7 +466,7 @@ class Handler(BaseHTTPRequestHandler):
             rel = urllib.request.url2pathname(rel).replace('\\', '/').lstrip('/')
         except Exception:
             return self._send(400, b'bad path', 'text/plain; charset=utf-8')
-        entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+        entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(self._vid())
         if not entries:
             return self._send(404, b'no share', 'text/plain; charset=utf-8')
         sh = load_shares()
@@ -622,10 +739,11 @@ class Handler(BaseHTTPRequestHandler):
                 'accounts': (load_shares().get('accounts') or []),
                 'festival': (festival or {}).get('name') or '',
                 'docker': docker_mode(),
+                'visitors': len(visitors(load_shares().get('dir') or '.')),
                 'dataDir': data_root()})
         if self.path == '/guest':
             try:
-                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(self._vid())
             except Exception as e:
                 return self._send(200, f'<html><body style="font-family:sans-serif;padding:40px"><h2>🎁 盲盒页加载失败</h2><p>{e}</p><p>请确认已完成至少一次备份。</p></body></html>'.encode(), 'text/html; charset=utf-8')
             if not entries:
@@ -928,8 +1046,35 @@ class GuestHandler(Handler):
                 continue
             # 仅账号模式：只校验用户名；账号+密码模式：两者都校验
             if mode == 'user' or acc.get('pass') == pwd:
+                self._auth_user = user
                 return True
         return False
+
+    def _vid(self):
+        """访客身份 = 盲盒进度与播放次数的主人。
+
+        开了访问控制时直接用账号名（同一个人换设备/换浏览器还是同一份进度）；
+        无需验证模式则用 kg_vid Cookie（每个浏览器一份，互不相通）。
+        """
+        if getattr(self, '_vid_cache', None):
+            return self._vid_cache
+        user = getattr(self, '_auth_user', '')
+        if user:
+            vid = 'u:' + user
+        else:
+            vid = ''
+            for part in (self.headers.get('Cookie') or '').split(';'):
+                k, _, v = part.strip().partition('=')
+                if k == 'kg_vid' and _VID_RE.match(v or ''):
+                    vid = 'v:' + v
+                    break
+            if not vid:
+                vid = 'v:' + uuid.uuid4().hex[:16]
+                # 首次到访种下身份，之后每天的开盒记录都算在这个人头上
+                self._extra_hdrs = [('Set-Cookie',
+                                     f'kg_vid={vid[2:]}; Path=/; Max-Age=31536000; SameSite=Lax')]
+        self._vid_cache = vid
+        return vid
 
     def do_GET(self):
         if not self._auth_ok():
@@ -942,16 +1087,22 @@ class GuestHandler(Handler):
             # Docker 环境：通过 HTTP 下载文件（Content-Disposition: attachment）
             return self._send_download(self.path[len('/api/download/'):])
         if self.path == '/api/g-data':
-            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+            vid = self._vid()
+            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(vid)
             sh_dir = load_shares().get('dir') or ''
             comments = guest_comments(sh_dir) if sh_dir else {}
-            plays = guest_plays(sh_dir) if sh_dir else {}
-            return self._send(200, {'comments': comments, 'plays': plays})
+            plays = visitor_plays(sh_dir, vid) if sh_dir else {}
+            return self._send(200, {'comments': comments, 'plays': plays,
+                                    'me': visitor_label(vid),
+                                    'unlocked': len(unlocked), 'total': len(entries)})
         if self.path in ('/', '/index.html'):
             # 盲盒端口根路径 → 跳转到盲盒页（避免裸 404 Not Found）
             self.send_response(302)
             self.send_header('Location', '/guest')
             self.send_header('Content-Length', '0')
+            self._vid()  # 先落身份 Cookie，跳转后身份才稳定
+            for k, v in (getattr(self, '_extra_hdrs', None) or ()):
+                self.send_header(k, v)
             self.end_headers()
             return
         if (self.path == '/guest' or self.path.startswith('/g/') or
@@ -963,10 +1114,11 @@ class GuestHandler(Handler):
     def do_POST(self):
         if not self._auth_ok():
             return self._send(401, {'error': '需要登录'})
+        vid = self._vid()
         if self.path == '/api/g-comment':
             try:
                 p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
-                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(vid)
                 uk = str(p.get('uk') or '')
                 if uk not in unlocked:
                     return self._send(403, {'error': '该歌曲尚未解锁'})
@@ -978,11 +1130,11 @@ class GuestHandler(Handler):
         if self.path == '/api/g-play':
             try:
                 p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
-                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(vid)
                 uk = str(p.get('uk') or '')
                 if uk not in unlocked:
                     return self._send(403, {'error': '该歌曲尚未解锁'})
-                count = add_guest_play(load_shares().get('dir') or os.getcwd(), uk)
+                count = add_guest_play(load_shares().get('dir') or os.getcwd(), uk, vid)
                 return self._send(200, {'ok': True, 'plays': count})
             except Exception as e:
                 return self._send(400, {'error': str(e)})

@@ -10,3 +10,9 @@ _t*/
 cookie*.txt
 _*.py
 *.bak
+
+# 运行时生成的本地配置/临时测试目录
+shares.json
+authors.json
+auto_update.json
+_bigtest/

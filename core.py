@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.6'
+APP_VERSION = '1.11.7'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2352,6 +2352,7 @@ body.light .listen-timer{color:#7c8698}
 <header>
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
  <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
+ <div class="sub" id="whoami" style="opacity:.72;font-size:11px">🎫 你的盲盒进度单独记录，与朋友的掉落序列互不相通</div>
  <div class="fest-banner" id="festBanner"></div>
  <button class="pwa-btn" id="pwaBtn" onclick="installPwa()">📲 安装到桌面，每天回来开盲盒</button>
 </header>
@@ -2725,11 +2726,14 @@ if (revealed && todaySongs.length) {
   });
 }
 
-/* ============ 留言板 + 播放统计 ============ */
-let playsMap = {};
+/* ============ 留言板 + 播放统计（播放次数按访客各算各的） ============ */
+let playsMap = {}, myName = '';
 function loadComments(){
   fetch('/api/g-data').then(r => r.json()).then(j => {
     playsMap = j.plays || {};
+    myName = j.me || '';
+    const w = document.getElementById('whoami');
+    if (w && myName) w.textContent = `🎫 当前身份：${myName} · 你的盲盒进度与播放次数单独记录，与朋友互不相通`;
     renderComments(j.comments || {});
     refreshPlayBadges();
   }).catch(() => {});
@@ -2759,7 +2763,7 @@ function refreshPlayBadges(){
     const uk = el.dataset.uk;
     const pc = playsMap[uk] || 0;
     const dt = el.querySelector('.dt');
-    if (dt && pc) { dt.textContent = dt.textContent.split(' · ')[0] + ' · ▶ ' + pc + ' 次'; }
+    if (dt && pc) { dt.textContent = dt.textContent.split(' · ')[0] + ' · 我听了 ' + pc + ' 次'; }
   });
 }
 loadComments();

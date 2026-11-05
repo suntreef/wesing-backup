@@ -489,7 +489,8 @@ async function refreshShare(){
     return;
   }
   st.innerHTML = `当前分享：<b style="word-break:break-all">${esc(s.dir)}</b><br>` +
-    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）');
+    (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）') +
+    `<br>🎫 已有 <b>${s.visitors||0}</b> 位朋友来过 · 每个人的掉落序列与播放次数各自独立，互不相通`;
   if(document.getElementById('shAuthMode')) document.getElementById('shAuthMode').value = s.authMode || 'none';
   authFields();
   renderAccounts(s.accounts || []);
