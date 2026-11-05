@@ -2372,7 +2372,62 @@ body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
 .gift{min-width:100px;min-height:100px;display:inline-flex;align-items:center;justify-content:center}
 .btn{padding:15px 38px;font-size:17px}
 .rev-play{padding:12px 34px;font-size:14px}
+
+/* 登录 */
+#loginPage{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(600px 500px at 50% 30%,#1d1a33,#0f1220 70%)}
+.login-card{width:min(340px,90vw);text-align:center;padding:36px 28px;border-radius:22px;background:linear-gradient(180deg,#2a2140,#1a1530);border:1px solid #3a2d5e;box-shadow:0 0 40px rgba(124,77,255,.2),0 20px 60px rgba(0,0,0,.5)}
+.login-card .lc-icon{font-size:52px;margin-bottom:12px}
+.login-card h2{font-size:18px;color:#fff;margin-bottom:4px}
+.login-card .lc-sub{color:#8f9aac;font-size:12px;margin-bottom:22px}
+.login-card input{width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;border:1px solid #3a2d5e;background:#0f0d1a;color:#eee;font-size:14px;outline:none;transition:.15s;text-align:center}
+.login-card input:focus{border-color:#7c4dff;box-shadow:0 0 0 3px rgba(124,77,255,.2)}
+.login-card .lc-btn{width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(180deg,#7c4dff,#5a2d9e);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px}
+.login-card .lc-err{color:#ff6b6b;font-size:12px;margin-top:8px;min-height:16px}
+/* 进度条 */
+.pbar{width:100%;height:5px;border-radius:4px;background:rgba(255,255,255,.12);position:relative;cursor:pointer}
+.pfill{height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,var(--gold),#ff9d5c);position:relative;transition:width .3s linear}
+.pfill::after{content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:11px;height:11px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px rgba(255,215,106,.6)}
+.ptime{display:flex;justify-content:space-between;font-size:10px;color:#6b7488;font-variant-numeric:tabular-nums;margin-top:2px}
+/* 播放模式 */
+.modes{display:flex;gap:6px;margin-top:4px}
+.modes button{flex:1;padding:6px 0;border-radius:8px;border:1px solid #2a2f3e;background:transparent;color:#8f9aac;font-size:11px;cursor:pointer;font-family:inherit;transition:.15s;-webkit-appearance:none;appearance:none}
+.modes button.on{border-color:var(--gold);color:var(--gold);background:rgba(255,215,106,.08)}
+/* 猫通知 */
+.cat-notify{position:fixed;top:70px;right:14px;z-index:50;background:#1a1e2e;border-radius:16px 16px 4px 16px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.4);max-width:300px;animation:catpop .5s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes catpop{0%{transform:scale(0) translateY(-30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+.cat-notify .cat-face{font-size:28px;text-align:center;margin-bottom:6px}
+.cat-notify .cat-msg{font-size:13px;color:#e8eaf0;line-height:1.6}
+.cat-notify .cat-close{position:absolute;top:6px;right:10px;cursor:pointer;color:#8f9aac;font-size:14px}
+/* 主题切换 */
+.theme-toggle{position:fixed;bottom:16px;left:16px;z-index:30;width:40px;height:40px;border-radius:50%;border:1px solid #3a415a;background:#1a1f26;color:#ffd76a;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.2s}
+/* 偏移 */
+.offset-ctl{display:flex;align-items:center;gap:6px;font-size:11px;color:#8f9aac;margin-top:4px}
+.offset-ctl button{background:#1a1f26;border:1px solid #3a4150;color:#ccc;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;font-family:inherit}
+/* 锁定封面 */
+.item.locked .img-wrap{position:relative}
+.item.locked .img-wrap::after{content:'❓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--txt2);background:rgba(15,18,32,.5);backdrop-filter:blur(4px)}
+.item.locked img{filter:none!important;opacity:.15}
+
+
+@media(max-width:768px){
+ .kbd-hints{display:none!important}
+ header h1{font-size:16px}
+}
+body{overflow-x:hidden}
 </style></head><body class="__FEST_CLASS__">
+
+<div id="loginPage">
+ <div class="login-card">
+  <div class="lc-icon">📼</div>
+  <h2>盲盒歌单</h2>
+  <div class="lc-sub">输入账号密码进入</div>
+  <input id="loginUser" placeholder="账号">
+  <input id="loginPass" type="password" placeholder="密码">
+  <button class="lc-btn" onclick="doLogin()">进 入</button>
+  <div class="lc-err" id="loginErr"></div>
+ </div>
+</div>
+<div id="mainContent" style="display:none">
 <canvas id="fx"></canvas>
 <header>
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
@@ -2822,6 +2877,44 @@ try {
   if (pb && (matchMedia('(display-mode: standalone)').matches || navigator.standalone)) pb.style.display = 'none';
   else if (pb) pb.style.display = 'inline-block';
 } catch(e){}
+
+/* 登录 */
+const NEED_AUTH='__NEED_AUTH__'==='1';
+if(NEED_AUTH){$('#loginPage').style.display='flex';$('#mainContent').style.display='none'}
+async function doLogin(){
+ const u=$('#loginUser').value.trim(),p=$('#loginPass').value.trim();
+ const r=await fetch('/api/g-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:u,pass:p})});
+ const j=await r.json().catch(()=>({}));
+ if(j.ok){$('#loginPage').style.display='none';$('#mainContent').style.display='block'}
+ else $('#loginErr').textContent=j.error||'账号或密码错误';
+}
+/* 进度条 */
+au.ontimeupdate=()=>{if(au.duration){$('#pfill').style.width=(au.currentTime/au.duration*100)+'%'}$('#ptCur').textContent=fmt(au.currentTime);$('#ptEnd').textContent=fmt(au.duration||0);syncLrc(au.currentTime)};
+$('#pbar').addEventListener('click',e=>{if(!au.duration)return;const r=$('#pbar').getBoundingClientRect();au.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*au.duration});
+/* 播放模式 */
+let playMode='seq';
+function setMode(m){playMode=m;$$('.modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m))}
+function barStep(step){const u=SONGS.filter(s=>!s.locked);if(!u.length)return;let i=u.indexOf(SONGS[cur]);if(i<0)i=0;
+ if(playMode==='rand')i=Math.floor(Math.random()*u.length);else i=(i+step+u.length)%u.length;
+ playSong(SONGS.indexOf(u[i]))}
+function barPrev(){barStep(-1)}function barNext(){barStep(1)}
+au.onended=()=>{if(playMode==='loop'){au.currentTime=0;au.play().catch(()=>{})}else barNext()};
+/* 播放高亮 */
+function updatePlaying(){$$('.ditem').forEach((d,k)=>d.classList.toggle('playing',k===cur))}
+const _oldPlay=playSong;
+playSong=function(i){_oldPlay(i);updatePlaying()};
+/* 猫通知 */
+function showCat(msg){const old=document.querySelector('.cat-notify');if(old)old.remove();
+ const n=document.createElement('div');n.className='cat-notify';
+ n.innerHTML='<div class="cat-face">🐱</div><div class="cat-msg">'+msg+'</div><div class="cat-close" onclick="this.parentElement.remove()">✕</div>';
+ document.body.appendChild(n);setTimeout(()=>{if(n.parentElement)n.remove()},8000)}
+/* 主题切换 */
+function toggleTheme(){const b=document.body;if(b.style.filter){b.style.filter='';try{localStorage.removeItem('kgtheme')}catch(e){}}else{b.style.filter='invert(.88) hue-rotate(180deg)';try{localStorage.setItem('kgtheme','inv')}catch(e){}}}
+/* 偏移 */
+let lyricOffset=0;try{lyricOffset=parseFloat(localStorage.getItem('kgoffset')||'0')}catch(e){}
+function adjOffset(d){lyricOffset+=d;try{localStorage.setItem('kgoffset',String(lyricOffset))}catch(e){}syncLrc(au.currentTime)}
+const _syncLrc=syncLrc;
+syncLrc=function(t){_syncLrc(t+lyricOffset)};
 </script></body></html>"""
 
 
