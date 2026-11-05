@@ -149,7 +149,9 @@ footer a{color:var(--text2)}
       <summary>高级选项</summary>
       <div class="inner">
         <div class="grid2">
-          <div><label class="fl">输出目录（可选）</label><input type="text" id="out" placeholder="默认：kg_backup_昵称"></div>
+          <div><label class="fl">输出目录（可选）</label><input type="text" id="out" list="outList" placeholder="默认：kg_backup_昵称">
+            <div class="hint" id="outHint"></div>
+            <datalist id="outList"></datalist></div>
           <div><label class="fl">并发数</label><input type="number" id="workers" value="3" min="1" max="8"></div>
           <div><label class="fl">只备份此日期之后</label><input type="date" id="since"></div>
           <div><label class="fl">只备份此日期之前</label><input type="date" id="until"></div>
@@ -313,6 +315,21 @@ async function togglePause(){
 async function openIt(what){
   const r = await fetch('/api/open?what=' + what);
   const j = await r.json().catch(()=>({}));
+  if(j.url){ window.open(j.url, '_blank'); return; }   // Docker：浏览器新标签打开 HTML 歌单
+  if(j.path){                                           // Docker：无法弹出文件夹，提示挂载路径
+    if(document.getElementById('dkMask')) document.getElementById('dkMask').remove();
+    const m = document.createElement('div'); m.id='dkMask';
+    m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center';
+    m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:480px;width:92%;padding:24px 26px;position:relative">
+      <div style="font-size:16px;font-weight:700;margin-bottom:10px">📂 Docker 容器内无法弹出文件夹</div>
+      <div style="font-size:13px;line-height:1.9;color:var(--text2)">输出目录在容器内：<b style="color:var(--text);word-break:break-all">${esc(j.path)}</b><br>
+      它对应 docker-compose 里挂载的宿主机目录（<b>./backups:/data</b>），直接在宿主机该目录下即可查看文件。</div>
+      <button class="btn small" style="position:absolute;top:12px;right:14px" onclick="document.getElementById('dkMask').remove()">关闭</button>
+    </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if(e.target === m) m.remove(); });
+    return;
+  }
   if(!r.ok || !j.ok) alert(j.error || '打开失败');
 }
 async function quitApp(){
@@ -387,25 +404,40 @@ function shareModal(){
   m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:520px;width:92%;padding:24px 26px;position:relative;text-align:center">
     <div style="font-size:17px;font-weight:700;margin-bottom:10px">🎁 朋友盲盒 · 分享收藏</div>
     <div id="shState" style="font-size:13px;color:var(--text2);margin-bottom:10px">加载中…</div>
-    <div style="display:flex;gap:8px;margin:10px 0">
-      <input id="shDir" placeholder="备份目录完整路径（默认最近一次备份）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
+    <div style="display:flex;gap:8px;margin:10px 0;align-items:center">
+      <select id="shDirSel" onchange="document.getElementById('shDirCustom').classList.toggle('hidden',this.value!=='__custom__')"
+              style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
+        <option value="">加载目录中…</option>
+      </select>
       <button class="btn small" onclick="setShare()">设为分享</button>
-      <button class="btn small" onclick="runUpgrade()" title="补歌词/标签/刷新页面，不重新下载">🆙 升级此目录</button>
+      <button class="btn small" onclick="runUpgrade()" title="补歌词/标签/刷新页面，不重新下载">🆙 升级</button>
+    </div>
+    <div id="shDirCustom" class="hidden" style="display:flex;gap:8px;margin:0 0 10px">
+      <input id="shDir" placeholder="自定义备份目录路径（相对数据根目录或绝对路径）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
+      <button class="btn small" onclick="setShare()">设为分享</button>
     </div>
     <div id="shQr" style="min-height:170px;display:flex;align-items:center;justify-content:center"></div>
     <div id="shUrl" style="font-size:12px;color:var(--text2);margin-top:8px;word-break:break-all"></div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <a href="/api/download/index.html" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ 歌单 HTML</a>
+      <a href="/api/download/index.csv" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ CSV 目录</a>
+      <a href="/api/download/cd.html" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ CD 播放器</a>
+    </div>
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
       <div style="font-size:13px;font-weight:700;margin-bottom:8px">🔐 访问控制（盲盒页）</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:8px">
         <select id="shAuthMode" onchange="authFields()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
           <option value="none">无需验证</option>
           <option value="user">仅账号</option>
           <option value="userpass">账号+密码</option>
         </select>
-        <input id="shAuthUser" placeholder="账号" style="width:110px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);display:none">
-        <input id="shAuthPass" type="password" placeholder="密码" style="width:110px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);display:none">
-        <button class="btn small" onclick="saveAuth()">保存</button>
+        <span id="shAuthAdd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="shAuthUser" placeholder="新账号" style="width:100px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+          <input id="shAuthPass" type="password" placeholder="密码（仅账号+密码模式）" style="width:130px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+          <button class="btn small" onclick="saveAuth()">保存模式并添加</button>
+        </span>
       </div>
+      <div id="shAccounts"></div>
     </div>
     <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
       朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
@@ -421,7 +453,29 @@ function shareModal(){
 async function refreshShare(){
   const s = await (await fetch('/api/share')).json();
   const st = document.getElementById('shState'); if(!st) return;
-  if(!s.dir){ st.textContent = '还没有分享目录：先完成一次备份（完成后自动设为分享），或在下方填入路径。';
+  // 目录下拉：列出数据根目录下所有已备份目录，自动选中当前分享目录
+  const sel = document.getElementById('shDirSel');
+  if (sel) {
+    try {
+      const d = await (await fetch('/api/dirs')).json();
+      loadOutList(d);
+      const opts = [];
+      for (const it of (d.dirs||[]).filter(x=>x.valid))
+        opts.push(`<option value="${esc(it.path)}">${esc(it.name)}（${it.songs} 首）</option>`);
+      if (s.dir && !opts.some(o=>o.includes(`value="${esc(s.dir)}"`)))
+        opts.unshift(`<option value="${esc(s.dir)}">当前分享（${esc(s.dir)}）</option>`);
+      if (!opts.length) opts.push('<option value="">（还没有已备份目录，先完成一次备份）</option>');
+      opts.push('<option value="__custom__">✏️ 自定义路径…</option>');
+      sel.innerHTML = opts.join('');
+      sel.value = s.dir || '';
+      if (sel.selectedIndex < 0) sel.selectedIndex = 0;  // 无匹配（如还没分享目录）→ 选第一项
+      if (d.docker) {
+        const h = document.getElementById('outHint');
+        if (h) h.innerHTML = `🐳 Docker 模式：备份保存在数据卷 <b>${esc(d.root)}</b>（宿主机映射目录，如 ./backups）。下拉框可直接选用已有目录。`;
+      }
+    } catch(e){}
+  }
+  if(!s.dir){ st.textContent = '还没有分享目录：先完成一次备份（完成后自动设为分享），或在上方选择/填写路径。';
     document.getElementById('shQr').innerHTML = '<div style="color:var(--text2);font-size:13px;padding:30px 0">设置分享目录后，这里出现朋友链接二维码</div>';
     document.getElementById('shUrl').textContent = '';
     return;
@@ -430,6 +484,7 @@ async function refreshShare(){
     (s.guestUrl ? `朋友盲盒已就绪 · 已解锁 <b>${s.unlocked}/${s.total}</b> 首 · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）');
   if(document.getElementById('shAuthMode')) document.getElementById('shAuthMode').value = s.authMode || 'none';
   authFields();
+  renderAccounts(s.accounts || []);
   const qr = document.getElementById('shQr'), url = s.guestUrl;
   if(url && window.qrcode){
     const q = qrcode(0, 'M'); q.addData(url); q.make();
@@ -440,22 +495,74 @@ async function refreshShare(){
   }
   document.getElementById('shUrl').textContent = url;
 }
+function loadOutList(d){
+  // 输出目录自动补全：数据根目录下的已有目录
+  const dl = document.getElementById('outList');
+  if (dl) dl.innerHTML = (d.dirs||[]).map(x=>`<option value="${esc(x.name)}">`).join('');
+}
+function renderAccounts(accounts){
+  const el = document.getElementById('shAccounts');
+  if(!el) return;
+  if(!accounts.length){ el.innerHTML = '<div style="font-size:11px;color:var(--text2)">还没有账号。选「仅账号」或「账号+密码」后，在上方输入并保存即可。</div>'; return; }
+  el.innerHTML = accounts.map((a,i)=>`
+    <div data-i="${i}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 0;border-bottom:1px dashed var(--track)">
+      <input class="acc-user" value="${esc(a.user)}" placeholder="用户名" style="width:96px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+      <input class="acc-pass" type="password" value="${esc(a.pass||'')}" placeholder="密码" style="width:96px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+      <input class="acc-note" value="${esc(a.note||'')}" placeholder="备注（如：张三·手机）" style="flex:1;min-width:110px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+      <label style="font-size:11px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap">
+        <input type="checkbox" class="acc-en" ${a.disabled?'':'checked'}>启用</label>
+      <button class="btn small" style="padding:4px 10px;font-size:11px" onclick="saveAcc(${i})">保存</button>
+      <button class="btn small danger" style="padding:4px 10px;font-size:11px" onclick="delAcc(${i})">删除</button>
+    </div>`).join('');
+  el.dataset.orig = JSON.stringify(accounts.map(a=>a.user));
+}
+function accFromRow(i){
+  const row = document.querySelector(`#shAccounts div[data-i="${i}"]`);
+  if(!row) return null;
+  const orig = JSON.parse(document.getElementById('shAccounts').dataset.orig||'[]')[i] || '';
+  return {orig_user: orig, user: row.querySelector('.acc-user').value.trim(),
+          pass: row.querySelector('.acc-pass').value, note: row.querySelector('.acc-note').value.trim(),
+          disabled: !row.querySelector('.acc-en').checked};
+}
+async function saveAcc(i){
+  const acc = accFromRow(i);
+  if(!acc || !acc.user){ alert('用户名不能为空'); return; }
+  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({auth_account: acc})});
+  const j = await r.json().catch(()=>({}));
+  if(j.ok) refreshShare(); else alert(j.error || '保存失败');
+}
+async function delAcc(i){
+  const acc = accFromRow(i);
+  if(!acc || !confirm(`确定删除账号「${acc.orig_user}」？`)) return;
+  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({auth_delete_user: acc.orig_user})});
+  const j = await r.json().catch(()=>({}));
+  if(j.ok) refreshShare(); else alert(j.error || '删除失败');
+}
 function authFields(){
   const mode = document.getElementById('shAuthMode').value;
-  document.getElementById('shAuthUser').style.display = mode === 'none' ? 'none' : 'inline-block';
+  document.getElementById('shAuthAdd').style.display = mode === 'none' ? 'none' : 'inline-flex';
   document.getElementById('shAuthPass').style.display = mode === 'userpass' ? 'inline-block' : 'none';
 }
 async function saveAuth(){
-  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({auth_mode: document.getElementById('shAuthMode').value,
-      auth_user: document.getElementById('shAuthUser').value,
-      auth_pass: document.getElementById('shAuthPass').value})});
+  const mode = document.getElementById('shAuthMode').value;
+  const body = {auth_mode: mode};
+  if (mode !== 'none') {
+    const u = document.getElementById('shAuthUser').value;
+    if (u.trim()) body.auth_account = {user: u, pass: document.getElementById('shAuthPass').value};
+  }
+  const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
   const j = await r.json().catch(()=>({}));
-  if(j.ok){ const st = document.getElementById('shState'); if(st) st.innerHTML = '✓ 访问控制已保存：' + esc(j.auth); }
+  if (j.ok) { const st = document.getElementById('shState'); if(st) st.innerHTML = '✓ 访问控制已更新';
+    document.getElementById('shAuthUser').value=''; document.getElementById('shAuthPass').value='';
+    refreshShare(); }
   else alert(j.error || '保存失败');
 }
 async function runUpgrade(){
-  const dir = (document.getElementById('shDir').value.trim()) || (await (await fetch('/api/share')).json()).dir;
+  const sel = document.getElementById('shDirSel');
+  const dir = (sel && sel.value && sel.value !== '__custom__') ? sel.value
+            : (document.getElementById('shDir').value.trim() || (await (await fetch('/api/share')).json()).dir);
   if(!dir){ alert('没有可升级的目录'); return; }
   const r = await fetch('/api/upgrade', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({dir})});
   const j = await r.json().catch(()=>({}));
@@ -464,7 +571,9 @@ async function runUpgrade(){
   else alert(j.error || '升级启动失败');
 }
 async function setShare(){
-  const dir = document.getElementById('shDir').value.trim();
+  const sel = document.getElementById('shDirSel');
+  let dir = (sel && sel.value && sel.value !== '__custom__') ? sel.value : document.getElementById('shDir').value.trim();
+  if(sel && sel.value === '__custom__') dir = document.getElementById('shDir').value.trim();
   const r = await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({dir})});
   const j = await r.json().catch(()=>({}));
   if(!j.ok){ alert(j.error || '设置失败'); return; }
@@ -520,6 +629,7 @@ async function toggleLan(cb){
 }
 $('#target').addEventListener('keydown', e=>{ if(e.key==='Enter') start(); });
 loadAuthors();
+fetch('/api/dirs').then(r=>r.json()).then(loadOutList).catch(()=>{});  // 启动即填充输出目录补全
 </script>
 <script src="/static/qrcode.min.js"></script>
 <script>

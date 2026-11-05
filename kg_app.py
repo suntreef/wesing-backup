@@ -85,7 +85,7 @@ def blindbox_state():
     """返回 (entries, profile, unlocked_keys, history, today_keys, today_date, festival)。"""
     entries, profile, sh = share_entries()
     if not entries:
-        return entries, profile, set(), [], None, ''
+        return entries, profile, set(), [], set(), '', None
     start_file = os.path.join(sh.get('dir') or '.', 'guest_start')
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     if not os.path.exists(start_file):
@@ -127,7 +127,31 @@ def blindbox_state():
         if bonus is not None:
             unlocked.add(_uk(bonus))
             today_keys.add(_uk(bonus))
-    return entries, profile, unlocked, history, today_key, today, festival
+    return entries, profile, unlocked, history, today_keys, today, festival
+
+
+def docker_mode():
+    """是否运行在 Docker 容器内（无 GUI，无法 os.startfile）。"""
+    return bool(os.environ.get('KG_DATA_DIR') or os.environ.get('KG_NO_BROWSER'))
+
+
+def data_root():
+    """数据根目录：Docker 为挂载卷 /data，本机为当前目录。"""
+    return os.path.abspath(os.environ.get('KG_DATA_DIR') or os.getcwd())
+
+
+def guest_url_from_host(host_header, gport):
+    """用请求的 Host 头构造盲盒页地址。
+
+    Docker 里 lan_ips() 拿到的是容器内网 IP（浏览器不可达），
+    而用户能用 Host 头里的地址访问工具页，那个地址必然可达。
+    """
+    if not host_header:
+        return ''
+    h = host_header.split(',')[0].strip().split(':')[0]
+    if not h or h.startswith('127.') or h == 'localhost':
+        return ''
+    return f'http://{h}:{gport}/guest' if gport else f'http://{h}/guest'
 
 
 def lan_ips():
@@ -208,8 +232,11 @@ def static_dir():
 
 def build_args(p):
     """把前端 JSON 参数映射为 backup_one 需要的 args 命名空间。"""
+    out_val = str(p.get('out') or '').strip()
+    if out_val and not os.path.isabs(out_val) and os.environ.get('KG_DATA_DIR'):
+        out_val = os.path.join(os.environ['KG_DATA_DIR'], out_val)
     return types.SimpleNamespace(
-        out=str(p.get('out') or '').strip(),
+        out=out_val,
         cookie=str(p.get('cookie') or '').strip(),
         cookie_file='',
         proxy=str(p.get('proxy') or '').strip(),
@@ -387,6 +414,114 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionAbortedError):
             pass
 
+    def _send_file_with_range(self, full, mime):
+        """按 Range 请求发送本地文件（音频拖动/断点续传都靠它）。"""
+        size = os.path.getsize(full)
+        rng = self.headers.get('Range')
+        start, end = 0, size - 1
+        partial = False
+        if rng and rng.startswith('bytes='):
+            try:
+                spec = rng[6:].split(',')[0]
+                a, _, b = spec.partition('-')
+                if a:
+                    start = int(a)
+                    if b:
+                        end = min(int(b), size - 1)
+                elif b:
+                    start = max(0, size - int(b))
+                partial = True
+            except ValueError:
+                pass
+        if start >= size or end < start:
+            return self._send(416, b'range error', 'text/plain; charset=utf-8')
+        self.send_response(206 if partial else 200)
+        self.send_header('Content-Type', mime)
+        self.send_header('Accept-Ranges', 'bytes')
+        length = end - start + 1
+        if partial:
+            self.send_header('Content-Range', f'bytes {start}-{end}/{size}')
+        self.send_header('Content-Length', str(length))
+        self.end_headers()
+        try:
+            with open(full, 'rb') as f:
+                f.seek(start)
+                remain = length
+                while remain > 0:
+                    chunk = f.read(min(1 << 16, remain))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    remain -= len(chunk)
+        except (BrokenPipeError, ConnectionAbortedError):
+            pass
+
+    def _resolve_under_root(self, root, rel):
+        """把 URL 相对路径安全解析到 root 之下，防目录穿越。返回绝对路径或 None。"""
+        try:
+            rel = urllib.request.url2pathname(rel).replace('\\', '/').lstrip('/')
+        except Exception:
+            return None
+        root = os.path.abspath(root)
+        full = os.path.abspath(os.path.join(root, rel))
+        if not full.startswith(root + os.sep) and full != root:
+            return None
+        return full
+
+    _PREVIEW_MIME = {'.html': 'text/html; charset=utf-8', '.htm': 'text/html; charset=utf-8',
+                     '.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.mp4': 'video/mp4',
+                     '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                     '.gif': 'image/gif', '.webp': 'image/webp', '.lrc': 'text/plain; charset=utf-8',
+                     '.json': 'application/json; charset=utf-8', '.csv': 'text/csv; charset=utf-8',
+                     '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
+                     '.txt': 'text/plain; charset=utf-8'}
+
+    def _preview_root(self):
+        """当前可预览的目录：本会话任务输出目录 > 当前分享目录。"""
+        job = _STATE.get('job')
+        if job and job.out_dir and os.path.isdir(job.out_dir):
+            return os.path.abspath(job.out_dir)
+        return os.path.abspath(load_shares().get('dir') or '')
+
+    def _serve_preview(self, rel):
+        root = self._preview_root()
+        if not root or not os.path.isdir(root):
+            return self._send(404, b'no backup dir', 'text/plain; charset=utf-8')
+        full = self._resolve_under_root(root, rel)
+        if not full:
+            return self._send(403, b'forbidden', 'text/plain; charset=utf-8')
+        if os.path.isdir(full):
+            full = os.path.join(full, 'index.html')
+        if not os.path.exists(full):
+            return self._send(404, b'not found', 'text/plain; charset=utf-8')
+        ext = os.path.splitext(full)[1].lower()
+        mime = self._PREVIEW_MIME.get(ext)
+        if not mime:
+            return self._send(404, b'not found', 'text/plain; charset=utf-8')
+        return self._send_file_with_range(full, mime)
+
+    def _send_download(self, fname):
+        """以附件形式发送分享目录里的歌单/目录文件（index.html / index.csv / cd.html）。"""
+        sh_dir = load_shares().get('dir') or ''
+        if not sh_dir:
+            return self._send(404, {'error': '没有分享目录'})
+        allowed = {'index.html': 'text/html; charset=utf-8',
+                   'index.csv': 'text/csv; charset=utf-8',
+                   'cd.html': 'text/html; charset=utf-8'}
+        if fname not in allowed:
+            return self._send(404, {'error': '文件不存在'})
+        full = self._resolve_under_root(sh_dir, fname)
+        if not full or not os.path.exists(full):
+            return self._send(404, {'error': '文件不存在'})
+        with open(full, 'rb') as f:
+            data = f.read()
+        self.send_response(200)
+        self.send_header('Content-Type', allowed[fname])
+        self.send_header('Content-Disposition', f'attachment; filename="{fname}"')
+        self.send_header('Content-Length', str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_GET(self):
         if self.path in ('/', '/index.html'):
             fp = os.path.join(static_dir(), 'index.html')
@@ -417,24 +552,54 @@ class Handler(BaseHTTPRequestHandler):
                 data = {}
             authors = sorted(data.values(), key=lambda x: x.get('last') or '', reverse=True)
             return self._send(200, {'authors': authors})
+        if self.path == '/api/dirs':
+            """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
+            root = data_root()
+            dirs = []
+            try:
+                for name in sorted(os.listdir(root)):
+                    full = os.path.join(root, name)
+                    if not os.path.isdir(full):
+                        continue
+                    has_idx = os.path.exists(os.path.join(full, 'index.json'))
+                    n_songs = 0
+                    if has_idx:
+                        try:
+                            with open(os.path.join(full, 'index.json'), encoding='utf-8') as f:
+                                n_songs = len(json.load(f).get('works') or {})
+                        except Exception:
+                            pass
+                    dirs.append({'name': name, 'path': full, 'valid': has_idx, 'songs': n_songs})
+            except OSError:
+                pass
+            return self._send(200, {'root': root, 'docker': docker_mode(),
+                                    'dirs': dirs, 'current': (load_shares().get('dir') or '')})
         if self.path == '/api/share':
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
-            ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
             gport = _STATE.get('guest_port') or 0
-            gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else (f'http://{ips[0]}:{port}/guest' if ips else '')
+            ips = lan_ips() if _STATE.get('lan') else []
+            # 优先用请求 Host 头构造盲盒地址（Docker/局域网都可达），失败再退回本机 IP
+            gurl = guest_url_from_host(self.headers.get('Host'), gport or port)
+            if not gurl:
+                gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else (f'http://{ips[0]}:{port}/guest' if ips else '')
             return self._send(200, {
                 'dir': (load_shares().get('dir') or ''),
                 'guestUrl': gurl, 'unlocked': len(unlocked), 'total': len(entries),
                 'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
                 'ips': ips, 'guestPort': gport,
                 'authMode': (load_shares().get('auth') or {}).get('mode') or 'none',
-                'festival': (festival or {}).get('name') or ''})
+                'accounts': (load_shares().get('accounts') or []),
+                'festival': (festival or {}).get('name') or '',
+                'docker': docker_mode(),
+                'dataDir': data_root()})
         if self.path == '/guest':
-            entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+            try:
+                entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
+            except Exception as e:
+                return self._send(200, f'<html><body style="font-family:sans-serif;padding:40px"><h2>🎁 盲盒页加载失败</h2><p>{e}</p><p>请确认已完成至少一次备份。</p></body></html>'.encode(), 'text/html; charset=utf-8')
             if not entries:
-                return self._send(200, '还没有可分享的备份目录。先在工具页跑一次备份，或通过 /api/share 设置目录。'
-                                  .encode(), 'text/html; charset=utf-8')
+                return self._send(200, '<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>🎁 盲盒歌单</h2><p>还没有可分享的备份目录。</p><p>请先在工具页完成一次备份。</p></body></html>'.encode(), 'text/html; charset=utf-8')
             html = render_guest_page(entries, profile, unlocked, history, today_keys, today_date, festival)
             return self._send(200, html.encode(), 'text/html; charset=utf-8')
         if self.path.startswith('/g/'):
@@ -452,15 +617,28 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith('/api/open'):
             job = _STATE['job']
             what = (self.path.split('what=')[-1].split('&')[0] if 'what=' in self.path else 'folder')
-            if not job or not job.out_dir:
+            # 没有本会话任务时，退回当前分享目录（重开浏览器后也能打开）
+            base = os.path.abspath(job.out_dir) if (job and job.out_dir) else (load_shares().get('dir') or '')
+            if not base:
                 return self._send(400, {'error': '还没有备份任务'})
-            base = os.path.abspath(job.out_dir)
             targets = {'folder': base, 'html': os.path.join(base, 'index.html'),
                        'csv': os.path.join(base, 'index.csv')}
             p = targets.get(what, base)
             if not os.path.exists(p):
                 return self._send(400, {'error': f'文件不存在: {p}'})
+            if docker_mode():
+                # 容器内没有桌面环境，无法弹出窗口：
+                # HTML 歌单 → 走 /preview/ 在浏览器新标签打开；文件夹 → 返回路径让前端提示
+                if what == 'html':
+                    return self._send(200, {'ok': True, 'url': '/preview/index.html', 'docker': True})
+                return self._send(200, {'ok': True, 'docker': True, 'path': base, 'what': what,
+                                        'msg': 'Docker 容器内无法弹出文件夹，请在宿主机映射目录中查看（docker-compose 里 ./backups:/data 即输出根目录）。'})
             return self._send(200, {'ok': open_with_system(p)})
+        if self.path.startswith('/preview/'):
+            # 以 HTTP 服务当前备份目录（Docker 里"打开HTML歌单"用）
+            return self._serve_preview(self.path[len('/preview/'):])
+        if self.path.startswith('/api/download/'):
+            return self._send_download(self.path[len('/api/download/'):])
         return self._send(404, {'error': 'not found'})
 
     # ---------- POST ----------
@@ -519,6 +697,9 @@ class Handler(BaseHTTPRequestHandler):
             p = self._body()
             if 'dir' in p:
                 d = str(p.get('dir') or '').strip()
+                data_root = os.environ.get('KG_DATA_DIR') or ''
+                if d and not os.path.isabs(d) and data_root:
+                    d = os.path.join(data_root, d)
                 if d and os.path.isdir(d) and os.path.exists(os.path.join(d, 'index.json')):
                     sh = load_shares()
                     if not sh.get('since'):
@@ -528,13 +709,40 @@ class Handler(BaseHTTPRequestHandler):
                     save_shares(sh)
                     return self._send(200, {'ok': True, 'dir': d})
                 return self._send(400, {'error': '目录不存在或还没有 index.json（先完成一次备份）'})
-            if 'auth_mode' in p:
+            if 'auth_mode' in p or 'auth_delete_user' in p or 'auth_account' in p:
                 sh = load_shares()
-                sh['auth'] = {'mode': str(p.get('auth_mode') or 'none'),
-                              'user': str(p.get('auth_user') or ''),
-                              'pass': str(p.get('auth_pass') or '')}
+                accounts = sh.get('accounts') or []
+                if 'auth_mode' in p:
+                    sh['auth'] = {'mode': str(p.get('auth_mode') or 'none')}
+                # 删除账号
+                if p.get('auth_delete_user'):
+                    duser = str(p.get('auth_delete_user'))
+                    accounts = [a for a in accounts if a.get('user') != duser]
+                # 新增或修改账号（auth_account = 原用户名；为空表示新增）
+                acc = p.get('auth_account')
+                if isinstance(acc, dict) and str(acc.get('user') or '').strip():
+                    new_user = str(acc.get('user')).strip()
+                    orig_user = str(acc.get('orig_user') or '').strip() or new_user
+                    fields = {'user': new_user, 'note': str(acc.get('note') or '')}
+                    if str(acc.get('pass') or ''):  # 留空 = 保持原密码
+                        fields['pass'] = str(acc.get('pass'))
+                    if 'disabled' in acc:
+                        fields['disabled'] = bool(acc.get('disabled'))
+                    existing = [a for a in accounts if a.get('user') == orig_user]
+                    if existing:
+                        existing[0].update(fields)
+                    else:
+                        existing_new = [a for a in accounts if a.get('user') == new_user]
+                        if existing_new:
+                            existing_new[0].update(fields)
+                        else:
+                            fields.setdefault('pass', '')
+                            accounts.append(fields)
+                    accounts = [a for a in accounts if a.get('user')]  # 防空用户名
+                sh['accounts'] = accounts
                 save_shares(sh)
-                return self._send(200, {'ok': True, 'auth': sh['auth']['mode']})
+                return self._send(200, {'ok': True, 'auth': (sh.get('auth') or {}).get('mode') or 'none',
+                                        'accounts': accounts})
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
             ips = lan_ips() if _STATE.get('lan') else []
             port = _STATE['server'].server_address[1]
@@ -660,6 +868,7 @@ class GuestHandler(Handler):
         mode = cfg.get('mode') or 'none'
         if mode == 'none':
             return True
+        accounts = cfg.get('accounts') or []
         import base64
         auth = self.headers.get('Authorization') or ''
         if not auth.startswith('Basic '):
@@ -668,11 +877,12 @@ class GuestHandler(Handler):
             user, _, pwd = base64.b64decode(auth[6:]).decode('utf-8').partition(':')
         except Exception:
             return False
-        if mode == 'user':
-            return user == (cfg.get('user') or '')
-        if mode == 'userpass':
-            return user == (cfg.get('user') or '') and pwd == (cfg.get('pass') or '')
-        return True
+        for acc in accounts:
+            if acc.get('disabled'):
+                continue  # 已停用的账号不允许登录
+            if acc.get('user') == user and acc.get('pass') == pwd:
+                return True
+        return False
 
     def do_GET(self):
         if not self._auth_ok():
@@ -681,12 +891,22 @@ class GuestHandler(Handler):
             self.send_header('Content-Length', '0')
             self.end_headers()
             return
+        if self.path.startswith('/api/download/'):
+            # Docker 环境：通过 HTTP 下载文件（Content-Disposition: attachment）
+            return self._send_download(self.path[len('/api/download/'):])
         if self.path == '/api/g-data':
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state()
             sh_dir = load_shares().get('dir') or ''
             comments = guest_comments(sh_dir) if sh_dir else {}
             plays = guest_plays(sh_dir) if sh_dir else {}
             return self._send(200, {'comments': comments, 'plays': plays})
+        if self.path in ('/', '/index.html'):
+            # 盲盒端口根路径 → 跳转到盲盒页（避免裸 404 Not Found）
+            self.send_response(302)
+            self.send_header('Location', '/guest')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
         if (self.path == '/guest' or self.path.startswith('/g/') or
                 self.path in ('/static/guest-manifest.json', '/static/icon-192.png',
                               '/static/icon-512.png')):

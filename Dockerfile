@@ -10,6 +10,7 @@ COPY core.py kg_app.py ./
 COPY static ./static
 
 ENV KG_NO_BROWSER=1
+ENV KG_DATA_DIR=/data
 ENV GUEST_PORT=8766
 RUN mkdir -p /data
 WORKDIR /data
