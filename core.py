@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.3'
+APP_VERSION = '1.11.4'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1392,9 +1392,8 @@ flt();
 
 
 
-def write_html(out, entries, profile, generated):
-    path = os.path.join(out, 'index.html')
-    _write_icon(out)
+def render_html_doc(entries, profile, generated):
+    """渲染歌单页 HTML 文档字符串（不写盘）。/preview 实时渲染用，保证旧目录也是新版式。"""
 
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
@@ -1471,6 +1470,13 @@ def write_html(out, entries, profile, generated):
            .replace('__PLAYS__', str(plays))
            .replace('__GENERATED__', esc(generated[:10]))
            .replace('__TOTAL__', str(total)))
+    return doc
+
+
+def write_html(out, entries, profile, generated):
+    path = os.path.join(out, 'index.html')
+    _write_icon(out)
+    doc = render_html_doc(entries, profile, generated)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(doc)
     return path
@@ -1727,9 +1733,8 @@ if (SONGS.length) load(0, false);
 """
 
 
-def write_cd_page(out, entries, profile, generated):
-    path = os.path.join(out, 'cd.html')
-    _write_icon(out)
+def render_cd_doc(entries, profile, generated):
+    """渲染 CD 播放器页 HTML 文档字符串（不写盘）。"""
 
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
@@ -1753,6 +1758,13 @@ def write_cd_page(out, entries, profile, generated):
            .replace('__NICK__', nick)
            .replace('__TOTAL__', str(len(data)))
            .replace('__GENERATED__', esc(generated[:10])))
+    return doc
+
+
+def write_cd_page(out, entries, profile, generated):
+    path = os.path.join(out, 'cd.html')
+    _write_icon(out)
+    doc = render_cd_doc(entries, profile, generated)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(doc)
     return path
@@ -2159,9 +2171,9 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <title>__FEST_TITLE____NICK__ 的盲盒歌单</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:radial-gradient(900px 600px at 50% -8%,__BG1__,__BG2__ 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
+body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:110px;
- -webkit-tap-highlight-color:transparent}
+ -webkit-tap-highlight-color:transparent;transition:background .3s}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
 header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.9);
  backdrop-filter:blur(8px);border-bottom:1px solid #2a2f3e}
@@ -2282,6 +2294,36 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  background:#1a1f26;color:#ffd76a;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;
  align-items:center;justify-content:center;transition:.2s}
 .theme-toggle:hover{border-color:#ffd76a}
+/* 明亮主题（body.light） */
+body.light{background:#f2f4f8;color:#2a3140}
+body.light header{background:rgba(247,248,252,.92);border-bottom-color:#dfe3ec}
+body.light header h1{color:#1d2430}
+body.light header .sub{color:#5a6474}
+body.light .today{background:linear-gradient(180deg,#ffffff,#eef0f7);
+ box-shadow:0 0 0 1px #d8dce8 inset,0 20px 60px rgba(40,50,90,.16)}
+body.light .today .day{color:#6a7488}
+body.light .rev-card{background:#fff;border-color:#dfe3ec}
+body.light .rev-card .rs{color:#5a6474}
+body.light .item,body.light .lcard,body.light .hrow,body.light .crow{background:#fff;border-color:#dfe3ec}
+body.light .item .nm,body.light .lcard .lt,body.light .hrow .t,body.light .crow .ct{color:#1d2430}
+body.light .item .dt,body.light .hrow .s,body.light .item .q,body.light .pcount{color:#7c8698}
+body.light .item .q{color:#aab3c5}
+body.light .empty,body.light .cempty{color:#8a94a6}
+body.light .count,body.light .latest-sec span,body.light .sec span{color:#6a7488}
+body.light .bar{background:rgba(255,255,255,.97);border-top-color:#dfe3ec}
+body.light .bar .bt{color:#1d2430}
+body.light .bar .bs,body.light .bar-lyric{color:#7c8698}
+body.light .bar-lyric{color:#b8860b}
+body.light .bar button{border-color:#c9cfdd;color:#39414f}
+body.light .comment-form input{background:#fff;border-color:#d8dce8;color:#1d2430}
+body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
+body.light .listen-timer{color:#7c8698}
+/* 彩带（揭晓动画） */
+.confetti{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;
+ animation:confetti 1s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+@keyframes confetti{
+ 0%{transform:translate(0,0) scale(.6);opacity:1}
+ 100%{transform:translate(var(--dx),var(--dy)) scale(1.25) rotate(var(--dx));opacity:0}}
 /* 歌词偏移 */
 .offset-ctl{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:#8f9aac;margin-top:4px}
 .offset-ctl button{background:#1a1f26;border:1px solid #3a4150;color:#ccc;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;font-family:inherit}
@@ -2328,6 +2370,22 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  <div class="history" id="history"></div>
 </div>
 <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">🌗</button>
+<script>
+/* 主题初始化（放在渲染前，避免闪白） */
+try {
+  if (localStorage.getItem('kgtheme') === 'light') {
+    document.body.classList.add('light');
+    document.querySelector('.theme-toggle').textContent = '🌙';
+  }
+} catch(e){}
+function toggleTheme(){
+  const light = !document.body.classList.contains('light');
+  document.body.classList.toggle('light', light);
+  try { localStorage.setItem('kgtheme', light ? 'light' : 'dark'); } catch(e){}
+  const t = document.querySelector('.theme-toggle');
+  if (t) t.textContent = light ? '🌙' : '🌗';
+}
+</script>
 <div class="bar" id="bar">
  <div class="bar-lyric" id="barLyric"></div>
  <img id="barCover" alt="">
@@ -2347,7 +2405,6 @@ let cur = -1;
 const unlocked = SONGS.filter(s => !s.locked);
 const dateMap = {};
 HISTORY.forEach(h => { dateMap[h.uk] = h; });
-let playsMap = {};
 let lyricOffset = 0;
 try { lyricOffset = parseFloat(localStorage.getItem('kgoffset') || '0'); } catch(e){}
 /* 已解锁的排前面（按掉落日期倒序），未解锁按发行时间 */
@@ -2359,21 +2416,6 @@ SONGS.sort((a, b) => {
   if (au_) return (dateMap[b.uk] ? dateMap[b.uk].date : '').localeCompare(dateMap[a.uk] ? dateMap[a.uk].date : '');
   return a.seq - b.seq;
 });
-/* LRC */
-function parseLrc(text){
-  const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    const m = line.match(/\[(\d+):(\d+(?:\.\d+)?)\]/g);
-    if (!m) continue;
-    const txt = line.replace(/\[[^\]]*\]/g, '').trim();
-    for (const tm of m) {
-      const mm = tm.match(/\[(\d+):(\d+(?:\.\d+)?)\]/);
-      if (mm) out.push({ t: (+mm[1]) * 60 + (+mm[2]), text: txt });
-    }
-  }
-  return out.sort((a, b) => a.t - b.t);
-}
-let glrc = [], glrcOn = -1;
 /* 节日横幅 */
 if (FEST) {
   const b = document.getElementById('festBanner');
@@ -2514,8 +2556,6 @@ function tickCd(){
 tickCd(); setInterval(tickCd, 1000);
 /* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');
-const dateMap = {};
-HISTORY.forEach(h => { dateMap[h.uk] = h; });
 /* 最新收录 */
 const lg = document.getElementById('latestGrid');
 const recent = SONGS.filter(s => !s.locked && dateMap[s.uk])
@@ -2537,8 +2577,7 @@ SONGS.forEach(s => {
     (s.locked ? '<div class="q">❓</div>' : '') +
     (s.today ? '<div class="tag">今日</div>' : (s.locked ? '<div class="tag">🔒</div>' : '')) +
     (s.festival ? '<div class="ftag">🧧</div>' : '') +
-    const pc = playsMap[s.uk] || 0;
-    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}${pc ? ' · ▶ ' + pc + ' 次' : ''}</div>` +
+    `<div class="nm">${s.locked ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
     (!s.locked && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
   d.onclick = () => {
     if (s.locked) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }

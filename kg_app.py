@@ -483,6 +483,29 @@ class Handler(BaseHTTPRequestHandler):
             return os.path.abspath(job.out_dir)
         return os.path.abspath(load_shares().get('dir') or '')
 
+    def _render_fresh(self, root):
+        """按目录 index.json 实时渲染新版歌单/CD页（旧备份不用升级也能看到新界面）。按 mtime 缓存。"""
+        idx_path = os.path.join(root, 'index.json')
+        if not os.path.exists(idx_path):
+            return None
+        try:
+            mtime = os.path.getmtime(idx_path)
+            cache = _STATE.setdefault('preview_cache', {})
+            hit = cache.get(root)
+            if not hit or hit[0] != mtime:
+                with open(idx_path, encoding='utf-8') as f:
+                    idx = json.load(f)
+                entries = sorted(idx.get('works', {}).values(), key=lambda x: x.get('seq') or 0)
+                profile = idx.get('profile', {})
+                core_mod = __import__('core')
+                gen = core_mod.ts2str(mtime)
+                docs = {'index.html': core_mod.render_html_doc(entries, profile, gen),
+                        'cd.html': core_mod.render_cd_doc(entries, profile, gen)}
+                cache[root] = (mtime, docs)
+            return cache[root][1]
+        except Exception:
+            return None
+
     def _serve_preview(self, rel):
         root = self._preview_root()
         if not root or not os.path.isdir(root):
@@ -490,6 +513,12 @@ class Handler(BaseHTTPRequestHandler):
         full = self._resolve_under_root(root, rel)
         if not full:
             return self._send(403, b'forbidden', 'text/plain; charset=utf-8')
+        # 歌单/CD 页永远实时渲染当前模板（避免旧目录打开还是老界面）
+        norm = rel.replace('\\', '/').lstrip('/')
+        if norm in ('index.html', 'cd.html') or os.path.isdir(full or ''):
+            docs = self._render_fresh(root)
+            if docs and docs.get(norm):
+                return self._send(200, docs[norm].encode(), 'text/html; charset=utf-8')
         if os.path.isdir(full):
             full = os.path.join(full, 'index.html')
         if not os.path.exists(full):
