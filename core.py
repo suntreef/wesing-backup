@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.8'
+APP_VERSION = '1.11.9'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -776,9 +776,9 @@ body:not(.vgrid) #cdCtrls{display:flex}
 .now .s{color:#8f9aac;font-size:13px;margin-top:5px}
 .now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
 .vside{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;max-width:560px;padding:10px 0}
-/* 歌词区必须能收缩并内部滚动，否则行数一多就把唱片顶出屏幕 */
-.vside .lyrics{flex:1 1 0;min-height:0;position:relative}
-@media (max-width:880px){.vside .lyrics{flex:none;max-height:46vh}}
+/* 歌词区：定高 + 内部滚动。不能依赖 flex-basis:0 —— 在内容自适应高度的父容器里会直接塌缩成 0（v1.11.8 歌词消失的根因） */
+.vside .lyrics{flex:none;height:min(54vh,470px);min-height:220px;position:relative}
+@media (max-width:880px){.vside .lyrics{height:38vh;min-height:170px}}
 /* ---------- 卡座 ---------- */
 #skinTape{flex-direction:column;align-items:center;justify-content:center;padding:20px;
  background:linear-gradient(180deg,#20242e,#12151c 70%,#0b0d13)}
@@ -2209,12 +2209,16 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 @keyframes sway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg) translateY(-8px)}}
 .gift.opened{animation:pop .55s ease-out}
 @keyframes pop{40%{transform:scale(1.35) rotate(9deg)}70%{transform:scale(.94)}100%{transform:scale(1)}}
+.gift.shaking{animation:shakeHard .42s ease-in-out 2}
+@keyframes shakeHard{0%,100%{transform:rotate(0) scale(1)}25%{transform:rotate(-16deg) scale(1.06)}75%{transform:rotate(16deg) scale(1.06)}}
 .rev-area{display:none;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:6px}
 .rev-area.show{display:flex}
 .rev-card{width:min(280px,64vw);border-radius:18px;overflow:visible;background:transparent;border:none;
- animation:reveal .7s cubic-bezier(.2,.9,.3,1.2);text-align:center}
+ animation:reveal .8s cubic-bezier(.2,.9,.3,1.15) both;text-align:center}
 .rev-card:nth-child(2){animation-delay:.35s}
-@keyframes reveal{0%{transform:scale(.5) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes reveal{0%{transform:perspective(900px) rotateY(88deg) scale(.8);opacity:0}
+ 60%{transform:perspective(900px) rotateY(-10deg) scale(1.03);opacity:1}
+ 100%{transform:perspective(900px) rotateY(0) scale(1)}}
 .rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:22px;cursor:pointer;
  box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform .2s}
 .rev-card img:active{transform:scale(.97)}
@@ -2285,10 +2289,6 @@ body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .bar button:focus-visible{outline:2px solid #ffd76a}
 .bar .bp{background:#ffd76a;color:#221d38;font-size:16px;width:40px;height:40px}
 .bar .bp:hover{background:#ffe28a}
-/* 收听计时：悬浮小胶囊固定在播放栏上方，不占高度（否则播放/暂停时底部框会跳） */
-.listen-timer{display:none;position:absolute;top:-36px;right:14px;background:rgba(255,215,106,.15);color:#ffd76a;
- border:1px solid rgba(255,215,106,.28);border-radius:999px;padding:5px 12px;font-size:11px;font-weight:600;
- backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);user-select:none;white-space:nowrap}
 .bar-lyric{width:100%;text-align:center;color:#ffd76a;font-size:12px;padding:0 4px;white-space:nowrap;
  overflow:hidden;text-overflow:ellipsis;min-height:16px;line-height:16px;margin-bottom:-2px}
 
@@ -2321,8 +2321,6 @@ body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .lcard .ls{padding:0 10px 8px;font-size:10px;color:#7cffb2}
 /* 播放计数 */
 .pcount{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#8f9aac}
-/* 收听计时 */
-.listen-timer{user-select:none}
 /* 主题切换（固定右上角小按钮，不再挡歌柜） */
 .theme-toggle{position:fixed;top:10px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
  background:rgba(255,255,255,.07);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#ffd76a;font-size:14px;cursor:pointer;
@@ -2359,10 +2357,10 @@ body.light .bar button{background:rgba(0,0,0,.06);color:#39414f}
 body.light .bar button:hover{background:rgba(0,0,0,.11)}
 body.light .comment-form input{background:#fff;border-color:#d8dce8;color:#1d2430}
 body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
-body.light .listen-timer{background:rgba(184,134,11,.12);color:#9a6b00;border-color:rgba(184,134,11,.3)}
 /* 彩带（揭晓动画） */
 .confetti{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;
  animation:confetti 1s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.3)}
+.confetti.big{font-size:27px}
 @keyframes confetti{
  0%{transform:translate(0,0) scale(.6);opacity:1}
  100%{transform:translate(var(--dx),var(--dy)) scale(1.25) rotate(var(--dx));opacity:0}}
@@ -2434,7 +2432,6 @@ function toggleTheme(){
  <div class="bar-lyric" id="barLyric"></div>
  <img id="barCover" alt="">
  <div class="bi"><div class="bt" id="barTitle">—</div><div class="bs" id="barSub"></div>
-  <div class="listen-timer" id="listenTimer" style="display:none;color:#7c8496;font-size:10px;margin-top:2px">收听 <span id="listenSec">0</span>s / 30s 计一次</div>
  </div>
  <button onclick="barPrev()">⏮</button>
  <button class="bp" id="barPlay" onclick="barToggle()">▶</button>
@@ -2544,22 +2541,37 @@ function parseLrc(text){
 let glrc = [], glrcOn = -1;
 /* 今日盲盒 */
 const todaySongs = SONGS.filter(s => s.today);
-let revealed = false;
+let revealed = false, opening = false;
 try { revealed = localStorage.getItem('kgreveal_' + '__TODAY__') === '1'; } catch(e){}
 function reveal(){
+  if (opening) return;  // 仪式进行中防连点
   if (revealed) { playSong(SONGS.indexOf(todaySongs[0])); return; }
-  revealed = true;
+  revealed = true; opening = true;
   try { localStorage.setItem('kgreveal_' + '__TODAY__', '1'); } catch(e){}
   const g = document.getElementById('gift');
-  g.classList.add('opened');
-  for (let i = 0; i < 14; i++) {
+  /* 仪式感三段式：摇一摇 → 开盒大爆彩带 → 揭晓卡 3D 翻牌（不自动播放，想听自己点） */
+  g.classList.add('shaking');
+  for (let i = 0; i < 8; i++) {
     const c = document.createElement('span');
     c.className = 'confetti';
-    c.textContent = ['🎉','✨','🎵','💛','🎈'][i % 5];
-    c.style.setProperty('--dx', (Math.random()*260-130) + 'px');
-    c.style.setProperty('--dy', (Math.random()*-200-40) + 'px');
+    c.textContent = ['✨','💫','⭐'][i % 3];
+    c.style.setProperty('--dx', (Math.random()*180-90) + 'px');
+    c.style.setProperty('--dy', (Math.random()*-120-30) + 'px');
     g.appendChild(c);
   }
+  setTimeout(() => {
+    g.classList.remove('shaking');
+    g.classList.add('opened');
+    for (let i = 0; i < 30; i++) {
+      const c = document.createElement('span');
+      c.className = 'confetti big';
+      c.textContent = ['🎉','✨','🎵','💛','🎈','🎊','🥳'][i % 7];
+      c.style.setProperty('--dx', (Math.random()*440-220) + 'px');
+      c.style.setProperty('--dy', (Math.random()*-320-60) + 'px');
+      c.style.animationDuration = (0.9 + Math.random()*0.7) + 's';
+      g.appendChild(c);
+    }
+  }, 850);
   setTimeout(() => {
     g.style.display = 'none';
     document.getElementById('openBtn').style.display = 'none';
@@ -2570,14 +2582,16 @@ function reveal(){
     todaySongs.forEach((s, k) => {
       const card = document.createElement('div');
       card.className = 'rev-card';
-      card.innerHTML = `<img src="${s.cover || ''}" alt=""><div class="rt">${k > 0 ? '🎁 加更 · ' : ''}${s.title}</div>` +
+      const playIt = `playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))`;
+      card.innerHTML = `<img src="${s.cover || ''}" alt="" onclick="${playIt}" title="点封面播放">` +
+        `<div class="rt">${k > 0 ? '🎁 加更 · ' : ''}${s.title}</div>` +
         `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time}</div>` +
-        `<button class="rev-play" onclick="playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))">▶ 播放这首歌</button>`;
+        `<button class="rev-play" onclick="${playIt}">▶&nbsp; 播放</button>`;
       area.appendChild(card);
     });
     unlockCardUi();
-    setTimeout(() => playSong(SONGS.indexOf(todaySongs[0])), 700);
-  }, 620);
+    opening = false;
+  }, 1350);
 }
 function unlockCardUi(){
   todaySongs.forEach(s => {
@@ -2605,7 +2619,7 @@ const cab = document.getElementById('cabinet');
 const lockedPool = [];
 /* 最新收录 */
 const lg = document.getElementById('latestGrid');
-const recent = SONGS.filter(s => !s.locked && dateMap[s.uk])
+const recent = SONGS.filter(s => !s.locked && !(s.today && !revealed) && dateMap[s.uk])
   .sort((a, b) => (dateMap[b.uk] ? dateMap[b.uk].date : '').localeCompare(dateMap[a.uk] ? dateMap[a.uk].date : ''))
   .slice(0, 3);
 recent.forEach(s => {
@@ -2668,34 +2682,26 @@ HISTORY.forEach(h => {
 });
 /* 播放条 */
 let listenTimer = null, listenSec = 0, countedUk = '';
+/* 收听满 30s 静默计入统计，不再弹出任何提示 */
 function startListenTimer(s){
   stopListenTimer();
   listenSec = 0;
   countedUk = s.uk;
-  const tm = document.getElementById('listenTimer');
-  if (tm) { tm.style.display = 'block'; document.getElementById('listenSec').textContent = '0'; }
   listenTimer = setInterval(() => {
     listenSec++;
-    const secEl = document.getElementById('listenSec');
-    if (secEl) secEl.textContent = listenSec;
     if (listenSec >= 30 && s.uk === countedUk) {
       stopListenTimer();
       fetch('/api/g-play', {method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({uk: s.uk})}).catch(()=>{});
-      const t2 = document.getElementById('listenTimer');
-      if (t2) t2.innerHTML = '<span style="color:#ffd76a">✓ 已计入收听统计</span>';
-      setTimeout(() => { const t3 = document.getElementById('listenTimer'); if (t3) t3.style.display = 'none'; }, 3000);
+        body: JSON.stringify({uk: s.uk})}).then(()=>refreshPlayBadges()).catch(()=>{});
     }
   }, 1000);
 }
 function stopListenTimer(){
   if (listenTimer) { clearInterval(listenTimer); listenTimer = null; }
-  const tm = document.getElementById('listenTimer');
-  if (tm) tm.style.display = 'none';
 }
 function playSong(i){
   const s = SONGS[i]; if (!s || s.locked) return;
-  if (cur === i && !au.paused) { au.pause(); return; }
+  if (cur === i && !au.paused) { au.pause(); document.getElementById('barPlay').textContent = '▶'; return; }
   stopListenTimer();
   cur = i;
   au.src = s.audio;
@@ -2706,11 +2712,12 @@ function playSong(i){
   document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
   document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
   document.getElementById('bar').classList.add('show');
-  au.play().catch(() => {});  // 点选即播（揭晓卡/歌柜点击直接出声，不用再去点底部播放）
+  document.getElementById('barPlay').textContent = '⏸';  // 点击瞬间就切图标，不等音频事件（iOS 下事件可能延迟）
+  au.play().catch(() => { document.getElementById('barPlay').textContent = '▶'; });  // 点选即播；被浏览器拦截则回退
 }
 
-au.onplay = () => { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s);
-  document.getElementById('barPlay').textContent = '⏸'; };
+au.onplay = () => { document.getElementById('barPlay').textContent = '⏸';
+  try { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s); } catch(e){} };
 au.onpause = () => { stopListenTimer();
   document.getElementById('barPlay').textContent = '▶'; };
 au.ontimeupdate = () => {
@@ -2723,7 +2730,9 @@ au.ontimeupdate = () => {
   bl.textContent = glrc[i] ? (glrc[i].text || '♪') : '♪';
   bl.classList.add('show');
 };
-function barToggle(){ if (!au.src) { if (unlocked.length) playSong(SONGS.indexOf(unlocked[0])); return; } if (au.paused) au.play(); else au.pause(); }
+function barToggle(){ if (!au.src) { if (unlocked.length) playSong(SONGS.indexOf(unlocked[0])); return; }
+  if (au.paused) { au.play(); document.getElementById('barPlay').textContent = '⏸'; }
+  else { au.pause(); document.getElementById('barPlay').textContent = '▶'; } }
 function barStep(step){
   if (!unlocked.length) return;
   let i = unlocked.indexOf(SONGS[cur]);
@@ -2902,7 +2911,8 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
            .replace('__TODAY__', esc(today_date))
            .replace('__FEST__', fest_json)
            .replace('__FEST_CLASS__', fest_class)
-           .replace('__FEST_EMOJI__', fest_emoji))
+           .replace('__FEST_EMOJI__', fest_emoji)
+           .replace('__FEST_TITLE__', (esc(festival['name']) + ' · ') if festival else ''))
     return doc
 
 
