@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.1'
+APP_VERSION = '1.11.2'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -748,8 +748,10 @@ body:not(.vgrid) #cdCtrls{display:flex}
 #seek::-webkit-slider-thumb,#seek2::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#ffd76a;cursor:pointer}
 /* ---------- 黑胶（精修） ---------- */
 #skinVinyl{flex-direction:column;background:radial-gradient(1100px 700px at 72% -12%,#1d2233,#0b0d13 62%)}
-.vmain{flex:1;display:flex;gap:30px;padding:10px 30px 0;min-height:0}
+.vmain{flex:1;display:flex;gap:48px;padding:16px 40px 14px;min-height:0;width:100%;max-width:1200px;
+ margin:0 auto;align-items:center;justify-content:center}
 .deck{flex:0 0 400px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.deck .ctrl{width:100%;max-width:370px;margin-top:16px;justify-content:center}
 .cdwrap{position:relative;width:330px;height:330px;margin-top:6px}
 .cd{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#181b22 62%,#20242e 63%,#0e1015 100%);
  box-shadow:0 18px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.06) inset;overflow:hidden}
@@ -773,7 +775,7 @@ body:not(.vgrid) #cdCtrls{display:flex}
 .now .t{font-size:20px;font-weight:700;color:#fff}
 .now .s{color:#8f9aac;font-size:13px;margin-top:5px}
 .now .c{color:#6b7484;font-size:12px;margin-top:9px;line-height:1.6;max-height:52px;overflow:hidden}
-.vside{flex:1;display:flex;flex-direction:column;min-width:0;padding:10px 30px 0}
+.vside{flex:1;display:flex;flex-direction:column;min-width:0;max-width:560px;padding:10px 0}
 /* ---------- 卡座 ---------- */
 #skinTape{flex-direction:column;align-items:center;justify-content:center;padding:20px;
  background:linear-gradient(180deg,#20242e,#12151c 70%,#0b0d13)}
@@ -841,9 +843,9 @@ body.vspectrum.playing .spec-cover{animation-play-state:running}
 .sp-fill::after{content:'';position:absolute;right:-6px;top:50%;transform:translateY(-50%);width:13px;height:13px;border-radius:50%;
  background:#ffd76a;box-shadow:0 0 12px rgba(255,215,106,.7)}
 /* ---------- 点唱机 ---------- */
-#skinJuke{justify-content:center;align-items:flex-start;overflow-y:auto;overflow-x:hidden;padding:30px 12px;
+#skinJuke{flex-direction:column;justify-content:center;align-items:center;overflow-y:auto;overflow-x:hidden;padding:26px 12px;
  background:radial-gradient(900px 600px at 50% 0%,#241426,#120a14 55%,#0a0710)}
-.juke{width:min(430px,94vw);margin:0 auto}
+.juke{width:min(430px,94vw);margin:0;flex:none}
 .jk-cab{position:relative;border-radius:210px 210px 20px 20px / 150px 150px 20px 20px;
  background:linear-gradient(180deg,#5c2032,#3c1424 42%,#2a0d1a 80%,#200a14);
  box-shadow:0 0 0 6px #170911,0 0 0 8px #c9a44a,0 0 44px rgba(255,79,163,.22),0 34px 90px rgba(0,0,0,.75);
@@ -987,10 +989,6 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
     <div class="s jsSub">切到本视图，点 ▶ 开始播放</div>
     <div class="c jsDesc"></div>
    </div>
-  </div>
-  <div class="vside">
-   <div class="lyrics" id="lyVinyl"><p style="color:#7c8496">♪ 选择一首歌开始播放</p></div>
-   <div class="offset-ctl" id="offsetCtl" style="display:none">歌词偏移: <button onclick="adjOffset(-0.5)">-0.5s</button><span id="offsetVal">0.0s</span><button onclick="adjOffset(0.5)">+0.5s</button></div>
    <div class="ctrl">
     <span class="time jsCur">0:00</span>
     <input type="range" class="jsSeek" min="0" max="1000" value="0">
@@ -999,6 +997,10 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
     <button class="big jsPlay" onclick="togglePlay()" title="播放/暂停">▶</button>
     <button class="jsNext" onclick="next()" title="下一首">⏭</button>
    </div>
+  </div>
+  <div class="vside">
+   <div class="lyrics" id="lyVinyl"><p style="color:#7c8496">♪ 选择一首歌开始播放</p></div>
+   <div class="offset-ctl" id="offsetCtl" style="display:none">歌词偏移: <button onclick="adjOffset(-0.5)">-0.5s</button><span id="offsetVal">0.0s</span><button onclick="adjOffset(0.5)">+0.5s</button></div>
   </div>
  </div>
 </div>
@@ -2281,7 +2283,7 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  align-items:center;justify-content:center;transition:.2s}
 .theme-toggle:hover{border-color:#ffd76a}
 /* 歌词偏移 */
-.offset-ctl{display:flex;align-items:center;gap:6px;font-size:11px;color:#8f9aac;margin-top:4px}
+.offset-ctl{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;color:#8f9aac;margin-top:4px}
 .offset-ctl button{background:#1a1f26;border:1px solid #3a4150;color:#ccc;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;font-family:inherit}
 .offset-ctl button:hover{border-color:#ffd76a;color:#ffd76a}
 /* 无脑化大按钮 */

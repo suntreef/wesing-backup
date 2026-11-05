@@ -418,6 +418,7 @@ function shareModal(){
     </div>
     <div id="shQr" style="min-height:170px;display:flex;align-items:center;justify-content:center"></div>
     <div id="shUrl" style="font-size:12px;color:var(--text2);margin-top:8px;word-break:break-all"></div>
+    <button class="btn small" onclick="window.open('/guest','_blank')" style="margin-top:10px">👁 打开盲盒页（本机预览）</button>
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <a href="/api/download/index.html" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ 歌单 HTML</a>
       <a href="/api/download/index.csv" download class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">⬇ CSV 目录</a>
@@ -493,7 +494,9 @@ async function refreshShare(){
   } else {
     qr.innerHTML = url ? '' : '<div style="color:var(--text2);font-size:13px;padding:30px 0">打开 📱 手机访问 开关后出现二维码</div>';
   }
-  document.getElementById('shUrl').textContent = url;
+  const su = document.getElementById('shUrl');
+  if (url) su.innerHTML = `🔗 朋友链接：<a href="${esc(url)}" target="_blank" style="color:#7cb8ff;word-break:break-all">${esc(url)}</a>（点击可测试）`;
+  else su.textContent = '本机/局域网直开上方「打开盲盒页」即可；二维码在开放 📱 手机访问 后出现。';
 }
 function loadOutList(d){
   // 输出目录自动补全：数据根目录下的已有目录

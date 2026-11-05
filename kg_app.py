@@ -1006,7 +1006,8 @@ def main():
         port = int(argv[argv.index('--port') + 1])
     if '--lan' in argv:
         lan = True
-    guest_port = int(os.environ.get('GUEST_PORT') or 0)
+    # 盲盒独立端口：Docker 显式指定；桌面版默认也开 8766（被占用则自动跳过，/guest 仍可从工具页进）
+    guest_port = int(os.environ.get('GUEST_PORT') or 8766)
     if '--guest-port' in argv:
         guest_port = int(argv[argv.index('--guest-port') + 1])
     if '--host' in argv:
