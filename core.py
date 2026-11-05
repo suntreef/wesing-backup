@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.11.5'
+APP_VERSION = '1.11.6'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1382,7 +1382,9 @@ function setView(v){
   if (v !== 'grid') initCd();
 }
 (function(){ let v = 'grid';
-  try { v = localStorage.getItem('kgview') || 'grid'; } catch(e) {}
+  const h = (location.hash || '').replace('#', '');
+  if (['grid','vinyl','tape','spectrum','jukebox'].includes(h)) v = h;  // 支持 /preview/index.html#vinyl 直达皮肤
+  else { try { v = localStorage.getItem('kgview') || 'grid'; } catch(e) {} }
   setView(['grid','vinyl','tape','spectrum','jukebox'].includes(v) ? v : 'grid');
 })();
 flt();
@@ -2197,12 +2199,13 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
 @keyframes pop{40%{transform:scale(1.35) rotate(9deg)}70%{transform:scale(.94)}100%{transform:scale(1)}}
 .rev-area{display:none;gap:18px;justify-content:center;flex-wrap:wrap;margin-top:6px}
 .rev-area.show{display:flex}
-.rev-card{width:min(230px,42vw);border-radius:16px;overflow:hidden;background:#1a1e2e;border:1px solid #3a415a;
- animation:reveal .7s cubic-bezier(.2,.9,.3,1.2)}
+.rev-card{width:min(280px,64vw);border-radius:18px;overflow:visible;background:transparent;border:none;
+ animation:reveal .7s cubic-bezier(.2,.9,.3,1.2);text-align:center}
 .rev-card:nth-child(2){animation-delay:.35s}
 @keyframes reveal{0%{transform:scale(.5) rotate(-8deg);opacity:0}100%{transform:scale(1) rotate(0);opacity:1}}
-.rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
-.rev-card .rt{font-size:15px;font-weight:800;color:#ffd76a;padding:10px 8px 2px}
+.rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:18px;
+ box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.rev-card .rt{font-size:15px;font-weight:800;color:#ffd76a;padding:12px 8px 2px}
 .rev-card .rs{font-size:11.5px;color:#9aa3b8;padding:0 8px 12px}
 .rev-play{display:block;width:100%;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;
  background:linear-gradient(180deg,#7cb8ff,#5a9ae8);color:#0d1522;padding:9px 0;-webkit-appearance:none;appearance:none}
@@ -2676,6 +2679,7 @@ function playSong(i){
   document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
   document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
   document.getElementById('bar').classList.add('show');
+  au.play().catch(() => {});  // 点选即播（揭晓卡/歌柜点击直接出声，不用再去点底部播放）
 }
 
 au.onplay = () => { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s);
@@ -2759,6 +2763,9 @@ function refreshPlayBadges(){
   });
 }
 loadComments();
+/* 留言/播放数定时同步：别人新留的言不用刷新页面也能看到 */
+setInterval(loadComments, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadComments(); });
 /* ============ PWA 安装到桌面 ============ */
 let installEvt = null;
 addEventListener('beforeinstallprompt', e => {
@@ -2789,6 +2796,7 @@ FESTIVALS = [
     ('05-01', '劳动节', 'labour', 'fireworks', False, '🎆'),
     ('06-01', '儿童节', 'children', 'balloons', False, '🎈'),
     ('10-01', '国庆节', 'national', 'fireworks', True, '🎆'),
+    ('11-11', '双十一', 'shopping', 'balloons', False, '🛍️'),
     ('12-24', '平安夜', 'christmas', 'snow', True, '🎄'),
     ('12-25', '圣诞节', 'christmas', 'snow', True, '🎄'),
     ('12-31', '跨年夜', 'newyear', 'fireworks', True, '🧨'),

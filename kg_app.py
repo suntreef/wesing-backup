@@ -656,11 +656,11 @@ class Handler(BaseHTTPRequestHandler):
             p = targets.get(what, base)
             if not os.path.exists(p):
                 return self._send(400, {'error': f'文件不存在: {p}'})
+            if what == 'html':
+                # HTML 歌单一律走 /preview 实时渲染（旧目录也是新界面），不再打开磁盘文件
+                return self._send(200, {'ok': True, 'url': '/preview/index.html'})
             if docker_mode():
-                # 容器内没有桌面环境，无法弹出窗口：
-                # HTML 歌单 → 走 /preview/ 在浏览器新标签打开；文件夹 → 返回路径让前端提示
-                if what == 'html':
-                    return self._send(200, {'ok': True, 'url': '/preview/index.html', 'docker': True})
+                # 容器内没有桌面环境，无法弹出窗口：文件夹 → 返回路径让前端提示
                 return self._send(200, {'ok': True, 'docker': True, 'path': base, 'what': what,
                                         'msg': 'Docker 容器内无法弹出文件夹，请在宿主机映射目录中查看（docker-compose 里 ./backups:/data 即输出根目录）。'})
             return self._send(200, {'ok': open_with_system(p)})
