@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.10'
+APP_VERSION = '1.12.11'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2461,17 +2461,6 @@ body.light .hrow .etag{color:#9a7b1c;background:rgba(184,134,11,.1)}
 .crow .creply b{color:#ffd76a;font-size:11px}
 body.light .crow .creply{background:rgba(184,134,11,.08);color:#1d2430}
 .cempty{color:#6b7488;text-align:center;padding:20px;font-size:13px}
-/* 最新收录 */
-.latest-sec{margin:26px 0 14px;display:flex;align-items:baseline;gap:10px}
-.latest-sec h2{font-size:16px}
-.latest-sec span{color:#8f9aac;font-size:12px}
-.latest-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:14px}
-.lcard{background:#171a26;border-radius:14px;overflow:hidden;cursor:pointer;border:1px solid rgba(127,255,178,.25);transition:transform .18s,border-color .18s}
-.lcard:hover{transform:translateY(-3px);border-color:#7cffb2}
-.lcard:active{transform:scale(.97)}
-.lcard img{width:100%;height:100px;object-fit:cover}
-.lcard .lt{padding:8px 10px 3px;font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lcard .ls{padding:0 10px 8px;font-size:10px;color:#7cffb2}
 /* 播放计数 */
 .pcount{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#8f9aac}
 /* 主题切换（固定右上角小按钮，不再挡歌柜） */
@@ -2495,8 +2484,8 @@ body.light .today{background:linear-gradient(180deg,#ffffff,#eef0f7);
 body.light .today .day{color:#6a7488}
 body.light .rev-card{background:#fff;border-color:#dfe3ec}
 body.light .rev-card .rs{color:#5a6474}
-body.light .item,body.light .lcard,body.light .hrow,body.light .crow{background:#fff;border-color:#dfe3ec}
-body.light .item .nm,body.light .lcard .lt,body.light .hrow .t,body.light .crow .ct{color:#1d2430}
+body.light .item,body.light .hrow,body.light .crow{background:#fff;border-color:#dfe3ec}
+body.light .item .nm,body.light .hrow .t,body.light .crow .ct{color:#1d2430}
 body.light .item .dt,body.light .hrow .s,body.light .item .q,body.light .pcount{color:#7c8698}
 body.light .item .q{color:#aab3c5}
 /* 浅色模式下的「未解锁」卡：封面整块隐去，只留干净的浅色底 + 小锁，不再灰蒙蒙 */
@@ -2508,7 +2497,7 @@ body.light .item.locked .dt{color:#b3bbcb}
 body.light .item.locked .tag{background:rgba(124,140,180,.14);color:#7c8698}
 body.light .rev-card img{box-shadow:0 16px 38px rgba(40,50,90,.18)}
 body.light .empty,body.light .cempty{color:#8a94a6}
-body.light .count,body.light .latest-sec span,body.light .sec span{color:#6a7488}
+body.light .count,body.light .sec span{color:#6a7488}
 body.light .bar{background:rgba(255,255,255,.78);border-top-color:rgba(0,0,0,.06)}
 body.light .bar .bt{color:#1d2430}
 body.light .bar .bs,body.light .bar-lyric{color:#7c8698}
@@ -2566,8 +2555,9 @@ body.light .mrow .mx{color:#1d2430}
 .bar-time{flex:none;font-size:10px;color:#8f9aac;font-variant-numeric:tabular-nums;letter-spacing:.2px}
 body.light .pbar i{background:rgba(0,0,0,.1)}
 body.light .bar-time{color:#7c8698}
-/* 播放模式（单按钮循环：顺序 🔁 / 单曲 🔂 / 随机 🔀，不占额外高度） */
-.bar #modeBtn{width:32px;height:32px;font-size:13px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#aab3c5}
+/* 播放模式（单按钮循环：顺序 / 单曲 / 随机，不占额外高度，图标为单色描边 SVG） */
+.bar #modeBtn{width:32px;height:32px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#aab3c5}
+.bar #modeBtn svg{width:17px;height:17px;display:block;margin:0 auto}
 .bar #modeBtn:hover{background:rgba(255,255,255,.1)}
 .bar #modeBtn.act{border-color:rgba(255,215,106,.75);color:#ffd76a}
 body.light .bar #modeBtn{border-color:rgba(0,0,0,.14);color:#6a7488}
@@ -2576,7 +2566,8 @@ body.light .bar #modeBtn.act{border-color:rgba(184,134,11,.6);color:#b8860b}
  .bar{gap:7px;padding-left:11px;padding-right:11px}
  .bar button{width:32px;height:32px;font-size:13px}
  .bar .bp{width:38px;height:38px}
- .bar #modeBtn{width:28px;height:28px;font-size:12px}
+ .bar #modeBtn{width:28px;height:28px}
+ .bar #modeBtn svg{width:15px;height:15px}
  .bar img{width:36px;height:36px}
 }
 /* 猫提示（留言送达 / 机主消息）：右上角堆叠，轻反馈不打断 */
@@ -2677,9 +2668,6 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
   <div class="count">下一首盲盒 <b id="cd">--:--:--</b> 后掉落 · 记得回来看看</div>
  </div>
 
- <div class="latest-sec"><h2>🆕 最新收录</h2><span>最近加入盲盒的歌</span></div>
- <div class="latest-grid" id="latestGrid"></div>
-
  <div class="sec"><h2>🔓 已解锁的歌柜</h2><span>点封面播放 · 全部可反复听</span></div>
  <div class="cabinet" id="cabinet"></div>
 
@@ -2726,7 +2714,7 @@ function toggleTheme(){
  <button onclick="barPrev()">⏮</button>
  <button class="bp" id="barPlay" onclick="barToggle()">▶</button>
  <button onclick="barNext()">⏭</button>
- <button id="modeBtn" onclick="cycleMode()" title="播放模式：顺序">🔁</button>
+ <button id="modeBtn" onclick="cycleMode()" title="播放模式：顺序"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h7M4 16h7"/><path d="M17 9.5 20.5 13 17 16.5"/><path d="M20.5 13h-6"/></svg></button>
 </div>
 <audio id="au" preload="none"></audio>
 <script>const SONGS = __DATA__;const HISTORY = __HISTORY__;const FEST = __FEST__;</script>
@@ -3011,20 +2999,6 @@ addEventListener('scroll', () => {
 /* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');
 const lockedPool = [];
-/* 最新收录 */
-const lg = document.getElementById('latestGrid');
-/* 最新收录 = 最近"加入盲盒"的歌（按收录时间倒序），不是最新解锁的，也不是上传最早的；
-   collected = 备份进盲盒的时间；老数据没有时才退回上传时间 */
-const recent = SONGS.filter(s => !s.locked && !isTodayHidden(s))
-  .sort((a, b) => String(b.collected || b.time || '').localeCompare(String(a.collected || a.time || '')))
-  .slice(0, 3);
-recent.forEach(s => {
-  const d = document.createElement('div');
-  d.className = 'lcard';
-  d.innerHTML = `<img src="${s.cover || ''}" loading="lazy"><div class="lt">${s.title}</div><div class="ls">📅 ${(s.collected || s.time || '')} 收录</div>`;
-  d.onclick = () => playSong(SONGS.indexOf(s));
-  lg.appendChild(d);
-});
 
 SONGS.forEach(s => {
   if (isTodayHidden(s)) return;  // 今日歌没拆到的完全不渲染（加赠后服务端 locked 也不可信）
@@ -3387,11 +3361,16 @@ if (pbarEl) {
   pbarEl.addEventListener('click', seekTo);
   pbarEl.addEventListener('touchstart', e => { seekTo(e); }, {passive:true});
 }
-/* ============ 播放模式：顺序 🔁 / 单曲 🔂 / 随机 🔀（单按钮循环，省地方） ============ */
+/* ============ 播放模式：顺序 / 单曲 / 随机（单按钮循环，省地方）。
+   图标用单色描边 SVG（stroke=currentColor），和播放栏 ⏮▶⏭ 一个风格；
+   之前用 🔁🔂🔀 彩色 emoji，跟整体玻璃风格不搭 */
 const MODES = [
-  {m:'seq',  icon:'🔁', tip:'顺序播放'},
-  {m:'loop', icon:'🔂', tip:'单曲循环'},
-  {m:'rand', icon:'🔀', tip:'随机播放'}
+  {m:'seq', tip:'顺序播放',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h7M4 16h7"/><path d="M17 9.5 20.5 13 17 16.5"/><path d="M20.5 13h-6"/></svg>'},
+  {m:'loop', tip:'单曲循环',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/><path d="M10.6 10.8 12 10v4.4"/></svg>'},
+  {m:'rand', tip:'随机播放',
+   icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/></svg>'}
 ];
 let playMode = 'seq';
 try { playMode = localStorage.getItem('kgmode') || 'seq'; } catch(e){}
@@ -3399,7 +3378,7 @@ function paintMode(){
   const btn = document.getElementById('modeBtn');
   if (!btn) return;
   const it = MODES.find(x => x.m === playMode) || MODES[0];
-  btn.textContent = it.icon;
+  btn.innerHTML = it.icon;
   btn.title = '播放模式：' + it.tip;
   btn.classList.toggle('act', playMode !== 'seq');
 }

@@ -1001,6 +1001,10 @@ class Handler(BaseHTTPRequestHandler):
                 'docker': docker_mode(),
                 'visitors': len(visitors(load_shares().get('dir') or '.')),
                 'dataDir': data_root()})
+        if self.path == '/sw.js':
+            # 盲盒页也能从管理端口进（8766 被占用时），SW 必须两个端口都在，
+            # 否则 /guest 在 8765 打开时注册 404，浏览器永远不弹一键安装
+            return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
         if self.path == '/guest':
             try:
                 entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(self._vid())
@@ -1523,6 +1527,11 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
 </body></html>'''
 
     def do_GET(self):
+        # SW 脚本不需要鉴权（浏览器取 SW 脚本时未必带 Cookie），先放行；
+        # 必须挂根路径（scope=/）才能覆盖 /guest，浏览器才认"可安装的 PWA"
+        if self.path in ('/sw.js', '/g/sw.js'):
+            # /g/sw.js 保留兼容旧页面
+            return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
         # 访客认证：页面请求返回自定义登录页（不用浏览器原生弹窗），接口返回 JSON
         if not self._auth_ok():
             if self.path.startswith('/api/') or self.path.startswith('/g/'):
@@ -1532,10 +1541,6 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
         if self.path.startswith('/api/download/'):
             # Docker 环境：通过 HTTP 下载文件（Content-Disposition: attachment）
             return self._send_download(self.path[len('/api/download/'):])
-        if self.path in ('/sw.js', '/g/sw.js'):
-            # SW 必须挂在根路径（scope=/）才能覆盖 /guest，浏览器才认"可安装的 PWA"；
-            # /g/sw.js 保留兼容旧页面
-            return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
         if self.path == '/api/g-data':
             vid = self._vid()
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(vid)
