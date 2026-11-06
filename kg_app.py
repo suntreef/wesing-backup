@@ -192,6 +192,17 @@ def visitor_grants(share_dir, vid):
     return bonus, msgs
 
 
+def visitor_msg_history(share_dir, vid):
+    """访客收到的全部机主消息（新→旧，含已读），供盲盒页消息中心展示。"""
+    if not vid:
+        return []
+    try:
+        st, _ = visitor_state(share_dir, vid)
+    except Exception:
+        return []
+    return list(reversed(st.get('msgs') or []))
+
+
 def grant_to_visitor(share_dir, vid, extra=0, msg=''):
     """给某位访客加开盒次数 / 留言。extra 可为负（回收），结果不小于 0。"""
     st, data = visitor_state(share_dir, vid)
@@ -1518,6 +1529,7 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
             was_opened_n = opened_count(sh_dir, vid)
             return self._send(200, {'comments': comments, 'plays': plays,
                                     'me': visitor_label(vid), 'bonus': bonus, 'msgs': msgs,
+                                    'msg_history': visitor_msg_history(sh_dir, vid) if sh_dir else [],
                                     'opened_today': was_opened_n > 0, 'opened_n': was_opened_n,
                                     'unlocked': len(unlocked), 'total': len(entries)})
         if self.path in ('/', '/index.html'):

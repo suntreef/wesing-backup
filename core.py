@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.5'
+APP_VERSION = '1.12.6'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2333,26 +2333,25 @@ body.ceremony header,body.ceremony .today{backdrop-filter:none;-webkit-backdrop-
 .rev-play:hover{background:rgba(255,255,255,.17)}
 .rev-play:active{transform:scale(.94)}
 .rev-title{font-size:19px;font-weight:800;color:#ffd76a;display:none;margin-top:12px}
-/* 加赠堆叠（iOS 通知堆叠风）：三张错落的卡背 + 礼盒，点一下拆一张 */
-.gift-stack{position:relative;display:none;margin:20px auto 4px;width:min(300px,78vw);height:118px;
+/* 加赠堆叠（iOS 卡片风）：一张主卡 + 两张微斜的卡背，礼盒+计数一行排布，点一下拆一张 */
+.gift-stack{position:relative;display:none;margin:18px auto 2px;width:min(320px,84vw);height:64px;
  border:none;cursor:pointer;background:transparent;font-family:inherit;-webkit-appearance:none;appearance:none;
- -webkit-tap-highlight-color:transparent;transition:transform .18s}
+ padding:0;-webkit-tap-highlight-color:transparent;transition:transform .18s}
 .gift-stack:active{transform:scale(.96)}
-.gift-stack .st-card{position:absolute;left:50%;top:0;width:150px;height:96px;margin-left:-75px;border-radius:18px;
- background:linear-gradient(160deg,#2a2f45,#1a1e30);border:1px solid rgba(255,255,255,.14);
- box-shadow:0 10px 26px rgba(0,0,0,.4);transition:transform .45s cubic-bezier(.2,.9,.3,1.2),opacity .45s}
+.gift-stack .st-card{position:absolute;left:50%;top:5px;width:88%;height:54px;margin-left:-44%;border-radius:17px;
+ background:linear-gradient(160deg,#262b40,#171b2b);border:1px solid rgba(255,255,255,.12);
+ box-shadow:0 8px 20px rgba(0,0,0,.35);transition:transform .45s cubic-bezier(.2,.9,.3,1.2),opacity .45s}
 .gift-stack .s1{transform:rotate(0) translateY(0);z-index:3}
-.gift-stack .s2{transform:rotate(-7deg) translate(-14px,4px);z-index:2;opacity:.85}
-.gift-stack .s3{transform:rotate(8deg) translate(14px,6px);z-index:1;opacity:.7}
-.gift-stack .st-gift{position:absolute;left:50%;top:26px;transform:translateX(-50%);z-index:4;
- font-size:38px;filter:drop-shadow(0 8px 18px rgba(255,215,106,.35));animation:sway 2.6s ease-in-out infinite}
-.gift-stack .st-label{position:absolute;left:0;right:0;bottom:-6px;z-index:4;font-size:12.5px;font-weight:700;color:#ffd76a;
- text-shadow:0 2px 10px rgba(0,0,0,.5)}
+.gift-stack .s2{transform:rotate(-2.6deg) translateY(3px);z-index:2;opacity:.75}
+.gift-stack .s3{transform:rotate(2.6deg) translateY(5px);z-index:1;opacity:.55}
+.gift-stack .st-main{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;gap:11px}
+.gift-stack .st-gift{font-size:25px;animation:sway 2.6s ease-in-out infinite}
+.gift-stack .st-label{font-size:14px;font-weight:700;color:#ffd76a;text-shadow:0 2px 8px rgba(0,0,0,.4)}
 .gift-stack .st-label b{font-variant-numeric:tabular-nums}
 .gift-stack.show{display:block}
-.gift-stack.done .st-card{opacity:0;transform:translateY(-30px) scale(.7)}
-body.light .gift-stack .st-card{background:linear-gradient(160deg,#ffffff,#eceff7);border-color:#dfe3ec;
- box-shadow:0 10px 22px rgba(40,50,90,.14)}
+.gift-stack.done .st-card{opacity:0;transform:translateY(-26px) scale(.75)}
+body.light .gift-stack .st-card{background:linear-gradient(160deg,#ffffff,#eef1f8);border-color:#dfe3ec;
+ box-shadow:0 8px 18px rgba(40,50,90,.12)}
 body.light .gift-stack .st-label{color:#b8860b;text-shadow:none}
 .rev-title.show{display:block}
 .btn{display:inline-block;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;color:#221d38;
@@ -2493,6 +2492,26 @@ body.light .bar button{background:rgba(0,0,0,.06);color:#39414f}
 body.light .bar button:hover{background:rgba(0,0,0,.11)}
 body.light .comment-form input{background:#fff;border-color:#d8dce8;color:#1d2430}
 body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
+/* 消息中心：固定小圆钮（有历史消息才出现）+ 底部抽屉列表 */
+.msg-toggle{position:fixed;top:52px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;
+ border:1px solid rgba(255,255,255,.12);background:rgba(30,34,52,.72);color:#e8eaf0;font-size:15px;
+ display:none;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;
+ -webkit-tap-highlight-color:transparent;transition:transform .15s}
+.msg-toggle.show{display:flex}
+.msg-toggle:hover{border-color:#ffd76a}
+.msg-toggle:active{transform:scale(.9)}
+.msg-toggle .mdot{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;
+ background:linear-gradient(180deg,#ff7a70,#e64848);color:#fff;font-size:10px;font-weight:800;
+ display:none;align-items:center;justify-content:center;padding:0 4px;font-style:normal}
+.mrow{padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.05);
+ border-left:3px solid rgba(255,255,255,.16);font-size:13px}
+.mrow.unread{border-left-color:#ffd76a;background:rgba(255,215,106,.08)}
+.mrow .mt{font-size:11px;color:#8f9aac;margin-bottom:3px}
+.mrow .mx{color:#e8eaf0;word-break:break-all;line-height:1.6}
+body.light .msg-toggle{background:#fff;border-color:#c9cfdd}
+body.light .mrow{background:rgba(0,0,0,.04);border-left-color:#d8dce8}
+body.light .mrow.unread{background:rgba(184,134,11,.07);border-left-color:#b8860b}
+body.light .mrow .mx{color:#1d2430}
 /* 彩带（揭晓动画） */
 .confetti{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;
  animation:confetti 1s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -2600,6 +2619,13 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
   </div>
  </div>
 </div>
+<div class="sheet-mask" id="msgSheet" onclick="if(event.target===this)closeSheet('msgSheet')">
+ <div class="sheet">
+  <h3>📮 机主的消息</h3>
+  <div id="msgList" style="max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
+  <div class="sheet-btns"><button class="sb ghost" onclick="closeSheet('msgSheet')">关闭</button></div>
+ </div>
+</div>
 <div class="wrap">
  <div class="today">
   <div class="day">__TODAY__ · 今日盲盒<span id="festTag"></span></div>
@@ -2607,11 +2633,10 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
    <div class="gift" id="gift" onclick="reveal()">🎁</div>
    <div class="rev-area" id="revArea"></div>
    <div class="rev-title" id="revTitle"></div>
-   <!-- 加赠堆叠（iOS 通知堆叠风）：拆一张少一张，不再一口气全翻开 -->
+   <!-- 加赠堆叠（iOS 卡片风）：拆一张少一张，不再一口气全翻开 -->
    <button class="gift-stack" id="giftStack" onclick="openNext()">
     <span class="st-card s3"></span><span class="st-card s2"></span><span class="st-card s1"></span>
-    <span class="st-gift">🎁</span>
-    <span class="st-label">拆开加赠 · 还有 <b id="stN">0</b> 首</span>
+    <span class="st-main"><span class="st-gift">🎁</span><span class="st-label">拆开加赠 · 还有 <b id="stN">0</b> 首</span></span>
    </button>
    <button class="btn" id="openBtn" onclick="reveal()">开启今日盲盒</button>
   </div>
@@ -2638,6 +2663,7 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
  <div class="history" id="history"></div>
 </div>
 <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">🌗</button>
+<button class="msg-toggle" id="msgBtn" onclick="openMsgCenter()" title="机主的消息">📮<b class="mdot" id="msgDot"></b></button>
 <script>
 /* 主题初始化（放在渲染前，避免闪白） */
 try {
@@ -2777,11 +2803,12 @@ try { revealed = localStorage.getItem('kgreveal_' + '__TODAY__') === '1'; } catc
 /* 今日已拆开几张（每日第 1 张随开盒仪式翻开，加赠的要自己一张张拆） */
 function revealN(){ try { return parseInt(localStorage.getItem('kgrevealN_' + '__TODAY__') || '0', 10) || 0; } catch(e){ return 0; } }
 function setRevealN(n){ try { localStorage.setItem('kgrevealN_' + '__TODAY__', String(n)); } catch(e){} }
-/* 开盒前：今日歌不算进"已解锁"，也不出现在任何列表里（不剧透）；拆到哪算到哪 */
-function hiddenTodayCount(){
-  if (!revealed) return todaySongs.filter(s => s.locked).length;
-  return Math.max(0, todaySongs.length - revealN());
-}
+/* 开盒前：今日歌不算进"已解锁"，也不出现在任何列表里（不剧透）；拆到哪算到哪。
+   注意：机主加赠后服务端会把加赠歌标成"已解锁"（locked=false），所以今日歌能不能露面
+   只能按"已拆张数"判断，绝不能信 locked，否则刷新就全泄露了 */
+function openedTodayN(){ return revealed ? Math.min(Math.max(1, revealN()), todaySongs.length) : 0; }
+function isTodayHidden(s){ const ti = todaySongs.indexOf(s); return ti >= 0 && ti >= openedTodayN(); }
+function hiddenTodayCount(){ return Math.max(0, todaySongs.length - openedTodayN()); }
 function refreshUnlockedCount(){
   const el = document.getElementById('unlockedN');
   if (el) el.textContent = Math.max(0, unlocked.length - hiddenTodayCount());
@@ -2942,7 +2969,7 @@ const cab = document.getElementById('cabinet');
 const lockedPool = [];
 /* 最新收录 */
 const lg = document.getElementById('latestGrid');
-const recent = SONGS.filter(s => !s.locked && !(s.today && todaySongs.indexOf(s) >= Math.max(1, revealN())) && dateMap[s.uk])
+const recent = SONGS.filter(s => !s.locked && !isTodayHidden(s) && dateMap[s.uk])
   .sort((a, b) => (dateMap[b.uk] ? dateMap[b.uk].date : '').localeCompare(dateMap[a.uk] ? dateMap[a.uk].date : ''))
   .slice(0, 3);
 recent.forEach(s => {
@@ -2954,7 +2981,7 @@ recent.forEach(s => {
 });
 
 SONGS.forEach(s => {
-  if (s.today && s.locked) return;  // 今日歌开盒前完全不渲染（不占歌柜、不进神秘卡）
+  if (isTodayHidden(s)) return;  // 今日歌没拆到的完全不渲染（加赠后服务端 locked 也不可信）
   const hide = s.locked;  const d = document.createElement('div');
   d.className = 'item' + (hide ? ' locked' : '');
   d.dataset.uk = s.uk;
@@ -2998,7 +3025,7 @@ if (lockedPool.length > 8) {
 const his = document.getElementById('history');
 const hisList = HISTORY.filter(h => {
   const ti = todaySongs.findIndex(t => t.uk === h.uk);
-  return !(ti >= 0 && ti >= Math.max(1, revealN()));
+  return !(ti >= 0 && ti >= openedTodayN());
 });
 if (!hisList.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
 hisList.forEach(h => {
@@ -3033,7 +3060,7 @@ function stopListenTimer(){
   if (listenTimer) { clearInterval(listenTimer); listenTimer = null; }
 }
 function playSong(i){
-  const s = SONGS[i]; if (!s || s.locked) return;
+  const s = SONGS[i]; if (!s || s.locked || isTodayHidden(s)) return;
   if (cur === i && !au.paused) { au.pause(); document.getElementById('barPlay').textContent = '▶'; return; }
   stopListenTimer();
   cur = i;
@@ -3106,6 +3133,15 @@ function loadComments(){
     refreshPlayBadges();
     applyBonus(j.bonus || 0);
     handleNotices(j.msgs || []);
+    /* 消息历史：服务端全量下发；本次弹窗播过的标记为已读，红点就灭了 */
+    if (Array.isArray(j.msg_history)) {
+      msgHistory = j.msg_history;
+      (j.msgs || []).forEach(m => {
+        const h = msgHistory.find(x => x.at === m.at && x.text === m.text);
+        if (h) h.seen = true;
+      });
+      paintMsgBtn();
+    }
     /* 换浏览器/清缓存：服务端记着开盒进度，直接进已揭晓状态（拆过的张数也同步） */
     if (j.opened_today && !revealed && !opening) {
       revealed = true;
@@ -3130,6 +3166,34 @@ function applyBonus(n){
 /* 机主发来的消息：好看的猫弹窗，一条一条弹 */
 let seenNotices = {};
 try { seenNotices = JSON.parse(localStorage.getItem('kgseen') || '{}'); } catch(e){}
+/* 消息中心：弹窗看过就没了，这里留一份历史随时翻（右上角 📮 进入） */
+let msgHistory = [];
+function paintMsgBtn(){
+  const b = document.getElementById('msgBtn'); if (!b) return;
+  const unread = msgHistory.filter(m => !m.seen).length;
+  b.classList.toggle('show', msgHistory.length > 0);
+  const d = document.getElementById('msgDot');
+  if (!d) return;
+  d.style.display = unread ? 'flex' : 'none';
+  d.textContent = unread > 9 ? '9+' : unread;
+}
+function openMsgCenter(){
+  const list = document.getElementById('msgList'); if (!list) return;
+  const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  list.innerHTML = msgHistory.length ? msgHistory.map(m =>
+    `<div class="mrow${m.seen ? '' : ' unread'}">` +
+    `<div class="mt">${m.gift ? '🎁 加赠 ' + m.gift + ' 次 · ' : ''}${esc(m.at || '')}</div>` +
+    `<div class="mx">${esc(m.text || '')}</div></div>`).join('')
+    : '<div class="cempty">还没有收到机主的消息</div>';
+  openSheet('msgSheet');
+  const unseen = msgHistory.filter(m => !m.seen);
+  if (unseen.length) {
+    fetch('/api/g-seen', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({keys: unseen.map(m => (m.at || '') + '|' + (m.text || ''))})}).catch(() => {});
+    unseen.forEach(m => { m.seen = true; });
+  }
+  paintMsgBtn();
+}
 function handleNotices(msgs){
   if (!msgs.length) return;
   const fresh = msgs.filter(m => !seenNotices[m.at + '|' + (m.text || '')]);
