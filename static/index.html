@@ -456,6 +456,24 @@ function shareModal(){
       </div>
       <div style="font-size:11px;color:var(--text2);margin-top:6px">留言已按访客隔离：每人只能看到自己的，这里可查看全部（含来源身份）。</div>
     </div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:700">🎁 加开盒次数 / 发消息</div>
+        <button class="btn small ghost" onclick="loadVisitors()">刷新名单</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;margin-bottom:8px;align-items:center">
+        <select id="grantWho" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);min-width:132px">
+          <option value="*">全部朋友</option>
+        </select>
+        <input id="grantN" type="number" min="0" max="10" value="1" title="加几次（今天多开几首）"
+          style="width:64px;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);text-align:center">
+        <input id="grantMsg" placeholder="捎一句话（可留空）" maxlength="200"
+          style="flex:1;min-width:150px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+        <button class="btn small" onclick="sendGrant()">发送</button>
+      </div>
+      <div id="grantRows" style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;font-size:12px"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">加的「次数」= 对方今天能多开的歌；他下次打开盲盒页会弹出小猫提醒（含你写的这句话）。</div>
+    </div>
     <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
       朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
       同一 Wi-Fi 直接访问；公网用反代（lucky/nginx）时把目标指向 <b>8766</b> 端口，并在上方填入对外链接。<br>
@@ -504,6 +522,7 @@ async function refreshShare(){
       ` · 今日掉落《${esc(s.today||'—')}》 · 访问控制：${esc(s.authMode||'none')==='none'?'无需验证':esc(s.authMode)}` : '局域网开关未打开，暂时只有本机能访问（点右上角 📱 手机访问 打开）') +
     `<br>🎫 已有 <b>${s.visitors||0}</b> 位朋友来过 · 每个人的掉落序列与播放次数各自独立，互不相通`;
   loadShComments();
+  loadVisitors();
   if(document.getElementById('shAuthMode')) document.getElementById('shAuthMode').value = s.authMode || 'none';
   authFields();
   renderAccounts(s.accounts || []);
@@ -545,6 +564,52 @@ async function loadShComments(){
   }catch(e){
     box.innerHTML = '<div style="color:var(--text2)">留言加载失败</div>';
   }
+}
+/* ---------- 给朋友加开盒次数 / 发消息 ---------- */
+function toast(msg){
+  const d = document.createElement('div');
+  d.textContent = msg;
+  d.style.cssText = 'position:fixed;left:50%;bottom:38px;transform:translateX(-50%);z-index:9999;' +
+    'background:rgba(20,24,34,.95);color:#fff;font-size:13px;padding:11px 18px;border-radius:12px;' +
+    'box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.12);max-width:80vw';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 2400);
+}
+async function loadVisitors(){
+  const sel = document.getElementById('grantWho'), box = document.getElementById('grantRows');
+  if(!sel || !box) return;
+  try{
+    const r = await (await fetch('/api/visitors')).json();
+    const list = r.visitors || [];
+    const cur = sel.value;
+    sel.innerHTML = '<option value="*">全部朋友（' + (r.total||0) + '）</option>' +
+      list.map(v => `<option value="${esc(v.vid)}">${esc(v.name)}${v.bonus?(' · 已加'+v.bonus+'次'):''}</option>`).join('');
+    if(cur) sel.value = cur;
+    box.innerHTML = list.length ? list.map(v =>
+      `<div style="display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
+        <b style="font-size:12px">${esc(v.name)}</b>
+        <span style="font-size:10px;color:var(--text2)">从 ${esc(v.start||'—')} 起 · 听过 ${v.plays||0} 次</span>
+        <span style="margin-left:auto;font-size:10px;color:#ffd76a">加赠 ${v.bonus||0} 次</span>
+      </div>`).join('')
+      : '<div style="color:var(--text2);padding:8px 0">还没有朋友来过（对方打开过一次盲盒页就会出现）</div>';
+  }catch(e){
+    box.innerHTML = '<div style="color:var(--text2)">名单加载失败</div>';
+  }
+}
+async function sendGrant(){
+  const who = document.getElementById('grantWho').value || '*';
+  const n = parseInt(document.getElementById('grantN').value || '0', 10);
+  const msg = (document.getElementById('grantMsg').value || '').trim();
+  if(!n && !msg){ toast('次数和留言至少填一样'); return; }
+  try{
+    const r = await (await fetch('/api/grant', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vid: who, n: n, msg: msg})})).json();
+    if(r.ok){
+      toast(`已发给 ${r.sent} 位朋友${msg?'，并带上你的留言':''}`);
+      document.getElementById('grantMsg').value = '';
+      loadVisitors();
+    } else toast(r.error || '发送失败');
+  }catch(e){ toast('发送失败'); }
 }
 function renderAccounts(accounts){
   const el = document.getElementById('shAccounts');

@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.1'
+APP_VERSION = '1.12.2'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -950,6 +950,54 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   .led{font-size:20px;padding:6px 12px}
   .spec-cover{width:min(220px,56vw);height:min(220px,56vw)}
 }
+/* ---------- 手机端统一收口（各播放器都要不歪、不挤） ---------- */
+@media (max-width:700px){
+  header{padding:12px 12px 10px;border-bottom:none;box-shadow:0 12px 26px -20px #000}
+  .hrow{flex-direction:column;align-items:stretch;gap:9px}
+  h1{font-size:17.5px;text-align:center;line-height:1.32}
+  /* 模式切换条：整行居中、可横滑、不再被顶部横线压住 */
+  .seg{margin:0 auto;width:fit-content;max-width:100%;justify-content:center;padding:3px;gap:3px;
+   overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{padding:6px 10px;font-size:12px;flex:none}
+  .meta{font-size:12px;justify-content:center;text-align:center}
+  #cdCtrls{display:none!important}   /* 手机不显示键盘快捷键说明 */
+  .ctrl{flex-wrap:wrap;justify-content:center}
+  .ctrl .jsSeek{min-width:96px;order:-1;flex:1 1 100%}
+  .vmain{padding:2px 12px 0}
+}
+/* 点唱机：手机上按比例缩小，按钮排三列，绝不撑破机身 */
+@media (max-width:560px){
+  #skinJuke{padding:14px 8px calc(12px + env(safe-area-inset-bottom))}
+  .juke{width:min(430px,96vw)}
+  .jk-cab{padding:22px 16px 16px;border-radius:150px 150px 16px 16px / 108px 108px 16px 16px}
+  .jk-arch{height:120px}
+  .jk-logo{font-size:11px;letter-spacing:5px;margin:2px 0 12px}
+  .jk-window{padding:14px}
+  .jk-disc{width:min(170px,46vw);height:min(170px,46vw)}
+  .jk-disc img{width:72px;height:72px;margin:-36px}
+  .jk-btns{grid-template-columns:repeat(3,1fr);gap:7px;width:94%;margin-top:14px}
+  .jkb{padding:8px 0;font-size:11px}
+  .jk-strip{font-size:13px;padding:7px 10px}
+  .jk-strip2{font-size:11px}
+  .jk-grille{height:26px;margin-top:11px}
+  .jk-panel{gap:12px;margin-top:14px}
+  .jk-ctrl{width:42px;height:42px;font-size:14px}
+  .jk-play{width:56px;height:56px;font-size:18px}
+  .jk-lights{margin-top:12px;gap:8px}
+}
+@media (max-width:420px){
+  .seg button{padding:5px 8px;font-size:11px}
+  .seg{gap:2px}
+  h1{font-size:16px}
+  .tape-body{padding:14px 12px 16px}
+  .tape-window{gap:14px;height:126px}
+  .reel{width:86px;height:86px}
+  .tape-link{width:74px}
+  .lyrics{min-height:170px}
+  .jk-cab{padding:18px 12px 14px}
+}
+
 </style></head><body data-view="grid">
 <canvas id="bg"></canvas>
 <header>
@@ -1130,6 +1178,19 @@ function flt(){
 /* ============ 播放内核 ============ */
 const au = document.getElementById('au');
 let cur = -1, lrc = [], lrcOn = -1, seeking = false, cdBuilt = false;
+/* 歌词偏移（秒）：本机记忆，正数让歌词提前出现 */
+let lyricOffset = 0;
+try { lyricOffset = parseFloat(localStorage.getItem('kgoffset') || '0') || 0; } catch(e){}
+function adjOffset(d){
+  lyricOffset = Math.round((lyricOffset + d) * 10) / 10;
+  if (lyricOffset > 10) lyricOffset = 10;
+  if (lyricOffset < -10) lyricOffset = -10;
+  try { localStorage.setItem('kgoffset', String(lyricOffset)); } catch(e){}
+  const v = document.getElementById('offsetVal');
+  if (v) v.textContent = (lyricOffset > 0 ? '+' : '') + lyricOffset.toFixed(1) + 's';
+  lrcOn = -2;
+  syncLrc(au.currentTime || 0);
+}
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
@@ -1207,8 +1268,9 @@ function renderLrc(){
 }
 function syncLrc(t){
   if (!lrc.length) return;
+  const tt = t + lyricOffset;
   let i = -1;
-  for (let k = 0; k < lrc.length; k++) if (lrc[k].t <= t) i = k;
+  for (let k = 0; k < lrc.length; k++) if (lrc[k].t <= tt) i = k;
   if (i === lrcOn) return;
   lrcOn = i;
   const box = $('#lyVinyl');
@@ -2183,13 +2245,14 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
- font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;padding-bottom:92px;
- -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;overflow-y:auto;padding-bottom:104px;
+ -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+ overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
 button{touch-action:manipulation}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
 header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.72);
  backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
- border-bottom:1px solid rgba(255,255,255,.07);transform:translateZ(0)}
+ border-bottom:1px solid rgba(255,255,255,.07)}
 body.light header{background:rgba(247,248,252,.8);border-bottom-color:rgba(0,0,0,.06)}
 header h1{font-size:19px}
 header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
@@ -2347,6 +2410,14 @@ body.light .item,body.light .lcard,body.light .hrow,body.light .crow{background:
 body.light .item .nm,body.light .lcard .lt,body.light .hrow .t,body.light .crow .ct{color:#1d2430}
 body.light .item .dt,body.light .hrow .s,body.light .item .q,body.light .pcount{color:#7c8698}
 body.light .item .q{color:#aab3c5}
+/* 浅色模式下的「未解锁」卡：封面整块隐去，只留干净的浅色底 + 小锁，不再灰蒙蒙 */
+body.light .item.locked{background:linear-gradient(180deg,#f8f9fd,#eef1f8);border-color:#e5e9f3}
+body.light .item.locked img{opacity:0;filter:none}
+body.light .item.locked .q{color:#bcc4d6;font-size:26px}
+body.light .item.locked .nm{color:#9aa3b6}
+body.light .item.locked .dt{color:#b3bbcb}
+body.light .item.locked .tag{background:rgba(124,140,180,.14);color:#7c8698}
+body.light .rev-card img{box-shadow:0 16px 38px rgba(40,50,90,.18)}
 body.light .empty,body.light .cempty{color:#8a94a6}
 body.light .count,body.light .latest-sec span,body.light .sec span{color:#6a7488}
 body.light .bar{background:rgba(255,255,255,.78);border-top-color:rgba(0,0,0,.06)}
@@ -2373,61 +2444,64 @@ body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
 .btn{padding:15px 38px;font-size:17px}
 .rev-play{padding:12px 34px;font-size:14px}
 
-/* 登录 */
-#loginPage{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(600px 500px at 50% 30%,#1d1a33,#0f1220 70%)}
-.login-card{width:min(340px,90vw);text-align:center;padding:36px 28px;border-radius:22px;background:linear-gradient(180deg,#2a2140,#1a1530);border:1px solid #3a2d5e;box-shadow:0 0 40px rgba(124,77,255,.2),0 20px 60px rgba(0,0,0,.5)}
-.login-card .lc-icon{font-size:52px;margin-bottom:12px}
-.login-card h2{font-size:18px;color:#fff;margin-bottom:4px}
-.login-card .lc-sub{color:#8f9aac;font-size:12px;margin-bottom:22px}
-.login-card input{width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;border:1px solid #3a2d5e;background:#0f0d1a;color:#eee;font-size:14px;outline:none;transition:.15s;text-align:center}
-.login-card input:focus{border-color:#7c4dff;box-shadow:0 0 0 3px rgba(124,77,255,.2)}
-.login-card .lc-btn{width:100%;padding:13px;border:none;border-radius:12px;background:linear-gradient(180deg,#7c4dff,#5a2d9e);color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;margin-top:4px}
-.login-card .lc-err{color:#ff6b6b;font-size:12px;margin-top:8px;min-height:16px}
-/* 进度条 */
-.pbar{width:100%;height:5px;border-radius:4px;background:rgba(255,255,255,.12);position:relative;cursor:pointer}
-.pfill{height:100%;width:0%;border-radius:4px;background:linear-gradient(90deg,var(--gold),#ff9d5c);position:relative;transition:width .3s linear}
-.pfill::after{content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:11px;height:11px;border-radius:50%;background:var(--gold);box-shadow:0 0 10px rgba(255,215,106,.6)}
-.ptime{display:flex;justify-content:space-between;font-size:10px;color:#6b7488;font-variant-numeric:tabular-nums;margin-top:2px}
-/* 播放模式 */
-.modes{display:flex;gap:6px;margin-top:4px}
-.modes button{flex:1;padding:6px 0;border-radius:8px;border:1px solid #2a2f3e;background:transparent;color:#8f9aac;font-size:11px;cursor:pointer;font-family:inherit;transition:.15s;-webkit-appearance:none;appearance:none}
-.modes button.on{border-color:var(--gold);color:var(--gold);background:rgba(255,215,106,.08)}
-/* 猫通知 */
-.cat-notify{position:fixed;top:70px;right:14px;z-index:50;background:#1a1e2e;border-radius:16px 16px 4px 16px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.4);max-width:300px;animation:catpop .5s cubic-bezier(.2,.9,.3,1.3)}
+/* 播放进度（一行 12px：细线 + 时间，高度恒定不抖） */
+.ptop{width:100%;display:flex;align-items:center;gap:9px;height:12px;margin:-1px 0 1px}
+.pbar{position:relative;flex:1;height:12px;display:flex;align-items:center;cursor:pointer;touch-action:none}
+.pbar i{display:block;width:100%;height:3px;border-radius:3px;background:rgba(255,255,255,.13);overflow:hidden}
+.pfill{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#ffd76a,#ffb347);transition:width .2s linear}
+.bar-time{flex:none;font-size:10px;color:#8f9aac;font-variant-numeric:tabular-nums;letter-spacing:.2px}
+body.light .pbar i{background:rgba(0,0,0,.1)}
+body.light .bar-time{color:#7c8698}
+/* 播放模式（单按钮循环：顺序 🔁 / 单曲 🔂 / 随机 🔀，不占额外高度） */
+.bar #modeBtn{width:32px;height:32px;font-size:13px;background:transparent;border:1px solid rgba(255,255,255,.14);color:#aab3c5}
+.bar #modeBtn:hover{background:rgba(255,255,255,.1)}
+.bar #modeBtn.act{border-color:rgba(255,215,106,.75);color:#ffd76a}
+body.light .bar #modeBtn{border-color:rgba(0,0,0,.14);color:#6a7488}
+body.light .bar #modeBtn.act{border-color:rgba(184,134,11,.6);color:#b8860b}
+@media (max-width:420px){
+ .bar{gap:7px;padding-left:11px;padding-right:11px}
+ .bar button{width:32px;height:32px;font-size:13px}
+ .bar .bp{width:38px;height:38px}
+ .bar #modeBtn{width:28px;height:28px;font-size:12px}
+ .bar img{width:36px;height:36px}
+}
+/* 猫提示（留言送达 / 机主消息）：右上角堆叠，轻反馈不打断 */
+#catStack{position:fixed;top:70px;right:14px;z-index:50;display:flex;flex-direction:column;gap:10px;
+ max-width:300px;pointer-events:none}
+.cat-notify{position:relative;pointer-events:auto;background:rgba(26,30,46,.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+ border:1px solid rgba(255,255,255,.1);border-radius:16px 16px 4px 16px;padding:14px 18px;box-shadow:0 8px 30px rgba(0,0,0,.4);
+ animation:catpop .5s cubic-bezier(.2,.9,.3,1.3)}
 @keyframes catpop{0%{transform:scale(0) translateY(-30px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
 .cat-notify .cat-face{font-size:28px;text-align:center;margin-bottom:6px}
 .cat-notify .cat-msg{font-size:13px;color:#e8eaf0;line-height:1.6}
+.cat-notify .cat-msg b{color:#ffd76a}
 .cat-notify .cat-close{position:absolute;top:6px;right:10px;cursor:pointer;color:#8f9aac;font-size:14px}
-/* 主题切换 */
-.theme-toggle{position:fixed;bottom:16px;left:16px;z-index:30;width:40px;height:40px;border-radius:50%;border:1px solid #3a415a;background:#1a1f26;color:#ffd76a;font-size:16px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.2s}
-/* 偏移 */
-.offset-ctl{display:flex;align-items:center;gap:6px;font-size:11px;color:#8f9aac;margin-top:4px}
-.offset-ctl button{background:#1a1f26;border:1px solid #3a4150;color:#ccc;border-radius:5px;padding:2px 7px;cursor:pointer;font-size:10px;font-family:inherit}
-/* 锁定封面 */
-.item.locked .img-wrap{position:relative}
-.item.locked .img-wrap::after{content:'❓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:36px;color:var(--txt2);background:rgba(15,18,32,.5);backdrop-filter:blur(4px)}
-.item.locked img{filter:none!important;opacity:.15}
-
-
-@media(max-width:768px){
- .kbd-hints{display:none!important}
- header h1{font-size:16px}
-}
-body{overflow-x:hidden}
+body.light .cat-notify{background:rgba(255,255,255,.95);border-color:rgba(0,0,0,.08)}
+body.light .cat-notify .cat-msg{color:#1d2430}
+.cat-notify .cat-from{font-size:11px;color:#ffd76a;margin-bottom:4px}
+/* 底部弹出说明（安装引导等） */
+.sheet-mask{position:fixed;inset:0;z-index:60;display:none;align-items:flex-end;justify-content:center;
+ background:rgba(6,8,14,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:16px}
+.sheet-mask.show{display:flex;animation:fadeIn .22s ease-out}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.sheet{width:min(420px,100%);background:rgba(26,30,46,.97);border:1px solid rgba(255,255,255,.12);border-radius:22px;
+ padding:20px 20px calc(20px + env(safe-area-inset-bottom));color:#e8eaf0;box-shadow:0 24px 60px rgba(0,0,0,.6);
+ animation:sheetUp .3s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes sheetUp{from{transform:translateY(28px);opacity:.5}to{transform:none;opacity:1}}
+.sheet h3{font-size:16px;margin-bottom:10px}
+.sheet p,.sheet li{font-size:13px;line-height:1.75;color:#b8c1d4}
+.sheet ol{padding-left:18px;margin:6px 0}
+.sheet .sheet-btns{display:flex;gap:10px;margin-top:16px}
+.sheet .sb{flex:1;padding:12px;border-radius:14px;border:none;font-size:14px;font-weight:700;font-family:inherit;
+ cursor:pointer;-webkit-appearance:none;appearance:none}
+.sheet .sb.primary{background:linear-gradient(180deg,#ffd76a,#e8b64c);color:#221d38}
+.sheet .sb.ghost{background:rgba(255,255,255,.1);color:#e8eaf0}
+body.light .sheet{background:#fff;border-color:#e2e6f0;color:#1d2430}
+body.light .sheet p,body.light .sheet li{color:#5a6474}
+body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
+@media (max-width:420px){#catStack{left:12px;right:12px;top:64px;max-width:none}}
 </style></head><body class="__FEST_CLASS__">
 
-<div id="loginPage">
- <div class="login-card">
-  <div class="lc-icon">📼</div>
-  <h2>盲盒歌单</h2>
-  <div class="lc-sub">输入账号密码进入</div>
-  <input id="loginUser" placeholder="账号">
-  <input id="loginPass" type="password" placeholder="密码">
-  <button class="lc-btn" onclick="doLogin()">进 入</button>
-  <div class="lc-err" id="loginErr"></div>
- </div>
-</div>
-<div id="mainContent" style="display:none">
 <canvas id="fx"></canvas>
 <header>
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
@@ -2435,6 +2509,16 @@ body{overflow-x:hidden}
  <div class="fest-banner" id="festBanner"></div>
  <button class="pwa-btn" id="pwaBtn" onclick="installPwa()">📲 安装到桌面，每天回来开盲盒</button>
 </header>
+<div class="sheet-mask" id="installSheet" onclick="if(event.target===this)closeSheet('installSheet')">
+ <div class="sheet">
+  <h3 id="sheetTitle">📲 装到桌面</h3>
+  <div id="sheetBody"></div>
+  <div class="sheet-btns">
+   <button class="sb primary" id="sheetGo" onclick="sheetAction()">立即安装</button>
+   <button class="sb ghost" onclick="closeSheet('installSheet')">稍后再说</button>
+  </div>
+ </div>
+</div>
 <div class="wrap">
  <div class="today">
   <div class="day">__TODAY__ · 今日盲盒<span id="festTag"></span></div>
@@ -2484,6 +2568,10 @@ function toggleTheme(){
 }
 </script>
 <div class="bar" id="bar">
+ <div class="ptop">
+  <div class="pbar" id="pbar"><i><span class="pfill" id="pfill"></span></i></div>
+  <span class="bar-time" id="barTime">0:00 / 0:00</span>
+ </div>
  <div class="bar-lyric" id="barLyric"></div>
  <img id="barCover" alt="">
  <div class="bi"><div class="bt" id="barTitle">—</div><div class="bs" id="barSub"></div>
@@ -2491,6 +2579,7 @@ function toggleTheme(){
  <button onclick="barPrev()">⏮</button>
  <button class="bp" id="barPlay" onclick="barToggle()">▶</button>
  <button onclick="barNext()">⏭</button>
+ <button id="modeBtn" onclick="cycleMode()" title="播放模式：顺序">🔁</button>
 </div>
 <audio id="au" preload="none"></audio>
 <script>const SONGS = __DATA__;const HISTORY = __HISTORY__;const FEST = __FEST__;</script>
@@ -2767,18 +2856,22 @@ function playSong(i){
   document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
   document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
   document.getElementById('bar').classList.add('show');
+  paintProgress();
   document.getElementById('barPlay').textContent = '⏸';  // 点击瞬间就切图标，不等音频事件（iOS 下事件可能延迟）
   au.play().catch(() => { document.getElementById('barPlay').textContent = '▶'; });  // 点选即播；被浏览器拦截则回退
 }
 
-au.onplay = () => { document.getElementById('barPlay').textContent = '⏸';
+au.onplay = () => { document.getElementById('barPlay').textContent = '⏸'; paintProgress();
   try { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s); } catch(e){} };
 au.onpause = () => { stopListenTimer();
   document.getElementById('barPlay').textContent = '▶'; };
+au.onloadedmetadata = () => paintProgress();
 au.ontimeupdate = () => {
+  paintProgress();
   if (!glrc.length) return;
   let i = -1;
-  for (let k = 0; k < glrc.length; k++) if (glrc[k].t <= au.currentTime) i = k;
+  const tt = au.currentTime + lyricOffset;
+  for (let k = 0; k < glrc.length; k++) if (glrc[k].t <= tt) i = k;
   if (i === glrcOn) return;
   glrcOn = i;
   const bl = document.getElementById('barLyric');
@@ -2788,15 +2881,30 @@ au.ontimeupdate = () => {
 function barToggle(){ if (!au.src) { if (unlocked.length) playSong(SONGS.indexOf(unlocked[0])); return; }
   if (au.paused) { au.play(); document.getElementById('barPlay').textContent = '⏸'; }
   else { au.pause(); document.getElementById('barPlay').textContent = '▶'; } }
-function barStep(step){
+/* 换歌：mode = 'step'（手动上下首）/ 'auto'（一曲播完，受播放模式影响） */
+function barStep(step, mode){
   if (!unlocked.length) return;
   let i = unlocked.indexOf(SONGS[cur]);
+  if (mode === 'auto' && playMode === 'rand' && unlocked.length > 1) {
+    let n = i;
+    while (n === i) n = Math.floor(Math.random() * unlocked.length);
+    playSong(SONGS.indexOf(unlocked[n]));
+    return;
+  }
   if (i < 0) i = 0; else i = (i + step + unlocked.length) % unlocked.length;
   playSong(SONGS.indexOf(unlocked[i]));
 }
-function barPrev(){ barStep(-1); }
-function barNext(){ barStep(1); }
-au.onended = () => { stopListenTimer(); barNext(); };
+function barPrev(){ barStep(-1, 'step'); }
+function barNext(){ barStep(1, 'step'); }
+au.onended = () => {
+  stopListenTimer();
+  if (playMode === 'loop') {  // 单曲循环：原地重播，不换歌
+    au.currentTime = 0;
+    au.play().catch(() => { document.getElementById('barPlay').textContent = '▶'; });
+    return;
+  }
+  barStep(1, 'auto');
+};
 /* 已揭晓状态初始化 */
 if (revealed && todaySongs.length) {
   document.getElementById('gift').style.display = 'none';
@@ -2825,7 +2933,31 @@ function loadComments(){
     playsMap = j.plays || {};
     renderComments(j.comments || {});
     refreshPlayBadges();
+    applyBonus(j.bonus || 0);
+    handleNotices(j.msgs || []);
   }).catch(() => {});
+}
+/* 机主加赠的开盒次数 */
+function applyBonus(n){
+  const btn = document.getElementById('openBtn');
+  if (!btn || !n) return;
+  btn.textContent = '开启今日盲盒 · 机主加赠 ' + n + ' 次';
+}
+/* 机主发来的消息：好看的猫弹窗，一条一条弹 */
+let seenNotices = {};
+try { seenNotices = JSON.parse(localStorage.getItem('kgseen') || '{}'); } catch(e){}
+function handleNotices(msgs){
+  if (!msgs.length) return;
+  const fresh = msgs.filter(m => !seenNotices[m.at + '|' + (m.text || '')]);
+  fetch('/api/g-seen', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({keys: msgs.map(m => m.at + '|' + (m.text || ''))})}).catch(() => {});
+  fresh.forEach((m, i) => {
+    seenNotices[m.at + '|' + (m.text || '')] = 1;
+    const gift = m.gift ? '🎁 机主给你加了 <b>' + m.gift + '</b> 次开盒机会' : '';
+    const text = (m.text || '').replace(/</g, '&lt;');
+    setTimeout(() => showCat((gift && text ? gift + '<br>' : gift) + text, '机主留言'), 700 + i * 1400);
+  });
+  try { localStorage.setItem('kgseen', JSON.stringify(seenNotices)); } catch(e){}
 }
 function renderComments(comments){
   const list = document.getElementById('cList');
@@ -2859,17 +2991,57 @@ loadComments();
 /* 留言/播放数定时同步：别人新留的言不用刷新页面也能看到 */
 setInterval(loadComments, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) loadComments(); });
-/* ============ PWA 安装到桌面 ============ */
-let installEvt = null;
+/* ============ PWA：一键安装到桌面 ============ */
+let installEvt = null, installMode = 'menu';
 addEventListener('beforeinstallprompt', e => {
-  e.preventDefault(); installEvt = e;
+  e.preventDefault(); installEvt = e; installMode = 'prompt';
   const b = document.getElementById('pwaBtn'); if (b) b.style.display = 'inline-block';
 });
+addEventListener('appinstalled', () => {
+  installEvt = null;
+  const b = document.getElementById('pwaBtn');
+  if (b) { b.textContent = '✅ 已装到桌面'; setTimeout(() => { b.style.display = 'none'; }, 2600); }
+});
+function closeSheet(id){ const el = document.getElementById(id); if (el) el.classList.remove('show'); }
+function openSheet(id){ const el = document.getElementById(id); if (el) el.classList.add('show'); }
+function sheetHtml(){
+  const ua = navigator.userAgent;
+  const isiOS = /iphone|ipad|ipod/i.test(ua);
+  const inWx = /MicroMessenger/i.test(ua);
+  const https = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  if (inWx) return ['⚠️ 微信里装不了', '<p>请点右上角「···」→「在浏览器打开」，再用浏览器安装。</p>', '知道了', false];
+  if (isiOS) return ['📲 装到 iPhone / iPad 桌面',
+    '<ol><li>用 <b>Safari</b> 打开本页</li><li>点底部「分享」（方框＋向上箭头）</li><li>选「添加到主屏幕」→「添加」</li></ol>',
+    '我知道了', false];
+  if (installEvt) return ['📲 装到桌面', '<p>点下面的按钮，浏览器会直接弹出安装确认。</p>', '立即安装', true];
+  return ['📲 装到桌面',
+    (https ? '<p>点浏览器右上角菜单（⋮），选「安装应用 / 添加到主屏幕」。</p>'
+           : '<p>当前是 http 局域网地址，浏览器不允许一键安装。两种办法：</p>' +
+             '<ol><li>用 <b>https 域名</b>（反代开启证书）打开本页，就能一键安装</li>' +
+             '<li>或点浏览器菜单（⋮）→「添加到主屏幕」，效果一样</li></ol>'),
+    '知道了', false];
+}
 function installPwa(){
-  if (installEvt) { installEvt.prompt(); installEvt = null; return; }
-  const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  alert(isiOS ? 'iPhone / iPad 安装方法：\n用 Safari 打开本页 → 底部「分享」→ 「添加到主屏幕」'
-              : 'Android 安装方法：\n浏览器菜单（⋮）→ 「添加到主屏幕 / 安装应用」');
+  if (installEvt) { installEvt.prompt(); installEvt.userChoice && installEvt.userChoice.then(() => { installEvt = null; }).catch(() => {}); return; }
+  const [title, body, label, canPrompt] = sheetHtml();
+  document.getElementById('sheetBody').innerHTML = body;
+  document.getElementById('sheetTitle').textContent = title;
+  const go = document.getElementById('sheetGo');
+  go.textContent = label;
+  go.dataset.mode = canPrompt ? 'prompt' : 'ok';
+  openSheet('installSheet');
+}
+function sheetAction(){
+  const go = document.getElementById('sheetGo');
+  if (go.dataset.mode === 'prompt' && installEvt) {
+    installEvt.prompt();
+    installEvt.userChoice && installEvt.userChoice.then(() => { installEvt = null; }).catch(() => {});
+  }
+  closeSheet('installSheet');
+}
+/* 注册 Service Worker：有了它浏览器才把本页当成"可安装的 App" */
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => { navigator.serviceWorker.register('/g/sw.js', {scope: '/g/'}).catch(() => {}); });
 }
 /* 已安装（独立窗口运行）则不显示安装按钮 */
 try {
@@ -2878,43 +3050,66 @@ try {
   else if (pb) pb.style.display = 'inline-block';
 } catch(e){}
 
-/* 登录 */
-const NEED_AUTH='__NEED_AUTH__'==='1';
-if(NEED_AUTH){$('#loginPage').style.display='flex';$('#mainContent').style.display='none'}
-async function doLogin(){
- const u=$('#loginUser').value.trim(),p=$('#loginPass').value.trim();
- const r=await fetch('/api/g-login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:u,pass:p})});
- const j=await r.json().catch(()=>({}));
- if(j.ok){$('#loginPage').style.display='none';$('#mainContent').style.display='block'}
- else $('#loginErr').textContent=j.error||'账号或密码错误';
+/* ============ 播放进度（播放栏顶部细线，点一下跳转） ============ */
+const pbarEl = document.getElementById('pbar'), pfillEl = document.getElementById('pfill'), barTimeEl = document.getElementById('barTime');
+function fmtT(s){ s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+function seekTo(e){
+  if (!au.duration) return;
+  if (!pbarEl) return;
+  const r = pbarEl.getBoundingClientRect();
+  const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+  au.currentTime = Math.max(0, Math.min(1, (cx - r.left) / r.width)) * au.duration;
+  paintProgress();
 }
-/* 进度条 */
-au.ontimeupdate=()=>{if(au.duration){$('#pfill').style.width=(au.currentTime/au.duration*100)+'%'}$('#ptCur').textContent=fmt(au.currentTime);$('#ptEnd').textContent=fmt(au.duration||0);syncLrc(au.currentTime)};
-$('#pbar').addEventListener('click',e=>{if(!au.duration)return;const r=$('#pbar').getBoundingClientRect();au.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*au.duration});
-/* 播放模式 */
-let playMode='seq';
-function setMode(m){playMode=m;$$('.modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m))}
-function barStep(step){const u=SONGS.filter(s=>!s.locked);if(!u.length)return;let i=u.indexOf(SONGS[cur]);if(i<0)i=0;
- if(playMode==='rand')i=Math.floor(Math.random()*u.length);else i=(i+step+u.length)%u.length;
- playSong(SONGS.indexOf(u[i]))}
-function barPrev(){barStep(-1)}function barNext(){barStep(1)}
-au.onended=()=>{if(playMode==='loop'){au.currentTime=0;au.play().catch(()=>{})}else barNext()};
-/* 播放高亮 */
-function updatePlaying(){$$('.ditem').forEach((d,k)=>d.classList.toggle('playing',k===cur))}
-const _oldPlay=playSong;
-playSong=function(i){_oldPlay(i);updatePlaying()};
-/* 猫通知 */
-function showCat(msg){const old=document.querySelector('.cat-notify');if(old)old.remove();
- const n=document.createElement('div');n.className='cat-notify';
- n.innerHTML='<div class="cat-face">🐱</div><div class="cat-msg">'+msg+'</div><div class="cat-close" onclick="this.parentElement.remove()">✕</div>';
- document.body.appendChild(n);setTimeout(()=>{if(n.parentElement)n.remove()},8000)}
-/* 主题切换 */
-function toggleTheme(){const b=document.body;if(b.style.filter){b.style.filter='';try{localStorage.removeItem('kgtheme')}catch(e){}}else{b.style.filter='invert(.88) hue-rotate(180deg)';try{localStorage.setItem('kgtheme','inv')}catch(e){}}}
-/* 偏移 */
-let lyricOffset=0;try{lyricOffset=parseFloat(localStorage.getItem('kgoffset')||'0')}catch(e){}
-function adjOffset(d){lyricOffset+=d;try{localStorage.setItem('kgoffset',String(lyricOffset))}catch(e){}syncLrc(au.currentTime)}
-const _syncLrc=syncLrc;
-syncLrc=function(t){_syncLrc(t+lyricOffset)};
+function paintProgress(){
+  const d = au.duration || 0, t = au.currentTime || 0;
+  if (pfillEl) pfillEl.style.width = (d ? (t / d * 100) : 0) + '%';
+  if (barTimeEl) barTimeEl.textContent = fmtT(t) + ' / ' + fmtT(d);
+}
+if (pbarEl) {
+  pbarEl.addEventListener('click', seekTo);
+  pbarEl.addEventListener('touchstart', e => { seekTo(e); }, {passive:true});
+}
+/* ============ 播放模式：顺序 🔁 / 单曲 🔂 / 随机 🔀（单按钮循环，省地方） ============ */
+const MODES = [
+  {m:'seq',  icon:'🔁', tip:'顺序播放'},
+  {m:'loop', icon:'🔂', tip:'单曲循环'},
+  {m:'rand', icon:'🔀', tip:'随机播放'}
+];
+let playMode = 'seq';
+try { playMode = localStorage.getItem('kgmode') || 'seq'; } catch(e){}
+function paintMode(){
+  const btn = document.getElementById('modeBtn');
+  if (!btn) return;
+  const it = MODES.find(x => x.m === playMode) || MODES[0];
+  btn.textContent = it.icon;
+  btn.title = '播放模式：' + it.tip;
+  btn.classList.toggle('act', playMode !== 'seq');
+}
+function setMode(m){
+  playMode = (MODES.some(x => x.m === m) ? m : 'seq');
+  try { localStorage.setItem('kgmode', playMode); } catch(e){}
+  paintMode();
+}
+function cycleMode(){
+  const i = MODES.findIndex(x => x.m === playMode);
+  setMode(MODES[(i + 1) % MODES.length].m);
+  const it = MODES.find(x => x.m === playMode);
+  if (typeof showCat === 'function') showCat('播放模式已切换：' + it.tip + ' ' + it.icon);
+}
+paintMode();
+/* ============ 猫提示（轻反馈，不打断） ============ */
+function showCat(msg, from){
+  let stack = document.getElementById('catStack');
+  if (!stack) { stack = document.createElement('div'); stack.id = 'catStack'; document.body.appendChild(stack); }
+  const n = document.createElement('div'); n.className = 'cat-notify';
+  n.innerHTML = '<div class="cat-close" onclick="this.parentElement.remove()">✕</div>' +
+                '<div class="cat-face">🐱</div>' +
+                (from ? '<div class="cat-from">' + from + '</div>' : '') +
+                '<div class="cat-msg">' + msg + '</div>';
+  stack.appendChild(n);
+  setTimeout(() => { if (n.parentElement) n.remove(); }, 7000);
+}
 </script></body></html>"""
 
 

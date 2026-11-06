@@ -37,7 +37,7 @@ _STATE = {'job': None, 'thread': None, 'server': None, 'lan': False}
 
 
 def _shares_file():
-    return os.path.join(os.getcwd(), 'shares.json')
+    return os.path.join(data_root(), 'shares.json')
 
 
 def load_shares():
@@ -91,6 +91,21 @@ def _pick_for_date(entries, day, salt=''):
 
 _VISITOR_FILE = 'guest_visitors.json'
 _VID_RE = re.compile(r'^[A-Za-z0-9_\-]{6,64}$')
+# 内部身份是 'u:账号' / 'v:16位'，带冒号；仅在管理端内部使用（不来自 Cookie）
+_VID_ANY_RE = re.compile(r'^[A-Za-z0-9_\-:]{3,80}$')
+
+
+def _pick_distinct(pool, seed_base, salt, used, tries=80):
+    """抽一首还没被解锁的歌（加赠开盒用，避免和别人/已解锁的撞车）。"""
+    for i in range(tries):
+        seed = seed_base if i == 0 else '%s|alt%d' % (seed_base, i)
+        p = _pick_for_date(pool, seed, salt)
+        if p is not None and _uk(p) not in used:
+            return p
+    for p in pool:
+        if _uk(p) not in used:
+            return p
+    return None
 
 
 def _visitor_file(share_dir):
@@ -117,7 +132,7 @@ def visitor_state(share_dir, vid):
     if isinstance(st, dict):
         return st, data
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
-    st = {'start': today, 'plays': {}}
+    st = {'start': today, 'plays': {}, 'bonus': 0, 'msgs': []}
     legacy_file = os.path.join(share_dir, 'guest_start')
     if not data and os.path.exists(legacy_file):
         try:
@@ -126,10 +141,37 @@ def visitor_state(share_dir, vid):
         except Exception:
             old = ''
         if old:
-            st = {'start': old, 'plays': {}, 'legacy': True}
+            st = {'start': old, 'plays': {}, 'legacy': True, 'bonus': 0, 'msgs': []}
     data[vid] = st
     save_visitors(share_dir, data)
     return st, data
+
+
+def visitor_grants(share_dir, vid):
+    """访客身上挂着的「机主加赠」：开盒次数 + 未读消息。"""
+    if not vid:
+        return 0, []
+    try:
+        st, _ = visitor_state(share_dir, vid)
+    except Exception:
+        return 0, []
+    bonus = int(st.get('bonus') or 0)
+    msgs = [m for m in (st.get('msgs') or []) if not m.get('seen')]
+    return bonus, msgs
+
+
+def grant_to_visitor(share_dir, vid, extra=0, msg=''):
+    """给某位访客加开盒次数 / 留言。extra 可为负（回收），结果不小于 0。"""
+    st, data = visitor_state(share_dir, vid)
+    st['bonus'] = max(0, int(st.get('bonus') or 0) + int(extra or 0))
+    st.setdefault('msgs', [])
+    if msg:
+        st['msgs'].append({'text': str(msg)[:300], 'gift': int(extra or 0),
+                           'at': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'seen': False})
+        st['msgs'] = st['msgs'][-20:]
+    data[vid] = st
+    save_visitors(share_dir, data)
+    return st['bonus']
 
 
 def visitor_label(vid):
@@ -157,11 +199,13 @@ def blindbox_state(vid=None):
     share_dir = sh.get('dir') or '.'
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     salt = ''
+    grants = 0
     if vid:
         try:
             st, _ = visitor_state(share_dir, vid)
             start = st.get('start') or today
             salt = '' if st.get('legacy') else vid
+            grants = int(st.get('bonus') or 0)
         except Exception:
             start, salt = today, vid
     else:
@@ -208,6 +252,17 @@ def blindbox_state(vid=None):
         if bonus is not None:
             unlocked.add(_uk(bonus))
             today_keys.add(_uk(bonus))
+    # 机主加赠的开盒次数：今天就能多开几首（每首都不与他人重复，也避开已有解锁）
+    if grants > 0:
+        for gi in range(min(grants, 30)):
+            pick = _pick_distinct(pool, today + '|grant%d' % gi, salt, unlocked)
+            if pick is None:
+                break
+            unlocked.add(_uk(pick))
+            today_keys.add(_uk(pick))
+            history.append({'date': today, 'title': pick.get('title') or '',
+                            'singer': pick.get('singer_name') or '', 'uk': _uk(pick),
+                            'festival': '机主加赠'})
     return entries, profile, unlocked, history, today_keys, today, festival
 
 
@@ -217,8 +272,72 @@ def docker_mode():
 
 
 def data_root():
-    """数据根目录：Docker 为挂载卷 /data，本机为当前目录。"""
-    return os.path.abspath(os.environ.get('KG_DATA_DIR') or os.getcwd())
+    """数据根目录：Docker 为挂载卷 /data，桌面版为 exe 所在目录。
+
+    以前用 os.getcwd()：从不同目录启动 exe（或换了个快捷方式）就会看到"数据全没了"，
+    实际只是读了另一个空目录。exe 版改为固定跟着 exe 走，升级换版本也不会丢。
+    """
+    d = os.environ.get('KG_DATA_DIR')
+    if d:
+        return os.path.abspath(d)
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.abspath(os.getcwd())
+
+
+# 这些文件是"用户数据"，升级版本一条都不能丢
+_DATA_KEEP = ('shares.json', 'auto_update.json', 'authors.json',
+              'guest_visitors.json', 'guest_comments.json', 'guest_start')
+
+
+def migrate_legacy_data():
+    """老版本把数据放在启动目录（cwd）：exe 版首次运行新版本时搬到 exe 旁边。
+
+    只搬"新位置还没有"的文件，绝不覆盖已有数据。
+    """
+    try:
+        import shutil as _sh
+        new = data_root()
+        old = os.path.abspath(os.getcwd())
+        if os.path.normcase(new) == os.path.normcase(old):
+            return []
+        moved = []
+        for n in _DATA_KEEP:
+            src, dst = os.path.join(old, n), os.path.join(new, n)
+            if os.path.exists(src) and not os.path.exists(dst):
+                try:
+                    _sh.copy2(src, dst)
+                    moved.append(n)
+                except Exception:
+                    pass
+        return moved
+    except Exception:
+        return []
+
+
+def snapshot_data():
+    """每个版本第一次运行时，把用户数据留一份快照（.kgbak/<版本号>/），出问题能回滚。"""
+    try:
+        import shutil as _sh
+        root = data_root()
+        dst = os.path.join(root, '.kgbak', APP_VERSION.replace('.', '_'))
+        made = []
+        for n in _DATA_KEEP:
+            src = os.path.join(root, n)
+            if not os.path.exists(src):
+                continue
+            tgt = os.path.join(dst, n)
+            if os.path.exists(tgt):
+                continue
+            try:
+                os.makedirs(dst, exist_ok=True)
+                _sh.copy2(src, tgt)
+                made.append(n)
+            except Exception:
+                pass
+        return made
+    except Exception:
+        return []
 
 
 def guest_url_from_host(host_header, gport):
@@ -354,7 +473,17 @@ def open_with_system(path):
 # ---------------------------------------------------------------- 访客互动数据
 
 def _guest_data_file(share_dir, name):
-    return os.path.join(share_dir, name)
+    p = os.path.join(share_dir, name)
+    # 换了备份目录 / 首次把访客数据挪出旧位置时，从数据根目录带过来，别让人以为"数据没了"
+    if share_dir and not os.path.exists(p):
+        legacy = os.path.join(data_root(), name)
+        if os.path.exists(legacy):
+            try:
+                import shutil as _sh
+                _sh.copy2(legacy, p)
+            except Exception:
+                pass
+    return p
 
 
 def _load_json_safe(path):
@@ -727,6 +856,34 @@ class Handler(BaseHTTPRequestHandler):
                                  'from': visitor_label(c.get('vid') or '')})
             rows.sort(key=lambda x: x['time'], reverse=True)
             return self._send(200, {'comments': rows, 'total': len(rows)})
+        if self.path == '/api/visitors':
+            """管理端：访客名单（含各自的开盒次数、停留起点、听过多少首）。"""
+            sh_dir = load_shares().get('dir') or ''
+            data = visitors(sh_dir) if sh_dir else {}
+            rows = []
+            for vid, st in data.items():
+                if not isinstance(st, dict):
+                    continue
+                rows.append({'vid': vid, 'name': visitor_label(vid),
+                             'start': st.get('start') or '', 'bonus': int(st.get('bonus') or 0),
+                             'plays': sum(int(v or 0) for v in (st.get('plays') or {}).values()),
+                             'msgs': len(st.get('msgs') or [])})
+            rows.sort(key=lambda x: (-x['bonus'], x['name']))
+            return self._send(200, {'visitors': rows, 'total': len(rows)})
+        if self.path == '/api/grants':
+            """管理端：最近发出去的通知记录（便于确认送达）。"""
+            sh_dir = load_shares().get('dir') or ''
+            data = visitors(sh_dir) if sh_dir else {}
+            rows = []
+            for vid, st in data.items():
+                if not isinstance(st, dict):
+                    continue
+                for m in (st.get('msgs') or []):
+                    rows.append({'name': visitor_label(vid), 'text': m.get('text') or '',
+                                 'gift': m.get('gift') or 0, 'at': m.get('at') or '',
+                                 'seen': bool(m.get('seen'))})
+            rows.sort(key=lambda x: x['at'], reverse=True)
+            return self._send(200, {'grants': rows[:50]})
         if self.path == '/api/dirs':
             """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
             root = data_root()
@@ -871,6 +1028,31 @@ class Handler(BaseHTTPRequestHandler):
             job.paused = bool(p.get('paused'))
             job.log('⏸ 已暂停（进度保留，点“继续”接着跑）' if job.paused else '▶ 继续备份')
             return self._send(200, {'ok': True, 'paused': job.paused})
+        if self.path == '/api/grant':
+            """管理端：给盲盒用户加开盒次数 + 发送一条消息（对方打开就弹猫提醒）。"""
+            p = self._body()
+            sh_dir = load_shares().get('dir') or ''
+            if not sh_dir:
+                return self._send(400, {'error': '还没设置分享目录'})
+            try:
+                extra = int(p.get('n') or 0)
+            except Exception:
+                extra = 0
+            msg = str(p.get('msg') or '').strip()[:300]
+            who = p.get('vid') or p.get('to') or ''
+            if who and who != '*':
+                targets = [str(who)]
+            else:
+                targets = [v for v, st in (visitors(sh_dir) or {}).items() if isinstance(st, dict)]
+            if not targets:
+                return self._send(400, {'error': '还没有访客来过，先让他们打开一次盲盒页'})
+            done = []
+            for vid in targets:
+                if not _VID_ANY_RE.match(vid):
+                    continue
+                done.append({'vid': vid, 'name': visitor_label(vid),
+                             'bonus': grant_to_visitor(sh_dir, vid, extra, msg)})
+            return self._send(200, {'ok': True, 'sent': len(done), 'rows': done})
         if self.path == '/api/share':
             p = self._body()
             if 'dir' in p:
@@ -1066,6 +1248,23 @@ def _create_g_session(user):
     return token
 
 
+# Service Worker：只要有一个能响应 fetch 的 SW，浏览器就把本站当成"可安装的 App"。
+# 全部走网络，避免音频/封面被缓存成旧版本。
+_SW_JS = r'''/* 盲盒歌单 Service Worker */
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;          /* 第三方直接放过 */
+  if (url.pathname.startsWith('/api/')) return;        /* 接口不插手 */
+  if (req.headers.get('range')) return;                /* 音频分段请求不插手 */
+  e.respondWith(fetch(req).catch(() => caches.match(req)));
+});
+'''
+
+
 class GuestHandler(Handler):
     """独立盲盒端口：只提供 /guest 与 /g/*，不暴露任何管理功能。"""
 
@@ -1133,38 +1332,106 @@ class GuestHandler(Handler):
 
     _login_html = '''<!DOCTYPE html>
 <html lang="zh-cn"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#20160f">
 <title>登录 · 盲盒歌单</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{min-height:100vh;display:flex;align-items:center;justify-content:center;
- background:radial-gradient(600px 500px at 50% 30%,#1d1a33,#0f1220 70%);
- font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
-.card{width:min(340px,90vw);text-align:center;padding:36px 28px;border-radius:22px;
- background:linear-gradient(180deg,#2a2140,#1a1530);border:1px solid #3a2d5e;
- box-shadow:0 0 40px rgba(124,77,255,.2),0 20px 60px rgba(0,0,0,.5)}
-.card .icon{font-size:52px;margin-bottom:12px}
-.card h2{font-size:18px;color:#fff;margin-bottom:4px}
-.card .sub{color:#8f9aac;font-size:12px;margin-bottom:22px}
-.card input{width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;border:1px solid #3a2d5e;
- background:#0f0d1a;color:#eee;font-size:14px;outline:none;transition:.15s;text-align:center}
-.card input:focus{border-color:#7c4dff;box-shadow:0 0 0 3px rgba(124,77,255,.2)}
-.card .btn{width:100%;padding:13px;border:none;border-radius:12px;
- background:linear-gradient(180deg,#7c4dff,#5a2d9e);color:#fff;font-size:15px;font-weight:700;
- cursor:pointer;font-family:inherit;margin-top:4px}
-.card .err{color:#ff6b6b;font-size:12px;margin-top:8px;min-height:16px}
+body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px 14px;
+ background:radial-gradient(900px 620px at 50% 0%,#2a1d15,#120c09 62%,#0a0706);
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#f0e8dd;
+ -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+.wrap{width:min(400px,100%)}
+/* ---------- 卡座机身 ---------- */
+.deck{position:relative;border-radius:20px;padding:16px 16px 14px;overflow:hidden;
+ background:linear-gradient(180deg,#3c2a1e,#2a1c13 44%,#1d130d);
+ box-shadow:0 0 0 1px rgba(255,225,180,.12) inset,0 0 0 6px #150e09,0 0 0 7px #6b5433,
+  0 30px 70px rgba(0,0,0,.75),0 0 60px rgba(255,190,90,.06)}
+.deck::before{content:'';position:absolute;left:0;right:0;top:0;height:44px;
+ background:linear-gradient(180deg,rgba(255,220,170,.1),transparent);pointer-events:none}
+.brand{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:4px;color:#c9a86a;
+ font-weight:700;margin-bottom:12px;position:relative}
+.brand .dot{width:7px;height:7px;border-radius:50%;background:#ff5b5b;box-shadow:0 0 9px #ff5b5b;animation:blink 1.8s infinite}
+.brand .sp{flex:1;height:1px;background:linear-gradient(90deg,rgba(201,168,106,.35),transparent)}
+@keyframes blink{50%{opacity:.25}}
+/* ---------- 磁带窗 + 纸标签（账号密码写在这里） ---------- */
+.cassette{position:relative;border-radius:14px;padding:14px;
+ background:linear-gradient(180deg,#241a12,#170f0a);
+ box-shadow:0 10px 26px rgba(0,0,0,.6) inset,0 0 0 2px #6b5433,0 0 0 4px #1a120c}
+.reels{position:relative;height:52px;margin-bottom:10px}
+.reel{position:absolute;top:0;width:52px;height:52px;border-radius:50%;
+ background:radial-gradient(circle,#f4e7cf 0 26%,#d8c3a1 27% 30%,#2a2018 31% 100%);
+ box-shadow:0 0 0 2px #0f0a07,0 4px 10px rgba(0,0,0,.5);animation:spin 5s linear infinite}
+.reel.l{left:8px} .reel.r{right:8px}
+.reel::after{content:'';position:absolute;inset:16px;border-radius:50%;
+ background:conic-gradient(#8a7460 0 12%,transparent 12% 25%,#8a7460 25% 37%,transparent 37% 50%,
+ #8a7460 50% 62%,transparent 62% 75%,#8a7460 75% 87%,transparent 87% 100%)}
+.reels .tape{position:absolute;left:70px;right:70px;top:24px;height:3px;border-radius:2px;
+ background:linear-gradient(90deg,rgba(120,90,60,.2),#5a4636,rgba(120,90,60,.2))}
+@keyframes spin{to{transform:rotate(360deg)}}
+.label{background:linear-gradient(180deg,#fbf4e2,#efe2c8);border-radius:9px;padding:12px 12px 14px;
+ box-shadow:0 2px 0 #b9a680,0 8px 20px rgba(0,0,0,.45)}
+.label h1{font-size:15px;color:#3a2a18;text-align:center;letter-spacing:1px}
+.label .sub{font-size:10.5px;color:#8a7455;text-align:center;margin:3px 0 10px}
+.label input{width:100%;padding:11px 12px;margin-bottom:8px;border-radius:9px;border:1px solid #cdbb96;
+ background:#fffdf6;color:#2c2114;font-size:14px;outline:none;text-align:center;font-family:inherit;
+ transition:.16s;-webkit-appearance:none;appearance:none}
+.label input::placeholder{color:#b3a184}
+.label input:focus{border-color:#b8860b;box-shadow:0 0 0 3px rgba(184,134,11,.16)}
+/* ---------- 走带按钮（播放=进入） ---------- */
+.keys{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px}
+.key{width:40px;height:34px;border-radius:7px;border:none;cursor:pointer;font-size:13px;color:#e8dcc8;
+ background:linear-gradient(180deg,#4a3826,#241a11);box-shadow:0 3px 0 #120c08,0 0 0 1px rgba(255,220,170,.14) inset;
+ font-family:inherit;display:inline-flex;align-items:center;justify-content:center;-webkit-appearance:none;appearance:none}
+.key:active{transform:translateY(2px);box-shadow:0 1px 0 #120c08}
+.play{flex:1;max-width:190px;height:44px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;
+ font-size:15px;font-weight:800;letter-spacing:1px;color:#2a1c0c;
+ background:linear-gradient(180deg,#ffd870,#dda93c);box-shadow:0 4px 0 #8a6620,0 0 22px rgba(255,200,90,.35);
+ display:inline-flex;align-items:center;justify-content:center;gap:8px;-webkit-appearance:none;appearance:none}
+.play:active{transform:translateY(3px);box-shadow:0 1px 0 #8a6620}
+/* ---------- 底部格栅 + 错误灯 ---------- */
+.grille{height:16px;border-radius:6px;margin-top:14px;
+ background:repeating-linear-gradient(90deg,#120c08 0 5px,#3a2a1c 5px 7px)}
+.err{min-height:16px;font-size:11.5px;color:#ff8f8f;text-align:center;padding-top:9px;letter-spacing:.3px}
+body.loading .reel{animation-duration:.7s}
+body.loading .play{opacity:.75}
+.foot{text-align:center;font-size:10.5px;color:#7a6a55;margin-top:12px}
+@media (max-width:360px){.reel{width:44px;height:44px}.reels{height:44px}.label h1{font-size:14px}}
 </style></head><body>
-<div class="card">
- <div class="icon">📼</div>
- <h2>盲盒歌单</h2>
- <div class="sub">输入账号密码进入</div>
- <form method="POST" action="/api/g-login">
-  <input name="user" placeholder="账号" required>
-  <input name="pass" type="password" placeholder="密码" required>
-  <button class="btn" type="submit">进 入</button>
+<div class="wrap">
+ <form class="deck" method="POST" action="/api/g-login" onsubmit="return checkLogin(this)">
+  <div class="brand"><span class="dot"></span>K·SONG TAPE DECK<span class="sp"></span>█ █ █</div>
+  <div class="cassette">
+   <div class="reels"><i class="reel l"></i><span class="tape"></span><i class="reel r"></i></div>
+   <div class="label">
+    <h1>📼 盲盒歌单</h1>
+    <div class="sub">塞进一盘磁带，输入机主给的账号密码</div>
+    <input id="u" name="user" placeholder="账号" autocomplete="username" autocapitalize="off" spellcheck="false">
+    <input id="p" name="pass" type="password" placeholder="密码" autocomplete="current-password">
+   </div>
+  </div>
+  <div class="keys">
+   <button class="key" type="button" onclick="document.getElementById('u').focus()" title="账号">⏮</button>
+   <button class="play" type="submit">▶&nbsp;&nbsp;播 放</button>
+   <button class="key" type="button" onclick="document.getElementById('p').focus()" title="密码">⏭</button>
+  </div>
+  <div class="grille"></div>
+  <div class="err" id="err">__ERR__</div>
  </form>
- <div class="err">__ERR__</div>
+ <div class="foot">按「播放」进入今日盲盒</div>
 </div>
+<script>
+function checkLogin(f){
+  var u = f.user.value.trim(), p = f.pass.value;
+  var e = document.getElementById('err');
+  if (!u) { e.textContent = '请先填写账号'; f.user.focus(); return false; }
+  if (!p) { e.textContent = '请再填写密码'; f.pass.focus(); return false; }
+  e.textContent = '';
+  document.body.classList.add('loading');
+  return true;
+}
+if (location.search.indexOf('err=1') > -1) document.getElementById('err').textContent = '账号或密码不对，再试一次';
+</script>
 </body></html>'''
 
     def do_GET(self):
@@ -1177,14 +1444,18 @@ body{min-height:100vh;display:flex;align-items:center;justify-content:center;
         if self.path.startswith('/api/download/'):
             # Docker 环境：通过 HTTP 下载文件（Content-Disposition: attachment）
             return self._send_download(self.path[len('/api/download/'):])
+        if self.path == '/g/sw.js':
+            # Service Worker：有了它浏览器才认为本站"可安装"，也能离线打开
+            return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
         if self.path == '/api/g-data':
             vid = self._vid()
             entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(vid)
             sh_dir = load_shares().get('dir') or ''
             comments = comments_of(guest_comments(sh_dir) if sh_dir else {}, vid)
             plays = visitor_plays(sh_dir, vid) if sh_dir else {}
+            bonus, msgs = visitor_grants(sh_dir, vid) if sh_dir else (0, [])
             return self._send(200, {'comments': comments, 'plays': plays,
-                                    'me': visitor_label(vid),
+                                    'me': visitor_label(vid), 'bonus': bonus, 'msgs': msgs,
                                     'unlocked': len(unlocked), 'total': len(entries)})
         if self.path in ('/', '/index.html'):
             # 盲盒端口根路径 → 跳转到盲盒页（避免裸 404 Not Found）
@@ -1242,6 +1513,22 @@ body{min-height:100vh;display:flex;align-items:center;justify-content:center;
         if not self._auth_ok():
             return self._send(401, {'error': '需要登录'})
         vid = self._vid()
+        if self.path == '/api/g-seen':
+            # 访客看过了机主消息 → 标记已读，下次不再重复弹
+            try:
+                p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
+                keys = set(p.get('keys') or [])
+                sh_dir = load_shares().get('dir') or ''
+                if sh_dir and keys:
+                    st, data = visitor_state(sh_dir, vid)
+                    for m in (st.get('msgs') or []):
+                        if (m.get('at', '') + '|' + (m.get('text') or '')) in keys:
+                            m['seen'] = True
+                    data[vid] = st
+                    save_visitors(sh_dir, data)
+            except Exception:
+                pass
+            return self._send(200, {'ok': True})
         if self.path == '/api/g-comment':
             try:
                 p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)))
@@ -1354,6 +1641,13 @@ def main():
     _STATE['lan'] = lan
     port = srv.server_address[1]
     write_instance_file(port)
+    # 升级安全：先把老版本的数据搬过来，再给这个版本留一份快照
+    moved = migrate_legacy_data()
+    snap = snapshot_data()
+    if sys.stdout and (moved or snap):
+        print(f'💾 用户数据已保留（数据目录 {data_root()}）'
+              + (f' · 迁移 {len(moved)} 个文件' if moved else '')
+              + (f' · 已备份 {len(snap)} 个' if snap else ''), flush=True)
     import atexit
     atexit.register(remove_instance_file)
     url = f'http://127.0.0.1:{port}'
