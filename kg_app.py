@@ -91,8 +91,10 @@ def _pick_for_date(entries, day, salt=''):
 
 _VISITOR_FILE = 'guest_visitors.json'
 _VID_RE = re.compile(r'^[A-Za-z0-9_\-]{6,64}$')
-# 内部身份是 'u:账号' / 'v:16位'，带冒号；仅在管理端内部使用（不来自 Cookie）
-_VID_ANY_RE = re.compile(r'^[A-Za-z0-9_\-:]{3,80}$')
+# 内部身份是 'u:账号' / 'v:16位'，带冒号；仅在管理端内部使用（不来自 Cookie）。
+# 账号名可以是中文（如 u:小猫），所以这里不能限 ASCII，只排除空白/引号/斜杠等危险字符
+# （vid 只作访客数据 JSON 的键，不参与文件路径，放宽是安全的）
+_VID_ANY_RE = re.compile(r'^[^\s<>"\'\\/]{3,120}$')
 
 
 def _pick_distinct(pool, seed_base, salt, used, tries=80):

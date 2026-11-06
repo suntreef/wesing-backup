@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.6'
+APP_VERSION = '1.12.7'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2392,6 +2392,13 @@ body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .hrow .d{color:#ffd76a;font-size:12px;font-variant-numeric:tabular-nums;flex:none}
 .hrow .t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .s{color:#8f9aac;font-size:11px;margin-left:auto;flex:none}
+/* 加更行：整体降一点调子 + 小金胶囊，和普通掉落拉开层次但不突兀 */
+.hrow.bonus{background:rgba(255,215,106,.05);border-style:dashed;margin-left:18px}
+.hrow .etag{font-style:normal;font-size:10.5px;font-weight:700;color:#e8c15a;
+ background:rgba(255,215,106,.13);border-radius:999px;padding:2px 8px;margin-left:7px;
+ vertical-align:1px;white-space:nowrap}
+body.light .hrow.bonus{background:rgba(184,134,11,.05)}
+body.light .hrow .etag{color:#9a7b1c;background:rgba(184,134,11,.1)}
 .empty{text-align:center;color:#6b7488;padding:40px 10px;font-size:14px;line-height:2}
 /* 播放条（iOS 毛玻璃迷你播放器，高度恒定不跳动） */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(22,24,36,.78);
@@ -3030,8 +3037,11 @@ const hisList = HISTORY.filter(h => {
 if (!hisList.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
 hisList.forEach(h => {
   const d = document.createElement('div');
-  d.className = 'hrow';
-  d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》${h.festival ? ' 🧧' : ''}</span><span class="s">原唱 ${h.singer || '—'}</span>`;
+  d.className = 'hrow' + (h.festival === '机主加赠' ? ' bonus' : '');
+  /* 加更（机主加赠）用小金色胶囊轻标一下，不抢日历主行 */
+  const tag = h.festival === '机主加赠' ? '<i class="etag">🎁 加更</i>'
+    : (h.festival ? ' 🧧' : '');
+  d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》${tag}</span><span class="s">原唱 ${h.singer || '—'}</span>`;
   his.appendChild(d);
 });
 if (hisList.length < HISTORY.length) {
@@ -3450,7 +3460,9 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
             'locked': locked, 'today': is_today,
             'festival': e.get('_fest') or '',
         })
-    hist = [{'date': h['date'], 'title': h['title'], 'singer': h.get('singer') or ''} for h in history]
+    # uk/festival 必须带上：日历靠 uk 隐藏未拆的今日歌、靠 festival 标「🎁 加更」
+    hist = [{'date': h['date'], 'title': h['title'], 'singer': h.get('singer') or '',
+             'uk': h.get('uk') or '', 'festival': h.get('festival') or ''} for h in history]
     nick = esc(profile.get('nickname', ''))
     unlocked_n = sum(1 for d in data if not d['locked'])
     fest_json = json.dumps(festival, ensure_ascii=False) if festival else 'null'
