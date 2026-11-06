@@ -147,6 +147,32 @@ def visitor_state(share_dir, vid):
     return st, data
 
 
+def _today_str():
+    """今天（测试时可用 KG_FAKE_DATE 替身）。"""
+    return os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
+
+
+def mark_opened(share_dir, vid):
+    """记录"这位访客今天已经开过盒"：换浏览器/清 Cookie 也不会再开一遍。"""
+    st, data = visitor_state(share_dir, vid)
+    opened = st.setdefault('opened', {})
+    opened[_today_str()] = True
+    # 只留最近 120 天，文件不无限膨胀
+    st['opened'] = dict(sorted(opened.items())[-120:])
+    data[vid] = st
+    save_visitors(share_dir, data)
+
+
+def opened_today(share_dir, vid):
+    if not share_dir or not vid:
+        return False
+    try:
+        st, _ = visitor_state(share_dir, vid)
+        return bool((st.get('opened') or {}).get(_today_str()))
+    except Exception:
+        return False
+
+
 def visitor_grants(share_dir, vid):
     """访客身上挂着的「机主加赠」：开盒次数 + 未读消息。"""
     if not vid:
@@ -1482,8 +1508,10 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
             comments = comments_of(guest_comments(sh_dir) if sh_dir else {}, vid)
             plays = visitor_plays(sh_dir, vid) if sh_dir else {}
             bonus, msgs = visitor_grants(sh_dir, vid) if sh_dir else (0, [])
+            was_opened = opened_today(sh_dir, vid)
             return self._send(200, {'comments': comments, 'plays': plays,
                                     'me': visitor_label(vid), 'bonus': bonus, 'msgs': msgs,
+                                    'opened_today': was_opened,
                                     'unlocked': len(unlocked), 'total': len(entries)})
         if self.path in ('/', '/index.html'):
             # 盲盒端口根路径 → 跳转到盲盒页（避免裸 404 Not Found）
@@ -1542,6 +1570,15 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
         if not self._auth_ok():
             return self._send(401, {'error': '需要登录'})
         vid = self._vid()
+        if self.path == '/api/g-open':
+            # 开盒动作落到服务端：换浏览器 / 清 Cookie 也不能把今天的盒再开一遍
+            sh_dir = load_shares().get('dir') or ''
+            try:
+                if sh_dir and vid:
+                    mark_opened(sh_dir, vid)
+            except Exception:
+                pass
+            return self._send(200, {'ok': True})
         if self.path == '/api/g-seen-reply':
             # 访客看过机主的留言回复 → 本地记下即可（服务端只回 ok，避免重复弹）
             return self._send(200, {'ok': True})
