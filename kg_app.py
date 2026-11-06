@@ -940,6 +940,7 @@ class Handler(BaseHTTPRequestHandler):
                 rows.append({'vid': vid, 'name': visitor_label(vid),
                              'start': st.get('start') or '', 'bonus': int(st.get('bonus') or 0),
                              'plays': sum(int(v or 0) for v in (st.get('plays') or {}).values()),
+                             'last': st.get('last') or '',
                              'msgs': len(st.get('msgs') or [])})
             rows.sort(key=lambda x: (-x['bonus'], x['name']))
             return self._send(200, {'visitors': rows, 'total': len(rows)})
@@ -957,6 +958,55 @@ class Handler(BaseHTTPRequestHandler):
                                  'seen': bool(m.get('seen'))})
             rows.sort(key=lambda x: x['at'], reverse=True)
             return self._send(200, {'grants': rows[:50]})
+        if self.path.startswith('/api/visitor-detail'):
+            """管理端：某位访客的完整档案 —— 历史解锁/今日解锁/播放数据/最后播放时间。"""
+            from urllib.parse import urlparse, parse_qs
+            q = parse_qs(urlparse(self.path).query)
+            vid = (q.get('vid') or [''])[0]
+            sh_dir = load_shares().get('dir') or ''
+            if not vid or not sh_dir:
+                return self._send(400, {'error': '缺少访客或分享目录'})
+            st = (visitors(sh_dir) or {}).get(vid)
+            if not isinstance(st, dict):
+                return self._send(404, {'error': '找不到这位访客'})
+            try:
+                entries, _pf, unlocked, history, _tk, today, _fe = blindbox_state(vid)
+            except Exception:
+                entries, unlocked, history, today = [], set(), [], ''
+            # 每个日期内的第几张（节日双倍/机主加更会同日多张）：opened[date] ≥ 序号+1 才算真拆开；
+            # 老访客（没开盒进度记录）按服务端解锁集兜底
+            per_day = {}
+            rows = []
+            for h in history:
+                k = per_day.get(h['date'], 0)
+                per_day[h['date']] = k + 1
+                if st.get('legacy'):
+                    rev = h['uk'] in unlocked
+                else:
+                    rev = int((st.get('opened') or {}).get(h['date']) or 0) >= k + 1
+                rows.append({'date': h['date'], 'title': h.get('title') or '',
+                             'singer': h.get('singer') or '', 'festival': h.get('festival') or '',
+                             'revealed': rev})
+            rows.sort(key=lambda x: x['date'], reverse=True)
+            plays = st.get('plays') if isinstance(st.get('plays'), dict) else {}
+            tmap = {_uk(e): (e.get('title') or '未命名') for e in entries}
+            msgs = st.get('msgs') or []
+            return self._send(200, {
+                'vid': vid, 'name': visitor_label(vid),
+                'start': st.get('start') or '', 'legacy': bool(st.get('legacy')),
+                'bonus': int(st.get('bonus') or 0), 'msgs': len(msgs),
+                'last_msg': (msgs[-1].get('text') or '') if msgs else '',
+                'last_msg_at': (msgs[-1].get('at') or '') if msgs else '',
+                'last_play': st.get('last') or '',
+                'plays_total': sum(int(v or 0) for v in plays.values()),
+                'plays_top': sorted(((tmap.get(uk, uk), int(n or 0)) for uk, n in plays.items()),
+                                    key=lambda x: -x[1])[:8],
+                'today': {'date': today,
+                          'opened_n': int((st.get('opened') or {}).get(today) or 0),
+                          'songs': [{'title': r['title'], 'singer': r['singer'],
+                                     'festival': r['festival']} for r in rows
+                                    if r['date'] == today and r['revealed']]},
+                'history': rows})
         if self.path == '/api/dirs':
             """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
             root = data_root()

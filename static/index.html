@@ -448,7 +448,7 @@ function shareModal(){
         <div id="shQr" style="width:150px;height:150px;flex:none;display:flex;align-items:center;justify-content:center"></div>
         <div style="flex:1;min-width:0;text-align:left">
           <div id="shUrl" style="font-size:12px;color:var(--text2);word-break:break-all;margin-bottom:8px"></div>
-          <button class="btn small" onclick="window.open('/guest','_blank')">👁 打开盲盒页（本机预览）</button>
+          <button class="btn small" onclick="previewGuest()">👁 打开盲盒页（本机预览）</button>
         </div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -565,6 +565,7 @@ async function refreshShare(){
   authFields();
   renderAccounts(s.accounts || []);
   const qr = document.getElementById('shQr'), url = s.guestUrl;
+  window.__guestUrl = url || '';
   if(url && window.qrcode){
     const q = qrcode(0, 'M'); q.addData(url); q.make();
     qr.innerHTML = q.createImgTag(4, 8);
@@ -643,13 +644,88 @@ async function loadVisitors(){
     box.innerHTML = list.length ? list.map(v =>
       `<div style="display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
         <b style="font-size:12px">${esc(v.name)}</b>
-        <span style="font-size:10px;color:var(--text2)">从 ${esc(v.start||'—')} 起 · 听过 ${v.plays||0} 次</span>
-        <span style="margin-left:auto;font-size:10px;color:#ffd76a">加赠 ${v.bonus||0} 次</span>
+        <span style="font-size:10px;color:var(--text2)">从 ${esc(v.start||'—')} 起 · 听过 ${v.plays||0} 次${v.last?(' · 最后 '+esc(v.last)):''}</span>
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex:none">
+          <span style="font-size:10px;color:#ffd76a">加赠 ${v.bonus||0} 次</span>
+          <button class="btn small ghost" style="padding:3px 10px" onclick="visitorDetail('${esc(v.vid)}')">详情</button>
+        </span>
       </div>`).join('')
       : '<div style="color:var(--text2);padding:8px 0">还没有朋友来过（对方打开过一次盲盒页就会出现）</div>';
   }catch(e){
     box.innerHTML = '<div style="color:var(--text2)">名单加载失败</div>';
   }
+}
+function previewGuest(){
+  // 预览走盲盒端口（SW/PWA 只在那边完整），8766 被占才退回本页 /guest
+  window.open(window.__guestUrl || '/guest', '_blank');
+}
+async function visitorDetail(vid){
+  let d;
+  try{
+    d = await (await fetch('/api/visitor-detail?vid=' + encodeURIComponent(vid))).json();
+  }catch(e){ toast('详情加载失败'); return; }
+  if(d && d.error){ toast(d.error); return; }
+  const old = document.getElementById('vdMask'); if(old) old.remove();
+  const m = document.createElement('div'); m.id = 'vdMask';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:center;justify-content:center';
+  const hist = d.history || [];
+  const revealed = hist.filter(h => h.revealed);
+  const todaySongs = (d.today && d.today.songs) || [];
+  const chips = [
+    ['初访', d.start || '—'],
+    ['累计播放', (d.plays_total || 0) + ' 次'],
+    ['最后播放', d.last_play || '—'],
+    ['已拆开', revealed.length + ' / ' + hist.length + ' 首'],
+    ['加赠', (d.bonus || 0) + ' 次'],
+    ['留言', (d.msgs || 0) + ' 条']
+  ];
+  m.innerHTML = '<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;padding:18px 20px">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+      '<div style="font-size:15px;font-weight:700;flex:1;text-align:left">👤 ' + esc(d.name) + ' · 盲盒档案</div>' +
+      '<button class="btn small ghost" style="padding:5px 12px" onclick="document.getElementById(\'vdMask\').remove()">关闭</button>' +
+    '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">' +
+      chips.map(c => '<span style="font-size:11px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--text2)">' +
+        esc(c[0]) + ' <b style="color:var(--text)">' + esc(c[1]) + '</b></span>').join('') +
+    '</div>' +
+    '<div style="text-align:left;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:10px">' +
+      '<div style="font-size:12px;font-weight:700;margin-bottom:4px">📅 今日（' + esc((d.today && d.today.date) || '') + '）</div>' +
+      (todaySongs.length
+        ? '<div style="font-size:12px;line-height:1.9">' + todaySongs.map(s =>
+            '🎵 ' + esc(s.title) + (s.singer ? ' · ' + esc(s.singer) : '') +
+            (s.festival ? ' <span style="color:#ffd76a">[' + esc(s.festival) + ']</span>' : '')).join('<br>') +
+          '</div><div style="font-size:10px;color:var(--text2);margin-top:3px">今日已拆 ' + ((d.today && d.today.opened_n) || 0) + ' 张</div>'
+        : '<div style="font-size:11px;color:var(--text2)">今天还没开盒</div>') +
+    '</div>' +
+    '<div style="text-align:left;margin-bottom:10px">' +
+      '<div style="font-size:12px;font-weight:700;margin-bottom:5px">🗂 解锁历史（新→旧，未拆的不剧透）</div>' +
+      (hist.length ? hist.map(h =>
+        '<div style="display:flex;gap:8px;align-items:center;padding:4px 0;font-size:11.5px;border-bottom:1px dashed var(--line)">' +
+        '<span style="color:var(--text2);flex:none">' + esc((h.date || '').slice(5)) + '</span>' +
+        (h.revealed
+          ? '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎵 ' + esc(h.title) +
+            (h.singer ? ' · ' + esc(h.singer) : '') +
+            (h.festival ? ' <span style="color:#ffd76a">[' + esc(h.festival) + ']</span>' : '') + '</span>'
+          : '<span style="color:var(--text2)">🔒 保密（还没拆）</span>') +
+        '</div>').join('')
+        : '<div style="font-size:11px;color:var(--text2)">还没有掉落记录</div>') +
+    '</div>' +
+    ((d.plays_top && d.plays_top.length)
+      ? '<div style="text-align:left">' +
+        '<div style="font-size:12px;font-weight:700;margin-bottom:5px">🎧 最常播放</div>' +
+        d.plays_top.map(p =>
+          '<div style="display:flex;gap:8px;font-size:11.5px;padding:3px 0">' +
+          '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🎵 ' + esc(p[0]) + '</span>' +
+          '<b style="margin-left:auto;color:#ffd76a;flex:none">' + p[1] + ' 次</b></div>').join('') +
+        '</div>'
+      : '') +
+    (d.last_msg
+      ? '<div style="text-align:left;margin-top:10px;font-size:11px;color:var(--text2)">💬 你最近对ta说：「' + esc(d.last_msg) + '」' +
+        (d.last_msg_at ? ' · ' + esc(d.last_msg_at) : '') + '</div>'
+      : '') +
+  '</div>';
+  m.onclick = e => { if(e.target === m) m.remove(); };
+  document.body.appendChild(m);
 }
 async function sendGrant(){
   const who = document.getElementById('grantWho').value || '*';

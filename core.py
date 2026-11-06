@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.11'
+APP_VERSION = '1.12.12'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -3297,17 +3297,30 @@ function sheetHtml(){
   const ua = navigator.userAgent;
   const isiOS = /iphone|ipad|ipod/i.test(ua);
   const inWx = /MicroMessenger/i.test(ua);
-  const https = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const https = window.isSecureContext;
   if (inWx) return ['⚠️ 微信里装不了', '<p>请点右上角「···」→「在浏览器打开」，再用浏览器安装。</p>', '知道了', false];
   if (isiOS) return ['📲 装到 iPhone / iPad 桌面',
     '<ol><li>用 <b>Safari</b> 打开本页</li><li>点底部「分享」（方框＋向上箭头）</li><li>选「添加到主屏幕」→「添加」</li></ol>',
     '我知道了', false];
   if (installEvt) return ['📲 装到桌面', '<p>点下面的按钮，浏览器会直接弹出安装确认。</p>', '立即安装', true];
-  return ['📲 装到桌面',
-    (https ? '<p>点浏览器右上角菜单（⋮），选「安装应用 / 添加到主屏幕」。</p>'
-           : '<p>当前是 http 局域网地址，浏览器不允许一键安装。两种办法：</p>' +
-             '<ol><li>用 <b>https 域名</b>（反代开启证书）打开本页，回到这再点一次就能一键安装</li>' +
-             '<li>或点浏览器菜单（⋮）→「添加到主屏幕」/「创建快捷方式」，效果一样</li></ol>'),
+  // 一键安装没就绪 → 自动诊断具体卡在哪，给出对应解法（而不是一段笼统教程）
+  let why;
+  const local = location.protocol + '//127.0.0.1:' + (location.port || (location.protocol === 'https:' ? '443' : '80')) + '/guest';
+  if (!https) {
+    why = '<li><b>当前是 http + 局域网 IP</b>，浏览器的安全硬限制：这种地址一律只能创建快捷方式，装不成应用。<br>' +
+          '解法：① 本机直接用 <b>' + local + '</b> 打开（localhost 属于安全地址，能装）；' +
+          '② 朋友要装就给盲盒页配 <b>https 反代</b>（lucky/nginx 挂证书指向本端口），用 https 域名打开本页再点安装</li>';
+  } else {
+    why = '<li>浏览器还没准备好：Service Worker 刚注册（<b>刷新一次页面</b>再点安装就能弹确认框），' +
+          '或者刚才拒绝过安装被 Chrome 限流（等几分钟再试）</li>';
+  }
+  return ['📲 为什么还装不了？',
+    '<p>已自动检查：' +
+    (https ? '✅ 安全地址' : '⚠️ 非安全地址（http + 局域网 IP）') + ' · ' +
+    ('serviceWorker' in navigator ? '✅ 安装服务就绪' : '⚠️ 浏览器太旧不支持') + '</p>' +
+    '<ul style="text-align:left;line-height:1.9">' + why + '</ul>' +
+    '<p style="margin-top:8px">手动路径：浏览器菜单（⋮）→「投放、保存和分享」→「<b>安装页面为应用</b>」；' +
+    '若菜单里只有「创建快捷方式」，就是上面列出的原因——快捷方式只是网页书签，不是应用。</p>',
     '知道了', false];
 }
 function installPwa(){
