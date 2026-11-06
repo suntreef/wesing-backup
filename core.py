@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.7'
+APP_VERSION = '1.12.8'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2286,6 +2286,15 @@ body.light header{background:rgba(247,248,252,.8);border-bottom-color:rgba(0,0,0
 header h1{font-size:19px}
 header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
 header .gold{color:#ffd76a}
+/* 上滑收紧头部：副标题/安装按钮/节日横幅渐隐收起，下滑还原（渐入渐出动效） */
+header h1,header .sub,header .fest-banner,header .pwa-btn{transition:opacity .3s ease,max-height .3s ease,margin .3s ease,transform .3s ease}
+header .sub,header .fest-banner{max-height:110px;overflow:hidden}
+header .pwa-btn{max-height:70px;overflow:hidden}
+body.hcompact header{padding-top:10px;padding-bottom:8px}
+body.hcompact header h1{transform:scale(.93)}
+body.hcompact header .sub,body.hcompact header .fest-banner,body.hcompact header .pwa-btn{opacity:0;max-height:0;margin-top:0;pointer-events:none}
+/* 手机上右上角两个圆钮（主题/消息）是悬浮的，文字留出右侧空间不重叠 */
+@media (max-width:700px){ header{padding-left:14px;padding-right:96px} }
 .fest-banner{display:none;margin-top:10px;font-size:14px;font-weight:700;color:#ffd76a;
  text-shadow:0 0 16px rgba(255,215,106,.5)}
 body.fest .fest-banner{display:block}
@@ -2499,8 +2508,8 @@ body.light .bar button{background:rgba(0,0,0,.06);color:#39414f}
 body.light .bar button:hover{background:rgba(0,0,0,.11)}
 body.light .comment-form input{background:#fff;border-color:#d8dce8;color:#1d2430}
 body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
-/* 消息中心：固定小圆钮（有历史消息才出现）+ 底部抽屉列表 */
-.msg-toggle{position:fixed;top:52px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;
+/* 消息中心：固定小圆钮（有历史消息才出现，和主题按钮并排）+ 底部抽屉列表 */
+.msg-toggle{position:fixed;top:10px;right:52px;z-index:9;width:34px;height:34px;border-radius:50%;
  border:1px solid rgba(255,255,255,.12);background:rgba(30,34,52,.72);color:#e8eaf0;font-size:15px;
  display:none;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;
  -webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -2510,6 +2519,11 @@ body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
 .msg-toggle .mdot{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;
  background:linear-gradient(180deg,#ff7a70,#e64848);color:#fff;font-size:10px;font-weight:800;
  display:none;align-items:center;justify-content:center;padding:0 4px;font-style:normal}
+/* 消息抽屉顶部的小猫：轻浮动动效（原图为静帧，用 CSS 让它"活"起来） */
+.msg-cat{width:118px;margin:-6px auto 4px;border-radius:16px;overflow:hidden;background:#0b0d13;
+ box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.msg-cat img{display:block;width:100%;animation:catFloat 3.4s ease-in-out infinite}
+@keyframes catFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-5px) rotate(-1.2deg)}}
 .mrow{padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.05);
  border-left:3px solid rgba(255,255,255,.16);font-size:13px}
 .mrow.unread{border-left-color:#ffd76a;background:rgba(255,215,106,.08)}
@@ -2628,7 +2642,8 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
 </div>
 <div class="sheet-mask" id="msgSheet" onclick="if(event.target===this)closeSheet('msgSheet')">
  <div class="sheet">
-  <h3>📮 机主的消息</h3>
+  <div class="msg-cat"><img src="data:image/jpeg;base64,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" alt=""></div>
+  <h3>📮 __NICK__ 的消息</h3>
   <div id="msgList" style="max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px"></div>
   <div class="sheet-btns"><button class="sb ghost" onclick="closeSheet('msgSheet')">关闭</button></div>
  </div>
@@ -2656,7 +2671,7 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
  <div class="sec"><h2>🔓 已解锁的歌柜</h2><span>点封面播放 · 全部可反复听</span></div>
  <div class="cabinet" id="cabinet"></div>
 
- <div class="sec"><h2>💬 我的留言</h2><span>仅自己和机主可见</span></div>
+ <div class="sec"><h2>💬 我的留言</h2><span>仅你和 __NICK__ 可见</span></div>
  <div class="comments-sec">
   <div class="comment-form">
    <input class="cname" id="cName" placeholder="你的昵称（默认当前账号）" maxlength="20">
@@ -2670,7 +2685,7 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
  <div class="history" id="history"></div>
 </div>
 <button class="theme-toggle" onclick="toggleTheme()" title="切换主题">🌗</button>
-<button class="msg-toggle" id="msgBtn" onclick="openMsgCenter()" title="机主的消息">📮<b class="mdot" id="msgDot"></b></button>
+<button class="msg-toggle" id="msgBtn" onclick="openMsgCenter()" title="__NICK__ 的消息">📮<b class="mdot" id="msgDot"></b></button>
 <script>
 /* 主题初始化（放在渲染前，避免闪白） */
 try {
@@ -2707,6 +2722,8 @@ function toggleTheme(){
 const $ = s => document.querySelector(s);
 const au = document.getElementById('au');
 let cur = -1;
+/* 机主昵称（JS 里统一用 NICK，文案不再写死"机主"） */
+const NICK = __NICK_JSON__;
 const unlocked = SONGS.filter(s => !s.locked);
 const dateMap = {};
 HISTORY.forEach(h => { dateMap[h.uk] = h; });
@@ -2971,6 +2988,12 @@ function tickCd(){
   document.getElementById('cd').textContent = h + ':' + m + ':' + s;
 }
 tickCd(); setInterval(tickCd, 1000);
+/* 上滑收紧头部（渐入渐出），下滑还原 */
+let hcompact = false;
+addEventListener('scroll', () => {
+  const c = (scrollY || document.documentElement.scrollTop || 0) > 64;
+  if (c !== hcompact) { hcompact = c; document.body.classList.toggle('hcompact', c); }
+}, {passive: true});
 /* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');
 const lockedPool = [];
@@ -3037,9 +3060,9 @@ const hisList = HISTORY.filter(h => {
 if (!hisList.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
 hisList.forEach(h => {
   const d = document.createElement('div');
-  d.className = 'hrow' + (h.festival === '机主加赠' ? ' bonus' : '');
+  d.className = 'hrow' + (h.festival === '加更' ? ' bonus' : '');
   /* 加更（机主加赠）用小金色胶囊轻标一下，不抢日历主行 */
-  const tag = h.festival === '机主加赠' ? '<i class="etag">🎁 加更</i>'
+  const tag = h.festival === '加更' ? '<i class="etag">🎁 加更</i>'
     : (h.festival ? ' 🧧' : '');
   d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》${tag}</span><span class="s">原唱 ${h.singer || '—'}</span>`;
   his.appendChild(d);
@@ -3171,7 +3194,7 @@ function loadComments(){
 function applyBonus(n){
   const btn = document.getElementById('openBtn');
   if (!btn || !n) return;
-  btn.textContent = '开启今日盲盒 · 机主加赠 ' + n + ' 次';
+  btn.textContent = '开启今日盲盒 · ' + NICK + ' 加赠 ' + n + ' 次';
 }
 /* 机主发来的消息：好看的猫弹窗，一条一条弹 */
 let seenNotices = {};
@@ -3194,7 +3217,7 @@ function openMsgCenter(){
     `<div class="mrow${m.seen ? '' : ' unread'}">` +
     `<div class="mt">${m.gift ? '🎁 加赠 ' + m.gift + ' 次 · ' : ''}${esc(m.at || '')}</div>` +
     `<div class="mx">${esc(m.text || '')}</div></div>`).join('')
-    : '<div class="cempty">还没有收到机主的消息</div>';
+    : `<div class="cempty">还没有收到 ${NICK} 的消息</div>`;
   openSheet('msgSheet');
   const unseen = msgHistory.filter(m => !m.seen);
   if (unseen.length) {
@@ -3211,9 +3234,9 @@ function handleNotices(msgs){
     body: JSON.stringify({keys: msgs.map(m => m.at + '|' + (m.text || ''))})}).catch(() => {});
   fresh.forEach((m, i) => {
     seenNotices[m.at + '|' + (m.text || '')] = 1;
-    const gift = m.gift ? '🎁 机主给你加了 <b>' + m.gift + '</b> 次开盒机会' : '';
+    const gift = m.gift ? `🎁 ${NICK} 给你加了 <b>` + m.gift + '</b> 次开盒机会' : '';
     const text = (m.text || '').replace(/</g, '&lt;');
-    setTimeout(() => showCat((gift && text ? gift + '<br>' : gift) + text, '机主留言'), 700 + i * 1400);
+    setTimeout(() => showCat((gift && text ? gift + '<br>' : gift) + text, NICK + '的留言'), 700 + i * 1400);
   });
   try { localStorage.setItem('kgseen', JSON.stringify(seenNotices)); } catch(e){}
 }
@@ -3226,7 +3249,7 @@ function renderComments(comments){
   const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   list.innerHTML = all.length ? all.map(c =>
     `<div class="crow"><div class="cn">${esc(c.name)}</div><div class="ct">${esc(c.text)}</div>` +
-    (c.reply ? `<div class="creply"><b>🐱 机主回复</b>（${esc(c.reply.time)}）：${esc(c.reply.text)}</div>` : '') +
+    (c.reply ? `<div class="creply"><b>🐱 ${NICK} 回复</b>（${esc(c.reply.time)}）：${esc(c.reply.text)}</div>` : '') +
     `<div class="cd">${esc(c.time)}</div></div>`).join('')
     : '<div class="cempty">还没有留言，来抢沙发！</div>';
   checkReplies(all);
@@ -3241,7 +3264,7 @@ function checkReplies(all){
     body: JSON.stringify({keys: fresh.map(c => c.uk + '|' + (c.time || ''))})}).catch(() => {});
   fresh.forEach((c, i) => {
     seenReplies[c.uk + '|' + (c.time || '')] = 1;
-    setTimeout(() => showCat(String(c.reply.text || '').replace(/</g, '&lt;'), '机主回复了你的留言'), 900 + i * 1400);
+    setTimeout(() => showCat(String(c.reply.text || '').replace(/</g, '&lt;'), NICK + '回复了你的留言'), 900 + i * 1400);
   });
   try { localStorage.setItem('kgreplyseen', JSON.stringify(seenReplies)); } catch(e){}
 }
@@ -3293,8 +3316,8 @@ function sheetHtml(){
   return ['📲 装到桌面',
     (https ? '<p>点浏览器右上角菜单（⋮），选「安装应用 / 添加到主屏幕」。</p>'
            : '<p>当前是 http 局域网地址，浏览器不允许一键安装。两种办法：</p>' +
-             '<ol><li>用 <b>https 域名</b>（反代开启证书）打开本页，就能一键安装</li>' +
-             '<li>或点浏览器菜单（⋮）→「添加到主屏幕」，效果一样</li></ol>'),
+             '<ol><li>用 <b>https 域名</b>（反代开启证书）打开本页，回到这再点一次就能一键安装</li>' +
+             '<li>或点浏览器菜单（⋮）→「添加到主屏幕」/「创建快捷方式」，效果一样</li></ol>'),
     '知道了', false];
 }
 function installPwa(){
@@ -3315,9 +3338,11 @@ function sheetAction(){
   }
   closeSheet('installSheet');
 }
-/* 注册 Service Worker：有了它浏览器才把本页当成"可安装的 App" */
+/* 注册 Service Worker：必须挂根路径（scope=/）才能覆盖 /guest，浏览器才认"可安装的 App" */
 if ('serviceWorker' in navigator) {
-  addEventListener('load', () => { navigator.serviceWorker.register('/g/sw.js', {scope: '/g/'}).catch(() => {}); });
+  addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(() => {});
+  });
 }
 /* 已安装（独立窗口运行）则不显示安装按钮 */
 try {
@@ -3472,6 +3497,7 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
            .replace('__DATA__', json.dumps(data, ensure_ascii=False).replace('</', '<\\/'))
            .replace('__HISTORY__', json.dumps(hist, ensure_ascii=False).replace('</', '<\\/'))
            .replace('__NICK__', nick)
+           .replace('__NICK_JSON__', json.dumps(profile.get('nickname', ''), ensure_ascii=False).replace('</', '<\\/'))
            .replace('__UNLOCKED__', str(unlocked_n))
            .replace('__TOTAL__', str(len(data)))
            .replace('__TODAY__', esc(today_date))

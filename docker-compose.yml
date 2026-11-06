@@ -9,4 +9,6 @@ services:
       - "8766:8766"    # 盲盒页（分享给朋友）
     volumes:
       - "./backups:/data"
+    environment:
+      - TZ=Asia/Shanghai   # 容器默认 UTC，不设时区掉落日期/消息时间会差 8 小时
     restart: unless-stopped

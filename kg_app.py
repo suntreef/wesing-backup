@@ -307,7 +307,7 @@ def blindbox_state(vid=None):
             today_keys.add(_uk(pick))
             history.append({'date': today, 'title': pick.get('title') or '',
                             'singer': pick.get('singer_name') or '', 'uk': _uk(pick),
-                            'festival': '机主加赠'})
+                            'festival': '加更'})
     return entries, profile, unlocked, history, today_keys, today, festival
 
 
@@ -1518,8 +1518,9 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
         if self.path.startswith('/api/download/'):
             # Docker 环境：通过 HTTP 下载文件（Content-Disposition: attachment）
             return self._send_download(self.path[len('/api/download/'):])
-        if self.path == '/g/sw.js':
-            # Service Worker：有了它浏览器才认为本站"可安装"，也能离线打开
+        if self.path in ('/sw.js', '/g/sw.js'):
+            # SW 必须挂在根路径（scope=/）才能覆盖 /guest，浏览器才认"可安装的 PWA"；
+            # /g/sw.js 保留兼容旧页面
             return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
         if self.path == '/api/g-data':
             vid = self._vid()
