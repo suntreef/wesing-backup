@@ -1050,6 +1050,22 @@ def _quit():
     os._exit(0)
 
 
+# 盲盒端口登录会话：token -> {'user': 账号名, 'exp': 过期时间}
+_g_sessions = {}
+_G_SESS_TTL = 7 * 86400
+
+
+def _create_g_session(user):
+    import secrets as _sec
+    token = _sec.token_hex(32)
+    # 顺手清掉过期会话，避免长期运行内存膨胀
+    now = time.time()
+    for k in [k for k, v in _g_sessions.items() if v.get('exp', 0) < now]:
+        _g_sessions.pop(k, None)
+    _g_sessions[token] = {'user': user, 'exp': now + _G_SESS_TTL}
+    return token
+
+
 class GuestHandler(Handler):
     """独立盲盒端口：只提供 /guest 与 /g/*，不暴露任何管理功能。"""
 
@@ -1059,7 +1075,16 @@ class GuestHandler(Handler):
         mode = cfg.get('mode') or 'none'
         if mode == 'none':
             return True
-        # 账号存在 shares.json 顶层 accounts（旧版误从 auth 节点读取导致永远 401）
+        # 先看登录会话 Cookie（自定义登录页签发的，浏览器弹窗体验差已被弃用）
+        for part in (self.headers.get('Cookie') or '').split(';'):
+            k, _, v = part.strip().partition('=')
+            if k == 'kg_sess' and v in _g_sessions:
+                sess = _g_sessions[v]
+                if sess.get('exp', 0) > time.time():
+                    self._auth_user = sess.get('user') or ''
+                    return True
+                _g_sessions.pop(v, None)  # 过期即清
+        # 兼容旧的 HTTP Basic Auth（收藏链接里可能带着）
         accounts = sh.get('accounts') or []
         import base64
         auth = self.headers.get('Authorization') or ''
@@ -1106,13 +1131,49 @@ class GuestHandler(Handler):
         self._vid_cache = vid
         return vid
 
+    _login_html = '''<!DOCTYPE html>
+<html lang="zh-cn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 · 盲盒歌单</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+ background:radial-gradient(600px 500px at 50% 30%,#1d1a33,#0f1220 70%);
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.card{width:min(340px,90vw);text-align:center;padding:36px 28px;border-radius:22px;
+ background:linear-gradient(180deg,#2a2140,#1a1530);border:1px solid #3a2d5e;
+ box-shadow:0 0 40px rgba(124,77,255,.2),0 20px 60px rgba(0,0,0,.5)}
+.card .icon{font-size:52px;margin-bottom:12px}
+.card h2{font-size:18px;color:#fff;margin-bottom:4px}
+.card .sub{color:#8f9aac;font-size:12px;margin-bottom:22px}
+.card input{width:100%;padding:12px 14px;margin-bottom:12px;border-radius:12px;border:1px solid #3a2d5e;
+ background:#0f0d1a;color:#eee;font-size:14px;outline:none;transition:.15s;text-align:center}
+.card input:focus{border-color:#7c4dff;box-shadow:0 0 0 3px rgba(124,77,255,.2)}
+.card .btn{width:100%;padding:13px;border:none;border-radius:12px;
+ background:linear-gradient(180deg,#7c4dff,#5a2d9e);color:#fff;font-size:15px;font-weight:700;
+ cursor:pointer;font-family:inherit;margin-top:4px}
+.card .err{color:#ff6b6b;font-size:12px;margin-top:8px;min-height:16px}
+</style></head><body>
+<div class="card">
+ <div class="icon">📼</div>
+ <h2>盲盒歌单</h2>
+ <div class="sub">输入账号密码进入</div>
+ <form method="POST" action="/api/g-login">
+  <input name="user" placeholder="账号" required>
+  <input name="pass" type="password" placeholder="密码" required>
+  <button class="btn" type="submit">进 入</button>
+ </form>
+ <div class="err">__ERR__</div>
+</div>
+</body></html>'''
+
     def do_GET(self):
+        # 访客认证：页面请求返回自定义登录页（不用浏览器原生弹窗），接口返回 JSON
         if not self._auth_ok():
-            self.send_response(401)
-            self.send_header('WWW-Authenticate', 'Basic realm="KG Blindbox"')
-            self.send_header('Content-Length', '0')
-            self.end_headers()
-            return
+            if self.path.startswith('/api/') or self.path.startswith('/g/'):
+                return self._send(403, {'error': '需要登录', 'login': True})
+            html = self._login_html.replace('__ERR__', '')
+            return self._send(200, html.encode(), 'text/html; charset=utf-8')
         if self.path.startswith('/api/download/'):
             # Docker 环境：通过 HTTP 下载文件（Content-Disposition: attachment）
             return self._send_download(self.path[len('/api/download/'):])
@@ -1142,6 +1203,42 @@ class GuestHandler(Handler):
         return self._send(404, b'not found', 'text/plain; charset=utf-8')
 
     def do_POST(self):
+        if self.path == '/api/g-login':
+            # 自定义登录页提交：校验账号 → 种会话 Cookie → 回盲盒页
+            try:
+                raw = self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8')
+                from urllib.parse import parse_qs
+                qs = parse_qs(raw)
+                user = (qs.get('user') or [''])[0].strip()
+                pwd = (qs.get('pass') or [''])[0]
+            except Exception:
+                return self._send(400, {'error': '请求格式错误'})
+            sh = load_shares()
+            cfg = sh.get('auth') or {}
+            mode = cfg.get('mode') or 'none'
+            accounts = sh.get('accounts') or []
+            ok = False
+            for acc in accounts:
+                if acc.get('disabled'):
+                    continue
+                if acc.get('user') != user:
+                    continue
+                # 仅账号模式：只校验用户名；账号+密码模式：两者都校验
+                if mode == 'user' or acc.get('pass') == pwd:
+                    ok = True
+                    break
+            if ok and mode != 'none':
+                token = _create_g_session(user)
+                self.send_response(303)
+                self.send_header('Location', '/guest')
+                self.send_header('Set-Cookie',
+                                 f'kg_sess={token}; Path=/; Max-Age={_G_SESS_TTL}; SameSite=Lax')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+            # 登录失败：回到登录页并提示
+            html = self._login_html.replace('__ERR__', '账号或密码错误，请重试')
+            return self._send(200, html.encode(), 'text/html; charset=utf-8')
         if not self._auth_ok():
             return self._send(401, {'error': '需要登录'})
         vid = self._vid()
