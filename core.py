@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.2'
+APP_VERSION = '1.12.3'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -667,9 +667,10 @@ header{position:sticky;top:0;z-index:9;padding:18px 24px 10px;background:rgba(17
  backdrop-filter:blur(6px);border-bottom:1px solid #2a2f36}
 .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 h1{margin:0;font-size:22px}
-.seg{display:inline-flex;background:#1a1f26;border-radius:999px;padding:4px;gap:4px;margin-left:auto;
+.seg{display:inline-flex;align-items:center;background:#1a1f26;border-radius:999px;padding:4px;gap:4px;margin-left:auto;
  overflow-x:auto;max-width:100%}
-.seg button{border:none;background:none;color:#9aa3ad;padding:7px 16px;border-radius:999px;font-size:13px;cursor:pointer;transition:.2s;white-space:nowrap}
+.seg button{border:none;background:none;color:#9aa3ad;padding:7px 16px;border-radius:999px;font-size:13px;cursor:pointer;transition:.2s;white-space:nowrap;
+ display:inline-flex;align-items:center;justify-content:center;gap:5px;line-height:1;vertical-align:middle}
 .seg button.on{background:#ffd76a;color:#111;font-weight:700}
 .meta{color:#9aa3ad;font-size:13px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px}
 #q{padding:7px 12px;border-radius:8px;border:1px solid #3a4149;background:#1b2026;color:#eee;width:min(200px,38vw)}
@@ -734,7 +735,13 @@ body:not(.vgrid) #fab{display:inline-flex}
 body:not(.vgrid) #cdCtrls{display:flex}
 .lyrics{flex:1;overflow-y:auto;text-align:center;scroll-behavior:smooth;
  -webkit-mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent);
- mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent)}
+ mask-image:linear-gradient(transparent,#fff 14%,#fff 86%,transparent);
+ scrollbar-width:thin;scrollbar-color:rgba(255,215,106,.3) transparent}
+/* 细滚动条：平时几乎隐形， hover 才明显 */
+.lyrics::-webkit-scrollbar{width:5px}
+.lyrics::-webkit-scrollbar-track{background:transparent}
+.lyrics::-webkit-scrollbar-thumb{background:rgba(255,215,106,.22);border-radius:5px}
+.lyrics::-webkit-scrollbar-thumb:hover{background:rgba(255,215,106,.4)}
 .lyrics p{padding:9px 4px;color:#5c6675;font-size:15px;transition:all .25s}
 .lyrics p.on{color:#ffd76a;font-size:18px;font-weight:600;text-shadow:0 0 18px rgba(255,215,106,.35)}
 .ctrl{display:flex;align-items:center;gap:14px;padding:10px 2px 4px}
@@ -964,38 +971,60 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   #cdCtrls{display:none!important}   /* 手机不显示键盘快捷键说明 */
   .ctrl{flex-wrap:wrap;justify-content:center}
   .ctrl .jsSeek{min-width:96px;order:-1;flex:1 1 100%}
-  .vmain{padding:2px 12px 0}
+  /* 目录卡片两边留出呼吸感，别顶到屏幕边 */
+  .grid{padding:20px 22px;gap:14px}
+  .card{max-width:460px;margin:0 auto;width:100%}
+  /* 黑胶：唱片往下沉一点，别顶着头部 */
+  .vmain{padding:28px 14px 0}
+  .cdwrap{margin-top:6px}
 }
-/* 点唱机：手机上按比例缩小，按钮排三列，绝不撑破机身 */
+/* 卡座表头（L 表+计时器+R 表）在窄屏也要一行放下 */
+@media (max-width:600px){
+  .tape-meters{gap:10px}
+  .vu{flex:1;min-width:0}
+  .vu-gauge{width:100%;max-width:130px;height:48px}
+  .led{flex:none;font-size:18px;padding:8px 12px;letter-spacing:2px}
+}
+/* 点唱机：手机上整体收小一号，绝不撑满全屏 */
 @media (max-width:560px){
-  #skinJuke{padding:14px 8px calc(12px + env(safe-area-inset-bottom))}
-  .juke{width:min(430px,96vw)}
-  .jk-cab{padding:22px 16px 16px;border-radius:150px 150px 16px 16px / 108px 108px 16px 16px}
-  .jk-arch{height:120px}
-  .jk-logo{font-size:11px;letter-spacing:5px;margin:2px 0 12px}
-  .jk-window{padding:14px}
-  .jk-disc{width:min(170px,46vw);height:min(170px,46vw)}
-  .jk-disc img{width:72px;height:72px;margin:-36px}
-  .jk-btns{grid-template-columns:repeat(3,1fr);gap:7px;width:94%;margin-top:14px}
-  .jkb{padding:8px 0;font-size:11px}
-  .jk-strip{font-size:13px;padding:7px 10px}
-  .jk-strip2{font-size:11px}
-  .jk-grille{height:26px;margin-top:11px}
-  .jk-panel{gap:12px;margin-top:14px}
-  .jk-ctrl{width:42px;height:42px;font-size:14px}
-  .jk-play{width:56px;height:56px;font-size:18px}
-  .jk-lights{margin-top:12px;gap:8px}
+  #skinJuke{padding:12px 8px calc(12px + env(safe-area-inset-bottom))}
+  .juke{width:min(340px,86vw)}
+  .jk-cab{padding:18px 14px 14px;border-radius:120px 120px 14px 14px / 88px 88px 14px 14px}
+  .jk-arch{height:96px}
+  .jk-logo{font-size:10px;letter-spacing:4px;margin:2px 0 10px}
+  .jk-window{padding:11px;border-radius:12px}
+  .jk-disc{width:min(136px,36vw);height:min(136px,36vw)}
+  .jk-disc img{width:58px;height:58px;margin:-29px}
+  .jk-strips{margin:12px auto 2px;width:94%}
+  .jk-btns{grid-template-columns:repeat(3,1fr);gap:6px;width:94%;margin-top:12px}
+  .jkb{padding:7px 0;font-size:11px;border-radius:7px}
+  .jk-strip{font-size:12px;padding:6px 9px}
+  .jk-strip2{font-size:10.5px;padding:4px 9px}
+  .jk-grille{height:22px;margin-top:9px}
+  .jk-panel{gap:10px;margin-top:12px}
+  .jk-ctrl{width:40px;height:40px;font-size:13px}
+  .jk-play{width:52px;height:52px;font-size:17px}
+  .jk-lights{margin-top:10px;gap:7px}
+  .jk-lights i{width:7px;height:7px}
 }
 @media (max-width:420px){
   .seg button{padding:5px 8px;font-size:11px}
   .seg{gap:2px}
   h1{font-size:16px}
-  .tape-body{padding:14px 12px 16px}
-  .tape-window{gap:14px;height:126px}
-  .reel{width:86px;height:86px}
-  .tape-link{width:74px}
+  /* 卡座：L 表 + 计时器 + R 表 一行完整放下，不再被裁掉 */
+  .tape-body{padding:14px 12px 16px;width:min(680px,96vw)}
+  .tape-window{gap:14px;height:118px}
+  .reel{width:80px;height:80px}
+  .tape-link{width:66px}
+  .tape-meters{gap:8px;margin:12px 2px 4px}
+  .vu{flex:1;min-width:0}
+  .vu-gauge{width:100%;max-width:120px;height:44px}
+  .led{flex:none;font-size:16px;padding:8px 10px;letter-spacing:2px}
+  .tkey{min-width:0;flex:1;padding:10px 6px;font-size:12px;letter-spacing:1px}
+  .tape-keys{gap:8px}
   .lyrics{min-height:170px}
-  .jk-cab{padding:18px 12px 14px}
+  .jk-cab{padding:14px 12px 12px}
+  .grid{padding:18px 16px}
 }
 
 </style></head><body data-view="grid">
@@ -2370,6 +2399,11 @@ body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .crow .cn{font-size:12px;font-weight:700;color:#ffd76a}
 .crow .ct{font-size:13px;color:#cfd6dd;margin-top:3px;word-break:break-all}
 .crow .cd{font-size:10px;color:#6b7488;margin-top:3px}
+/* 机主回复（跟随原留言展示给这位访客） */
+.crow .creply{margin:7px 0 2px;padding:7px 10px;border-left:3px solid #ffd76a;
+ background:rgba(255,215,106,.09);border-radius:0 9px 9px 0;font-size:12px;line-height:1.6;color:#e8eaf0;word-break:break-all}
+.crow .creply b{color:#ffd76a;font-size:11px}
+body.light .crow .creply{background:rgba(184,134,11,.08);color:#1d2430}
 .cempty{color:#6b7488;text-align:center;padding:20px;font-size:13px}
 /* 最新收录 */
 .latest-sec{margin:26px 0 14px;display:flex;align-items:baseline;gap:10px}
@@ -2505,7 +2539,7 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
 <canvas id="fx"></canvas>
 <header>
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
- <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
+ <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold" id="unlockedN">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
  <div class="fest-banner" id="festBanner"></div>
  <button class="pwa-btn" id="pwaBtn" onclick="installPwa()">📲 安装到桌面，每天回来开盲盒</button>
 </header>
@@ -2687,6 +2721,13 @@ let glrc = [], glrcOn = -1;
 const todaySongs = SONGS.filter(s => s.today);
 let revealed = false, opening = false;
 try { revealed = localStorage.getItem('kgreveal_' + '__TODAY__') === '1'; } catch(e){}
+/* 开盒前：今日歌不算进"已解锁"，也不出现在任何列表里（不剧透） */
+function hiddenTodayCount(){ return revealed ? 0 : todaySongs.filter(s => s.locked).length; }
+function refreshUnlockedCount(){
+  const el = document.getElementById('unlockedN');
+  if (el) el.textContent = Math.max(0, unlocked.length - hiddenTodayCount());
+}
+refreshUnlockedCount();
 function reveal(){
   if (opening) return;  // 仪式进行中防连点
   if (revealed) { playSong(SONGS.indexOf(todaySongs[0])); return; }
@@ -2733,9 +2774,27 @@ function reveal(){
         `<button class="rev-play" onclick="${playIt}">▶&nbsp; 播放</button>`;
       area.appendChild(card);
     });
+    mountTodayCards();
     unlockCardUi();
+    refreshUnlockedCount();
     opening = false;
   }, 1350);
+}
+/* 开盒后才把今日歌挂进歌柜（开盒前完全不渲染，避免剧透） */
+function mountTodayCards(){
+  todaySongs.slice().reverse().forEach(s => {
+    if (document.querySelector('.item[data-uk="' + s.uk + '"]')) return;
+    const d = document.createElement('div');
+    d.className = 'item';
+    d.dataset.uk = s.uk;
+    d.innerHTML = `<img src="${s.cover || ''}" alt="" loading="lazy">` +
+      (s.today ? '<div class="tag">今日</div>' : '') +
+      (s.festival ? '<div class="ftag">🧧</div>' : '') +
+      `<div class="nm">${s.seq}. ${s.title}</div><div class="dt">${s.time}</div>` +
+      (dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
+    d.onclick = () => playSong(SONGS.indexOf(s));
+    cab.prepend(d);
+  });
 }
 function unlockCardUi(){
   todaySongs.forEach(s => {
@@ -2775,8 +2834,8 @@ recent.forEach(s => {
 });
 
 SONGS.forEach(s => {
-  const hide = s.locked || (s.today && !revealed);  // 今日歌开盒前保持神秘
-  const d = document.createElement('div');
+  if (s.today && s.locked) return;  // 今日歌开盒前完全不渲染（不占歌柜、不进神秘卡）
+  const hide = s.locked;  const d = document.createElement('div');
   d.className = 'item' + (hide ? ' locked' : '');
   d.dataset.uk = s.uk;
   d.innerHTML = `<img src="${hide ? '' : (s.cover || '')}" alt="" ${hide ? '' : 'loading="lazy"'}>` +
@@ -2815,15 +2874,22 @@ if (lockedPool.length > 8) {
 } else {
   lockedPool.slice(0, 8).forEach(el => cab.appendChild(el));
 }
-/* 掉落日历 */
+/* 掉落日历（今天这条开盒前先保密） */
 const his = document.getElementById('history');
-if (!HISTORY.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
-HISTORY.forEach(h => {
+const hisList = HISTORY.filter(h => revealed || !todaySongs.some(t => t.uk === h.uk));
+if (!hisList.length) his.innerHTML = '<div class="empty">盲盒从今天开始掉落 🎉 明天再来开新的！</div>';
+hisList.forEach(h => {
   const d = document.createElement('div');
   d.className = 'hrow';
   d.innerHTML = `<span class="d">${h.date.slice(5)}</span><span class="t">《${h.title}》${h.festival ? ' 🧧' : ''}</span><span class="s">原唱 ${h.singer || '—'}</span>`;
   his.appendChild(d);
 });
+if (hisList.length < HISTORY.length) {
+  const d = document.createElement('div');
+  d.className = 'hrow';
+  d.innerHTML = `<span class="d">${'__TODAY__'.slice(5)}</span><span class="t">开盒后揭晓 🔒</span><span class="s">今天的歌还在盒子里</span>`;
+  his.appendChild(d);
+}
 /* 播放条 */
 let listenTimer = null, listenSec = 0, countedUk = '';
 /* 收听满 30s 静默计入统计，不再弹出任何提示 */
@@ -2922,8 +2988,10 @@ if (revealed && todaySongs.length) {
       `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time}</div>` +
       `<button class="rev-play" onclick="${playIt}">▶&nbsp; 播放</button>`;
     area.appendChild(card);
-    unlockCardUi();
   });
+  mountTodayCards();
+  unlockCardUi();
+  refreshUnlockedCount();
 }
 
 /* ============ 留言板 + 播放统计（播放次数按访客各算各的） ============ */
@@ -2965,9 +3033,27 @@ function renderComments(comments){
   const all = [];
   for (const uk in comments) { for (const c of comments[uk]) all.push({...c, uk}); }
   all.sort((a, b) => b.time.localeCompare(a.time));
+  const esc = t => String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   list.innerHTML = all.length ? all.map(c =>
-    `<div class="crow"><div class="cn">${c.name}</div><div class="ct">${c.text}</div><div class="cd">${c.time}</div></div>`).join('')
+    `<div class="crow"><div class="cn">${esc(c.name)}</div><div class="ct">${esc(c.text)}</div>` +
+    (c.reply ? `<div class="creply"><b>🐱 机主回复</b>（${esc(c.reply.time)}）：${esc(c.reply.text)}</div>` : '') +
+    `<div class="cd">${esc(c.time)}</div></div>`).join('')
     : '<div class="cempty">还没有留言，来抢沙发！</div>';
+  checkReplies(all);
+}
+/* 机主的新回复 → 猫弹窗（看过就不再弹） */
+let seenReplies = {};
+try { seenReplies = JSON.parse(localStorage.getItem('kgreplyseen') || '{}'); } catch(e){}
+function checkReplies(all){
+  const fresh = all.filter(c => c.reply && !seenReplies[c.uk + '|' + (c.time || '')]);
+  if (!fresh.length) return;
+  fetch('/api/g-seen-reply', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({keys: fresh.map(c => c.uk + '|' + (c.time || ''))})}).catch(() => {});
+  fresh.forEach((c, i) => {
+    seenReplies[c.uk + '|' + (c.time || '')] = 1;
+    setTimeout(() => showCat(String(c.reply.text || '').replace(/</g, '&lt;'), '机主回复了你的留言'), 900 + i * 1400);
+  });
+  try { localStorage.setItem('kgreplyseen', JSON.stringify(seenReplies)); } catch(e){}
 }
 function submitComment(){
   const text = document.getElementById('cText').value.trim();

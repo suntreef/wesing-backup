@@ -527,6 +527,19 @@ def add_guest_comment(share_dir, uk, name, text, vid=''):
     _save_json_safe(path, data)
 
 
+def reply_guest_comment(share_dir, uk, ctime, text):
+    """管理员回复某条留言：按 uk+时间定位，回复随原留言一起展示给这位访客。"""
+    path = _guest_data_file(share_dir, 'guest_comments.json')
+    data = _load_json_safe(path)
+    for c in (data.get(uk) or []):
+        if (c.get('time') or '') == ctime:
+            c['reply'] = {'text': str(text)[:300],
+                          'time': time.strftime('%Y-%m-%d %H:%M')}
+            _save_json_safe(path, data)
+            return True
+    return False
+
+
 def guest_plays(share_dir):
     """旧版全局播放次数（迁移前的数据，仍参与总量统计）。"""
     return _load_json_safe(_guest_data_file(share_dir, 'guest_plays.json'))
@@ -1028,6 +1041,21 @@ class Handler(BaseHTTPRequestHandler):
             job.paused = bool(p.get('paused'))
             job.log('⏸ 已暂停（进度保留，点“继续”接着跑）' if job.paused else '▶ 继续备份')
             return self._send(200, {'ok': True, 'paused': job.paused})
+        if self.path == '/api/comment-reply':
+            """管理端：回复朋友的一条留言（对方在自己的留言列表里能看到机主回复）。"""
+            p = self._body()
+            sh_dir = load_shares().get('dir') or ''
+            if not sh_dir:
+                return self._send(400, {'error': '还没设置分享目录'})
+            uk = str(p.get('uk') or '')
+            ctime = str(p.get('time') or '')
+            text = str(p.get('text') or '').strip()
+            if not uk or not ctime or not text:
+                return self._send(400, {'error': '缺少留言定位信息或回复内容'})
+            ok = reply_guest_comment(sh_dir, uk, ctime, text)
+            if not ok:
+                return self._send(404, {'error': '找不到这条留言（可能已被删除）'})
+            return self._send(200, {'ok': True})
         if self.path == '/api/grant':
             """管理端：给盲盒用户加开盒次数 + 发送一条消息（对方打开就弹猫提醒）。"""
             p = self._body()
@@ -1096,8 +1124,8 @@ class Handler(BaseHTTPRequestHandler):
                     new_user = str(acc.get('user')).strip()
                     orig_user = str(acc.get('orig_user') or '').strip() or new_user
                     fields = {'user': new_user, 'note': str(acc.get('note') or '')}
-                    if str(acc.get('pass') or ''):  # 留空 = 保持原密码
-                        fields['pass'] = str(acc.get('pass'))
+                    # 密码随填随存：留空 = 清除密码（这个账号变成免密账号）
+                    fields['pass'] = str(acc.get('pass') or '')
                     if 'disabled' in acc:
                         fields['disabled'] = bool(acc.get('disabled'))
                     existing = [a for a in accounts if a.get('user') == orig_user]
@@ -1405,9 +1433,9 @@ body.loading .play{opacity:.75}
    <div class="reels"><i class="reel l"></i><span class="tape"></span><i class="reel r"></i></div>
    <div class="label">
     <h1>📼 盲盒歌单</h1>
-    <div class="sub">塞进一盘磁带，输入机主给的账号密码</div>
+    <div class="sub">塞进一盘磁带 · 有密码的输密码，免密账号密码留空</div>
     <input id="u" name="user" placeholder="账号" autocomplete="username" autocapitalize="off" spellcheck="false">
-    <input id="p" name="pass" type="password" placeholder="密码" autocomplete="current-password">
+    <input id="p" name="pass" type="password" placeholder="密码（免密账号留空）" autocomplete="current-password">
    </div>
   </div>
   <div class="keys">
@@ -1425,7 +1453,7 @@ function checkLogin(f){
   var u = f.user.value.trim(), p = f.pass.value;
   var e = document.getElementById('err');
   if (!u) { e.textContent = '请先填写账号'; f.user.focus(); return false; }
-  if (!p) { e.textContent = '请再填写密码'; f.pass.focus(); return false; }
+  /* 密码可以留空：免密账号只输账号就能进；设了密码的账号留空会被拦下并提示 */
   e.textContent = '';
   document.body.classList.add('loading');
   return true;
@@ -1494,8 +1522,9 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
                     continue
                 if acc.get('user') != user:
                     continue
-                # 仅账号模式：只校验用户名；账号+密码模式：两者都校验
-                if mode == 'user' or acc.get('pass') == pwd:
+                # 密码按账号各管各的：没设密码的账号只输账号就能进；设了密码必须对上
+                acc_pass = str(acc.get('pass') or '')
+                if mode == 'user' or not acc_pass or acc_pass == pwd:
                     ok = True
                     break
             if ok and mode != 'none':
@@ -1513,6 +1542,9 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
         if not self._auth_ok():
             return self._send(401, {'error': '需要登录'})
         vid = self._vid()
+        if self.path == '/api/g-seen-reply':
+            # 访客看过机主的留言回复 → 本地记下即可（服务端只回 ok，避免重复弹）
+            return self._send(200, {'ok': True})
         if self.path == '/api/g-seen':
             # 访客看过了机主消息 → 标记已读，下次不再重复弹
             try:

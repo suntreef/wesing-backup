@@ -434,13 +434,13 @@ function shareModal(){
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:8px">
         <select id="shAuthMode" onchange="authFields()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
           <option value="none">无需验证</option>
-          <option value="user">仅账号</option>
-          <option value="userpass">账号+密码</option>
+          <option value="user">仅账号（全部免密）</option>
+          <option value="userpass">账号登录（密码按账号可选）</option>
         </select>
         <button class="btn small" onclick="saveAuth()">保存模式</button>
         <span id="shAuthAdd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="shAuthUser" placeholder="新账号" style="width:100px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
-          <input id="shAuthPass" type="password" placeholder="密码（仅账号+密码模式）" style="width:130px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+          <input id="shAuthPass" type="password" placeholder="密码（留空=免密账号）" style="width:150px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
           <span style="font-size:11px;color:var(--text2)">填了账号会一并添加</span>
         </span>
       </div>
@@ -559,11 +559,28 @@ async function loadShComments(){
           <span style="font-size:10px;color:var(--text2);margin-left:auto">${esc(c.time)}</span>
         </div>
         <div style="margin-top:3px;word-break:break-all">${esc(c.text)}</div>
+        ${c.reply ? `<div style="margin-top:5px;padding:6px 9px;border-left:3px solid #ffd76a;background:rgba(255,215,106,.08);border-radius:0 8px 8px 0;font-size:12px">
+          <b style="color:#ffd76a">🐱 机主回复</b>（${esc(c.reply.time||'')}）：${esc(c.reply.text||'')}</div>` : ''}
+        ${c.reply ? '' : `<div style="display:flex;gap:6px;margin-top:6px">
+          <input class="cmt-reply" data-uk="${esc(c.uk)}" data-time="${esc(c.time)}" placeholder="回复这条留言…" maxlength="300"
+            style="flex:1;min-width:120px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg,transparent);color:var(--text);font-size:12px">
+          <button class="btn small" style="padding:5px 12px;font-size:11px" onclick="sendReply(this)">回复</button>
+        </div>`}
       </div>`).join('')
       : '<div style="color:var(--text2);padding:10px 0">还没有朋友留言</div>';
   }catch(e){
     box.innerHTML = '<div style="color:var(--text2)">留言加载失败</div>';
   }
+}
+async function sendReply(btn){
+  const inp = btn.parentElement.querySelector('.cmt-reply');
+  const text = (inp.value || '').trim();
+  if(!text){ inp.focus(); return; }
+  const r = await fetch('/api/comment-reply', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({uk: inp.dataset.uk, time: inp.dataset.time, text: text})});
+  const j = await r.json().catch(()=>({}));
+  if(j.ok){ toast('回复已发出，朋友下次打开就能看到'); loadShComments(); }
+  else alert(j.error || '回复失败');
 }
 /* ---------- 给朋友加开盒次数 / 发消息 ---------- */
 function toast(msg){
@@ -618,7 +635,7 @@ function renderAccounts(accounts){
   el.innerHTML = accounts.map((a,i)=>`
     <div data-i="${i}" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:6px 0;border-bottom:1px dashed var(--track)">
       <input class="acc-user" value="${esc(a.user)}" placeholder="用户名" style="width:96px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
-      <input class="acc-pass" type="password" value="${esc(a.pass||'')}" placeholder="密码" style="width:96px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+      <input class="acc-pass" type="password" value="${esc(a.pass||'')}" placeholder="密码（留空=免密）" style="width:110px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
       <input class="acc-note" value="${esc(a.note||'')}" placeholder="备注（如：张三·手机）" style="flex:1;min-width:110px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
       <label style="font-size:11px;display:inline-flex;align-items:center;gap:4px;white-space:nowrap">
         <input type="checkbox" class="acc-en" ${a.disabled?'':'checked'}>启用</label>
@@ -655,7 +672,8 @@ function authFields(){
   const mode = document.getElementById('shAuthMode').value;
   // 只隐藏账号输入行，保存模式按钮必须常显（否则切回「无需验证」后无法保存）
   document.getElementById('shAuthAdd').style.display = mode === 'none' ? 'none' : 'inline-flex';
-  document.getElementById('shAuthPass').style.display = mode === 'userpass' ? 'inline-block' : 'none';
+  // 密码按账号各管各的：留空 = 这个账号免密，所以两种模式下都允许填
+  document.getElementById('shAuthPass').style.display = 'inline-block';
 }
 async function saveBase(){
   const base = document.getElementById('shBase').value.trim();
