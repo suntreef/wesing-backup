@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.8'
+APP_VERSION = '1.12.9'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2279,20 +2279,29 @@ body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);colo
  overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
 button{touch-action:manipulation}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
-header{position:sticky;top:0;z-index:9;text-align:center;padding:22px 16px 12px;background:rgba(15,18,32,.72);
+header{position:sticky;top:0;z-index:9;text-align:left;padding:13px 18px 11px;background:rgba(15,18,32,.78);
  backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
  border-bottom:1px solid rgba(255,255,255,.07)}
-body.light header{background:rgba(247,248,252,.8);border-bottom-color:rgba(0,0,0,.06)}
-header h1{font-size:19px}
-header .sub{color:#9aa3b8;font-size:12px;margin-top:6px}
+body.light header{background:rgba(247,248,252,.86);border-bottom-color:rgba(0,0,0,.06)}
+header h1{font-size:17px;font-weight:800;letter-spacing:.2px}
 header .gold{color:#ffd76a}
-/* 上滑收紧头部：副标题/安装按钮/节日横幅渐隐收起，下滑还原（渐入渐出动效） */
-header h1,header .sub,header .fest-banner,header .pwa-btn{transition:opacity .3s ease,max-height .3s ease,margin .3s ease,transform .3s ease}
-header .sub,header .fest-banner{max-height:110px;overflow:hidden}
+/* 信息胶囊条：解锁进度 + 下一首倒计时，替代原来一大段副标题 */
+.hchips{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.hchips .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;color:#b9c2d6;
+ background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);border-radius:999px;padding:5px 11px;
+ font-variant-numeric:tabular-nums}
+.hchips .chip b{color:#e9edf5}
+.hchips .chip .gold{color:#ffd76a}
+body.light .hchips .chip{background:rgba(0,0,0,.04);border-color:#dfe3ec;color:#5a6474}
+body.light .hchips .chip b,body.light .hchips .chip .gold{color:#b8860b}
+/* 上滑收紧头部（带迟滞阈值防抖：>96 收起 / <40 还原，避免停在阈值附近反复闪）：
+   副信息渐隐收起、标题微缩，下滑还原，渐入渐出动效 */
+header h1,header .hchips,header .fest-banner,header .pwa-btn{transition:opacity .3s ease,max-height .3s ease,margin .3s ease,transform .3s ease}
+header .fest-banner{max-height:110px;overflow:hidden}
 header .pwa-btn{max-height:70px;overflow:hidden}
-body.hcompact header{padding-top:10px;padding-bottom:8px}
-body.hcompact header h1{transform:scale(.93)}
-body.hcompact header .sub,body.hcompact header .fest-banner,body.hcompact header .pwa-btn{opacity:0;max-height:0;margin-top:0;pointer-events:none}
+body.hcompact header{padding-top:9px;padding-bottom:8px}
+body.hcompact header h1{transform:scale(.96);transform-origin:left center}
+body.hcompact header .hchips,body.hcompact header .fest-banner,body.hcompact header .pwa-btn{opacity:0;max-height:0;margin:0;pointer-events:none;overflow:hidden}
 /* 手机上右上角两个圆钮（主题/消息）是悬浮的，文字留出右侧空间不重叠 */
 @media (max-width:700px){ header{padding-left:14px;padding-right:96px} }
 .fest-banner{display:none;margin-top:10px;font-size:14px;font-weight:700;color:#ffd76a;
@@ -2480,7 +2489,6 @@ body.light .pwa-btn{background:#fff;border-color:#d8dce8;color:#5a7ea8}
 body.light{background:#f2f4f8;color:#2a3140}
 body.light header{background:rgba(247,248,252,.92);border-bottom-color:#dfe3ec}
 body.light header h1{color:#1d2430}
-body.light header .sub{color:#5a6474}
 body.light .today{background:linear-gradient(180deg,#ffffff,#eef0f7);
  box-shadow:0 0 0 1px #d8dce8 inset,0 20px 60px rgba(40,50,90,.16)}
 body.light .today .day{color:#6a7488}
@@ -2626,7 +2634,10 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
 <canvas id="fx"></canvas>
 <header>
  <h1>__FEST_EMOJI__ <span class="gold">__NICK__</span> 的盲盒歌单</h1>
- <div class="sub">每天自动掉落一首 __NICK__ 唱过的歌 · 已解锁 <span class="gold" id="unlockedN">__UNLOCKED__</span>/<b>__TOTAL__</b> 首 · 已解锁的永久可听</div>
+ <div class="hchips">
+  <span class="chip">🔓 已解锁 <span class="gold" id="unlockedN">__UNLOCKED__</span>/<b>__TOTAL__</b> 首</span>
+  <span class="chip">⏳ 下一首 <b id="cdTop">--:--:--</b> 后</span>
+ </div>
  <div class="fest-banner" id="festBanner"></div>
  <button class="pwa-btn" id="pwaBtn" onclick="installPwa()">📲 安装到桌面，每天回来开盲盒</button>
 </header>
@@ -2986,26 +2997,30 @@ function tickCd(){
   const d = mid - now;
   const h = String(d/3600000|0).padStart(2,'0'), m = String((d/60000|0)%60).padStart(2,'0'), s = String((d/1000|0)%60).padStart(2,'0');
   document.getElementById('cd').textContent = h + ':' + m + ':' + s;
+const ct = document.getElementById('cdTop'); if (ct) ct.textContent = h + ':' + m + ':' + s;
 }
 tickCd(); setInterval(tickCd, 1000);
-/* 上滑收紧头部（渐入渐出），下滑还原 */
+/* 上滑收紧头部（迟滞阈值：>96 才收起、<40 才还原，停在中间不抖不闪） */
 let hcompact = false;
 addEventListener('scroll', () => {
-  const c = (scrollY || document.documentElement.scrollTop || 0) > 64;
-  if (c !== hcompact) { hcompact = c; document.body.classList.toggle('hcompact', c); }
+  const y = scrollY || document.documentElement.scrollTop || 0;
+  if (!hcompact && y > 96) { hcompact = true; document.body.classList.add('hcompact'); }
+  else if (hcompact && y < 40) { hcompact = false; document.body.classList.remove('hcompact'); }
 }, {passive: true});
 /* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');
 const lockedPool = [];
 /* 最新收录 */
 const lg = document.getElementById('latestGrid');
-const recent = SONGS.filter(s => !s.locked && !isTodayHidden(s) && dateMap[s.uk])
-  .sort((a, b) => (dateMap[b.uk] ? dateMap[b.uk].date : '').localeCompare(dateMap[a.uk] ? dateMap[a.uk].date : ''))
+/* 最新收录 = 最近"加入盲盒"的歌（按歌曲收录时间倒序），不是最新解锁的；
+   未拆的今日歌保持保密 */
+const recent = SONGS.filter(s => !s.locked && !isTodayHidden(s))
+  .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
   .slice(0, 3);
 recent.forEach(s => {
   const d = document.createElement('div');
   d.className = 'lcard';
-  d.innerHTML = `<img src="${s.cover || ''}" loading="lazy"><div class="lt">${s.title}</div><div class="ls">📅 ${dateMap[s.uk] ? dateMap[s.uk].date : ''}</div>`;
+  d.innerHTML = `<img src="${s.cover || ''}" loading="lazy"><div class="lt">${s.title}</div><div class="ls">📅 ${s.time || ''} 收录</div>`;
   d.onclick = () => playSong(SONGS.indexOf(s));
   lg.appendChild(d);
 });
