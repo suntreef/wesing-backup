@@ -3295,43 +3295,80 @@ function closeSheet(id){ const el = document.getElementById(id); if (el) el.clas
 function openSheet(id){ const el = document.getElementById(id); if (el) el.classList.add('show'); }
 function sheetHtml(){
   const ua = navigator.userAgent;
-  const isiOS = /iphone|ipad|ipod/i.test(ua);
-  const inWx = /MicroMessenger/i.test(ua);
-  const isEdge = /Edg[A-Za-z]*\//.test(ua);  /* 桌面 Edg/ · 安卓 EdgA/ · iOS EdgiOS/ */
-  const isMobile = /Android|iPhone|iPad|Mobile/i.test(ua);
+  const B = {
+    ios: /iphone|ipad|ipod/i.test(ua),
+    wx: /MicroMessenger/i.test(ua),
+    edge: /Edg[A-Za-z]*\//.test(ua),   /* 桌面 Edg/ · 安卓 EdgA/ · iOS EdgiOS/ */
+    firefox: /Firefox\//i.test(ua),
+    samsung: /SamsungBrowser\//i.test(ua),
+    opera: /OPR\//.test(ua),
+    cn: /QQBrowser|UCBrowser|Quark\/|Baidu|HeyTapBrowser|VivoBrowser|MiuiBrowser|HuaweiBrowser|Aspiegel/i.test(ua),
+    mobile: /Android|iPhone|iPad|Mobile/i.test(ua),
+    otherPc: /Chrom(e|ium)\/|Edg[A-Za-z]*\/|OPR\/|Firefox\//i.test(ua),
+    safariMac: /Safari\//.test(ua) && /Macintosh/.test(ua) && !/Chrom(e|ium)\/|Edg|OPR\/|Firefox\//.test(ua),
+    safariWin: /Safari\//.test(ua) && /Windows/.test(ua) && !/Chrom(e|ium)\/|Edg|OPR\/|Firefox\//.test(ua)
+  };
   const https = window.isSecureContext;
-  if (inWx) return ['⚠️ 微信里装不了', '<p>请点右上角「···」→「在浏览器打开」，再用浏览器安装。</p>', '知道了', false];
-  if (isiOS) return ['📲 装到 iPhone / iPad 桌面',
-    '<ol><li>用 <b>Safari</b> 打开本页</li><li>点底部「分享」（方框＋向上箭头）</li><li>选「添加到主屏幕」→「添加」</li></ol>',
-    '我知道了', false];
+  if (B.wx) return ['⚠️ 微信里装不了', '<p>请点右上角「···」→「在浏览器打开」，再用浏览器安装。</p>', '知道了', false];
+  if (B.ios) return ['📲 装到 iPhone / iPad 桌面',
+    '<ol style="text-align:left"><li>所有浏览器（含 Edge/Chrome iOS）都装不成应用，<b>只能用 Safari</b></li>' +
+    '<li>把本页链接粘贴到 <b>Safari</b> 打开</li><li>点底部「分享」（方框＋向上箭头）</li>' +
+    '<li>选「添加到主屏幕」→「添加」</li></ol>', '我知道了', false];
   if (installEvt) return ['📲 装到桌面', '<p>点下面的按钮，浏览器会直接弹出安装确认。</p>', '立即安装', true];
-  // 一键安装没就绪 → 自动诊断具体卡在哪，给出对应解法（而不是一段笼统教程）
+  /* 一键安装没就绪 → 识别浏览器，给专属解法 */
   let why;
   const local = location.protocol + '//127.0.0.1:' + (location.port || (location.protocol === 'https:' ? '443' : '80')) + '/guest';
   if (!https) {
-    why = '<li><b>当前是 http + 局域网 IP</b>，浏览器的安全硬限制：这种地址一律只能创建快捷方式，装不成应用。<br>' +
-          '解法：① 本机直接用 <b>' + local + '</b> 打开（localhost 属于安全地址，能装）；' +
-          '② 朋友要装就给盲盒页配 <b>https 反代</b>（lucky/nginx 挂证书指向本端口），用 https 域名打开本页再点安装</li>';
-  } else if (isEdge && isMobile) {
-    // Edge 手机版实测普遍不触发安装事件，多数版本只建快捷方式（打开还是浏览器标签）
-    why = '<li><b>Edge 手机版对「安装应用」支持不完整</b>：多数版本不提供真正的安装，只会创建网页快捷方式。<br>' +
-          '推荐：复制本页链接，用 <b>Chrome</b> 打开后点「安装到桌面」——安卓上 Chrome 支持最完整，能装成独立应用；' +
-          '也可以试 Edge 菜单（⋯）→「<b>添加到手机</b>」，能否装成应用取决于 Edge 版本</li>';
+    why = '<li><b>当前是 http + 局域网 IP</b>——所有浏览器的共同安全硬限制：这种地址一律只能创建快捷方式。<br>' +
+          '解法：① 电脑本机直接用 <b>' + local + '</b> 打开（localhost 属于安全地址，能装）；' +
+          '② 朋友要装就配 <b>https 反代</b>（挂证书指向本端口），用 https 域名打开再点安装</li>';
+  } else if (B.edge && B.mobile) {
+    why = '<li><b>Edge 手机版</b>对安装支持不完整：多数版本不触发安装，只创建快捷方式。<br>' +
+          '推荐：复制本页链接用 <b>Chrome</b> 打开再装（安卓最完整）；或试 Edge 菜单（⋯）→「<b>添加到手机</b>」</li>';
+  } else if (B.firefox && B.mobile) {
+    why = '<li><b>Firefox 手机版</b>：较新版本支持安装——点菜单（⋮）→「<b>安装</b>」；' +
+          '若没有该选项或只有快捷方式，换 <b>Chrome</b> 打开最稳</li>';
+  } else if (B.samsung) {
+    why = '<li><b>三星浏览器</b>支持安装：菜单（⋮）→「<b>添加到主屏幕</b>」→ 若弹出「安装」即装成独立应用；' +
+          '若只有快捷方式，换 <b>Chrome</b> 打开</li>';
+  } else if (B.opera && B.mobile) {
+    why = '<li><b>Opera 手机版</b>：菜单 →「添加到主屏幕」，若弹出「安装」即装成应用；' +
+          '若无该选项，换 <b>Chrome</b> 打开最稳</li>';
+  } else if (B.cn) {
+    why = '<li><b>当前是国产/定制浏览器</b>（QQ/UC/夸克/百度/华为/小米/OPPO/vivo 等）：普遍只创建网页快捷方式，装不成应用。<br>' +
+          '要真正安装：<b>安卓</b>换 <b>Chrome</b> 打开本页；<b>iPhone</b> 用 Safari → 分享 → 添加到主屏幕</li>';
+  } else if (B.firefox && !B.mobile) {
+    why = '<li><b>Firefox 电脑版不支持把网站装成应用</b>（官方已移除该功能）。' +
+          '可收藏到书签栏，或换 <b>Chrome / Edge</b> 打开本页安装</li>';
+  } else if (B.safariMac) {
+    why = '<li><b>Safari（Mac）</b>：菜单栏「<b>文件</b>」→「<b>添加到程序坞</b>」即可装成应用' +
+          '（需 Safari 17+ / macOS Sonoma+；旧版无此功能，建议换 Chrome）</li>';
+  } else if (B.safariWin) {
+    why = '<li><b>Safari for Windows 已停止更新多年</b>，不支持安装应用。请换 <b>Chrome 或 Edge</b> 打开本页</li>';
   } else {
     why = '<li>浏览器还没准备好：Service Worker 刚注册（<b>刷新一次页面</b>再点安装就能弹确认框），' +
           '或者刚才拒绝过安装被限流（等几分钟再试）</li>';
   }
-  const manual = isMobile
-    ? '浏览器菜单（⋮/⋯）→「<b>添加到主屏幕 / 添加到手机</b>」'
-    : '浏览器菜单（⋮）→「投放、保存和分享」→「<b>安装页面为应用</b>」';
-  return ['📲 为什么还装不了？',
-    '<p>已自动检查：' +
-    (https ? '✅ 安全地址' : '⚠️ 非安全地址（http + 局域网 IP）') + ' · ' +
+  const manual = B.samsung ? '菜单（⋮）→「添加到主屏幕」→ 选「安装」'
+    : B.mobile ? '浏览器菜单（⋮/⋯）→「添加到主屏幕 / 添加到手机」'
+    : B.opera ? '菜单 →「安装应用」（老版本在「转到」子菜单里）'
+    : B.edge ? '菜单（⋯）→「应用」→「将此站点作为应用安装」'
+    : B.safariMac ? '菜单栏「文件」→「添加到程序坞」'
+    : '浏览器菜单（⋮）→「投放、保存和分享」→「安装页面为应用」';
+  const checked = (https ? '✅ 安全地址' : '⚠️ 非安全地址（http + 局域网 IP）') + ' · ' +
     ('serviceWorker' in navigator ? '✅ 安装服务就绪' : '⚠️ 浏览器太旧不支持') +
-    (isEdge ? ' · 检测到 Edge' : '') + '</p>' +
+    (B.edge ? ' · Edge' : '') + (B.firefox ? ' · Firefox' : '') + (B.samsung ? ' · 三星' : '') +
+    (B.opera ? ' · Opera' : '') + (B.cn ? ' · 国产浏览器' : '') + (B.safariMac ? ' · Safari(Mac)' : '') + (B.safariWin ? ' · Safari(Win)' : '');
+  return ['📲 为什么还装不了？',
+    '<p>已自动检查：' + checked + '</p>' +
     '<ul style="text-align:left;line-height:1.9">' + why + '</ul>' +
-    '<p style="margin-top:8px">手动路径：' + manual + '；' +
-    '若菜单里只有「创建快捷方式」，就是上面列出的原因——快捷方式只是网页书签，不是应用。</p>',
+    '<p style="margin-top:8px">手动路径：' + manual + '；若菜单里只有「创建快捷方式」，就是上面列出的原因——快捷方式只是网页书签，不是应用。</p>' +
+    '<details style="text-align:left;margin-top:8px"><summary style="cursor:pointer;font-weight:600">📋 各主流浏览器支持对照</summary>' +
+    '<div style="font-size:11px;line-height:2;color:#8f9aac;margin-top:4px">' +
+    '📱 安卓：<b>Chrome ✅ 最完整（推荐）</b> · 三星浏览器 ✅ · Firefox 新版 ✅ · Edge ⚠️ 多为快捷方式 · 国产 ❌ 多为快捷方式<br>' +
+    '📱 iPhone/iPad：所有浏览器都只能用 <b>Safari</b> → 分享 → 添加到主屏幕<br>' +
+    '💻 电脑：<b>Chrome / Edge ✅</b> · Opera ✅ · Safari 17+（Mac）✅ 菜单「文件 → 添加到程序坞」 · Firefox ❌ 已移除' +
+    '</div></details>',
     '知道了', false];
 }
 function installPwa(){
