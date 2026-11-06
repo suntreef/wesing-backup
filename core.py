@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.9'
+APP_VERSION = '1.12.10'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -551,6 +551,8 @@ def process_work(client, out_dir, seq, item, opts, force=False):
         'song_name': detail.get('song_name', ''),
         'singer_name': detail.get('singer_name', ''),
         'time': date_str,
+        # 收录时间 = 这首歌进备份/盲盒的时间（「最新收录」按它排序；time 是全民K歌的上传时间）
+        'collected': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'duration_sec': round((detail.get('segment_end') or 0) / 1000) or None,
         'score': detail.get('score'),
         'score_rank': detail.get('scoreRank'),
@@ -2294,14 +2296,13 @@ header .gold{color:#ffd76a}
 .hchips .chip .gold{color:#ffd76a}
 body.light .hchips .chip{background:rgba(0,0,0,.04);border-color:#dfe3ec;color:#5a6474}
 body.light .hchips .chip b,body.light .hchips .chip .gold{color:#b8860b}
-/* 上滑收紧头部（带迟滞阈值防抖：>96 收起 / <40 还原，避免停在阈值附近反复闪）：
-   副信息渐隐收起、标题微缩，下滑还原，渐入渐出动效 */
-header h1,header .hchips,header .fest-banner,header .pwa-btn{transition:opacity .3s ease,max-height .3s ease,margin .3s ease,transform .3s ease}
-header .fest-banner{max-height:110px;overflow:hidden}
-header .pwa-btn{max-height:70px;overflow:hidden}
-body.hcompact header{padding-top:9px;padding-bottom:8px}
-body.hcompact header h1{transform:scale(.96);transform-origin:left center}
-body.hcompact header .hchips,body.hcompact header .fest-banner,body.hcompact header .pwa-btn{opacity:0;max-height:0;margin:0;pointer-events:none;overflow:hidden}
+/* 上滑隐藏头部（>96 收起 / <40 还原，迟滞阈值）。
+   关键：只动 transform —— 布局高度一像素都不变，浏览器滚动锚定(overflow-anchor)
+   无事可做，scrollY 稳定，从根上杜绝「停住后 收起↔还原 循环闪屏」。
+   旧版用 max-height:0 压缩文档流，锚定回调把 scrollY 拉回 40 以下又还原、
+   又涨回收起阈值，无限抖动——就是用户报的闪屏 */
+header{transition:transform .32s ease}
+body.hcompact header{transform:translateY(-102%)}
 /* 手机上右上角两个圆钮（主题/消息）是悬浮的，文字留出右侧空间不重叠 */
 @media (max-width:700px){ header{padding-left:14px;padding-right:96px} }
 .fest-banner{display:none;margin-top:10px;font-size:14px;font-weight:700;color:#ffd76a;
@@ -3012,15 +3013,15 @@ const cab = document.getElementById('cabinet');
 const lockedPool = [];
 /* 最新收录 */
 const lg = document.getElementById('latestGrid');
-/* 最新收录 = 最近"加入盲盒"的歌（按歌曲收录时间倒序），不是最新解锁的；
-   未拆的今日歌保持保密 */
+/* 最新收录 = 最近"加入盲盒"的歌（按收录时间倒序），不是最新解锁的，也不是上传最早的；
+   collected = 备份进盲盒的时间；老数据没有时才退回上传时间 */
 const recent = SONGS.filter(s => !s.locked && !isTodayHidden(s))
-  .sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')))
+  .sort((a, b) => String(b.collected || b.time || '').localeCompare(String(a.collected || a.time || '')))
   .slice(0, 3);
 recent.forEach(s => {
   const d = document.createElement('div');
   d.className = 'lcard';
-  d.innerHTML = `<img src="${s.cover || ''}" loading="lazy"><div class="lt">${s.title}</div><div class="ls">📅 ${s.time || ''} 收录</div>`;
+  d.innerHTML = `<img src="${s.cover || ''}" loading="lazy"><div class="lt">${s.title}</div><div class="ls">📅 ${(s.collected || s.time || '')} 收录</div>`;
   d.onclick = () => playSong(SONGS.indexOf(s));
   lg.appendChild(d);
 });
@@ -3494,6 +3495,7 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
             'uk': k, 'seq': e['seq'], 'title': e.get('title') or '未命名',
             'song': e.get('song_name') or '', 'singer': e.get('singer_name') or '',
             'time': (e.get('time') or '')[:10],
+            'collected': (e.get('collected') or '')[:10],
             'cover': '' if locked else '/g/' + (e.get('cover') or ''),
             'audio': '' if locked else '/g/' + (e.get('audio') or ''),
             'lrc': '' if locked else '/g/' + (e.get('lrc') or ''),

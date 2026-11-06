@@ -68,6 +68,20 @@ def share_entries():
     except Exception:
         return [], {}, sh
     entries = sorted(idx.get('works', {}).values(), key=lambda x: x.get('seq') or 0)
+    # 老备份没有「收录时间」：用音频文件的修改时间兜底（= 当初下载备份进盲盒的时间）
+    for e in entries:
+        if e.get('collected'):
+            continue
+        m = ''
+        for f in (e.get('audio'), e.get('cover')):
+            if not f:
+                continue
+            p = os.path.join(d, f)
+            if os.path.isfile(p):
+                m = dt_date.fromtimestamp(os.path.getmtime(p)).isoformat()
+                break
+        if m:
+            e['collected'] = m
     return entries, idx.get('profile', {}), sh
 
 
