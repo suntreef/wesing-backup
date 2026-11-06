@@ -66,6 +66,15 @@ details .inner{margin-top:14px}
   border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.25s}
 .sw input:checked+i{background:var(--green)}
 .sw input:checked+i::after{left:19px}
+/* 朋友盲盒弹窗：页签 */
+.sh-seg{display:flex;gap:4px;background:var(--track);border-radius:12px;padding:4px;margin-bottom:12px}
+.sh-tab{flex:1;padding:8px 2px;border:none;border-radius:9px;background:transparent;color:var(--text2);
+  font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.18s;white-space:nowrap}
+.sh-tab:hover{color:var(--text)}
+.sh-tab.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+@media (prefers-color-scheme: dark){.sh-tab.on{background:#3a3a3c;box-shadow:none}}
+.sh-pane{animation:shin .2s ease}
+@keyframes shin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;cursor:pointer;
   font-family:inherit;font-size:16px;font-weight:600;color:#fff;background:var(--blue);
   border-radius:980px;padding:13px 26px;transition:.15s}
@@ -397,90 +406,119 @@ function showHelp(){
 }
 
 /* ---------- 朋友盲盒（分享） ---------- */
+function shTab(name, btn){
+  const mask = document.getElementById('shMask'); if(!mask) return;
+  mask.querySelectorAll('.sh-tab').forEach(b => b.classList.toggle('on', b.dataset.t === name));
+  mask.querySelectorAll('.sh-pane').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== name));
+  const box = document.getElementById('shBox'); if(box) box.scrollTop = 0;
+  if (name === 'cmt') loadShComments();
+  if (name === 'gift') loadVisitors();
+}
 function shareModal(){
   if(document.getElementById('shMask')) { document.getElementById('shMask').remove(); return; }
   const m = document.createElement('div'); m.id='shMask';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center';
-  m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:520px;width:92%;padding:24px 26px;position:relative;text-align:center">
-    <div style="font-size:17px;font-weight:700;margin-bottom:10px">🎁 朋友盲盒 · 分享收藏</div>
-    <div id="shState" style="font-size:13px;color:var(--text2);margin-bottom:10px">加载中…</div>
-    <div style="display:flex;gap:8px;margin:10px 0;align-items:center">
-      <select id="shDirSel" onchange="document.getElementById('shDirCustom').classList.toggle('hidden',this.value!=='__custom__')"
-              style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
-        <option value="">加载目录中…</option>
-      </select>
-      <button class="btn small" onclick="setShare()">设为分享</button>
-      <button class="btn small" onclick="runUpgrade()" title="补歌词/标签/刷新页面，不重新下载">🆙 升级</button>
+  m.innerHTML = `<div id="shBox" style="background:var(--card);color:var(--text);border-radius:18px;max-width:520px;width:92%;max-height:88vh;overflow-y:auto;padding:20px 22px;position:relative;text-align:center">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="font-size:16px;font-weight:700;flex:1;text-align:left">🎁 朋友盲盒</div>
+      <button class="btn small ghost" style="padding:5px 12px" onclick="document.getElementById('shMask').remove()">关闭</button>
     </div>
-    <div id="shDirCustom" class="hidden" style="display:flex;gap:8px;margin:0 0 10px">
-      <input id="shDir" placeholder="自定义备份目录路径（相对数据根目录或绝对路径）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
-      <button class="btn small" onclick="setShare()">设为分享</button>
+    <div id="shState" style="font-size:12px;color:var(--text2);margin-bottom:10px;text-align:left">加载中…</div>
+    <div class="sh-seg">
+      <button class="sh-tab on" data-t="share" onclick="shTab('share',this)">📲 分享</button>
+      <button class="sh-tab" data-t="auth" onclick="shTab('auth',this)">🔐 访问</button>
+      <button class="sh-tab" data-t="cmt" onclick="shTab('cmt',this)">💬 留言</button>
+      <button class="sh-tab" data-t="gift" onclick="shTab('gift',this)">🎁 加赠</button>
     </div>
-    <div id="shQr" style="min-height:170px;display:flex;align-items:center;justify-content:center"></div>
-    <div id="shUrl" style="font-size:12px;color:var(--text2);margin-top:8px;word-break:break-all"></div>
-    <button class="btn small" onclick="window.open('/guest','_blank')" style="margin-top:10px">👁 打开盲盒页（本机预览）</button>
-    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-      <a href="/preview/index.html" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">🎵 歌单页</a>
-      <a href="/preview/index.csv" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">📋 CSV 目录</a>
-      <a href="/preview/index.html#vinyl" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">💿 CD 播放器</a>
+    <!-- ===== 页签：分享 ===== -->
+    <div class="sh-pane" data-pane="share">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <select id="shDirSel" onchange="document.getElementById('shDirCustom').classList.toggle('hidden',this.value!=='__custom__')"
+                style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
+          <option value="">加载目录中…</option>
+        </select>
+        <button class="btn small" onclick="setShare()">设为分享</button>
+        <button class="btn small" onclick="runUpgrade()" title="补歌词/标签/刷新页面，不重新下载">🆙</button>
+      </div>
+      <div id="shDirCustom" class="hidden" style="display:flex;gap:8px;margin:0 0 8px">
+        <input id="shDir" placeholder="自定义备份目录路径（相对数据根目录或绝对路径）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
+        <button class="btn small" onclick="setShare()">设为分享</button>
+      </div>
+      <div style="display:flex;gap:14px;align-items:center;margin:6px 0 8px">
+        <div id="shQr" style="width:150px;height:150px;flex:none;display:flex;align-items:center;justify-content:center"></div>
+        <div style="flex:1;min-width:0;text-align:left">
+          <div id="shUrl" style="font-size:12px;color:var(--text2);word-break:break-all;margin-bottom:8px"></div>
+          <button class="btn small" onclick="window.open('/guest','_blank')">👁 打开盲盒页（本机预览）</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="/preview/index.html" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">🎵 歌单页</a>
+        <a href="/preview/index.csv" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">📋 CSV</a>
+        <a href="/preview/index.html#vinyl" target="_blank" class="btn ghost small" style="text-decoration:none;text-align:center;flex:1">💿 CD 播放器</a>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+        <input id="shBase" placeholder="自定义朋友链接前缀（反代/域名），留空自动" style="flex:1;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+        <button class="btn small ghost" onclick="saveBase()">保存链接</button>
+      </div>
+      <details style="text-align:left;margin-top:10px;font-size:11px;color:var(--text2)">
+        <summary style="cursor:pointer;font-weight:600">📖 使用说明 / 反代注意事项</summary>
+        <div style="line-height:1.9;margin-top:6px">
+          所有入口都是最新版式（实时渲染，无需升级目录）；需要下载可在页面内右键另存。<br>
+          朋友打开链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
+          同一 Wi-Fi 直接访问；公网用反代（lucky/nginx）时把目标指向 <b>8766</b> 端口，并填入对外链接。<br>
+          若反代不转发 Authorization 登录头，账号模式会一直弹登录框，请改用「无需验证」或开启头转发。<br>
+          工具页（本页）请勿直接暴露公网。
+        </div>
+      </details>
     </div>
-    <div style="font-size:11px;color:var(--text2);margin-top:6px">所有入口都是最新版式（实时渲染，无需升级目录）；「CD 播放器」为新播放器的黑胶皮肤。需要下载可在页面内右键另存。</div>
-    <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
-      <input id="shBase" placeholder="自定义朋友链接前缀（反代/域名，如 https://kg.example.com:8766），留空自动" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
-      <button class="btn small ghost" onclick="saveBase()">保存链接</button>
-    </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
-      <div style="font-size:13px;font-weight:700;margin-bottom:8px">🔐 访问控制（盲盒页）</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:8px">
-        <select id="shAuthMode" onchange="authFields()" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+    <!-- ===== 页签：访问控制 ===== -->
+    <div class="sh-pane hidden" data-pane="auth" style="text-align:left">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:10px">
+        <select id="shAuthMode" onchange="authFields()" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
           <option value="none">无需验证</option>
           <option value="user">仅账号（全部免密）</option>
           <option value="userpass">账号登录（密码按账号可选）</option>
         </select>
         <button class="btn small" onclick="saveAuth()">保存模式</button>
-        <span id="shAuthAdd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="shAuthUser" placeholder="新账号" style="width:100px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
-          <input id="shAuthPass" type="password" placeholder="密码（留空=免密账号）" style="width:150px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
-          <span style="font-size:11px;color:var(--text2)">填了账号会一并添加</span>
-        </span>
+      </div>
+      <div id="shAuthAdd" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;margin-bottom:8px">
+        <input id="shAuthUser" placeholder="新账号" style="width:100px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+        <input id="shAuthPass" type="password" placeholder="密码（留空=免密账号）" style="width:150px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+        <button class="btn small" onclick="saveAuth()">添加</button>
       </div>
       <div id="shAccounts"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px">密码按账号各管各的：清空保存 = 这个账号免密。</div>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
+    <!-- ===== 页签：朋友留言 ===== -->
+    <div class="sh-pane hidden" data-pane="cmt" style="text-align:left">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <div style="font-size:13px;font-weight:700">💬 朋友留言（<span id="shCmtN">0</span>）</div>
         <button class="btn small ghost" onclick="loadShComments()">刷新</button>
       </div>
-      <div id="shComments" style="display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;font-size:12px">
+      <div id="shComments" style="display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;font-size:12px">
         <div style="color:var(--text2)">加载中…</div>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-top:6px">留言已按访客隔离：每人只能看到自己的，这里可查看全部（含来源身份）。</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px">留言按访客隔离：每人只能看到自己的；这里可查看全部并直接回复（对方会收到小猫提醒）。</div>
     </div>
-    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--track);text-align:left">
+    <!-- ===== 页签：加赠 ===== -->
+    <div class="sh-pane hidden" data-pane="gift" style="text-align:left">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <div style="font-size:13px;font-weight:700">🎁 加开盒次数 / 发消息</div>
         <button class="btn small ghost" onclick="loadVisitors()">刷新名单</button>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:12px;margin-bottom:8px;align-items:center">
-        <select id="grantWho" style="padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);min-width:132px">
+        <select id="grantWho" style="padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);min-width:132px">
           <option value="*">全部朋友</option>
         </select>
         <input id="grantN" type="number" min="0" max="10" value="1" title="加几次（今天多开几首）"
-          style="width:64px;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);text-align:center">
+          style="width:64px;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text);text-align:center">
         <input id="grantMsg" placeholder="捎一句话（可留空）" maxlength="200"
-          style="flex:1;min-width:150px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
+          style="flex:1;min-width:150px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--text)">
         <button class="btn small" onclick="sendGrant()">发送</button>
       </div>
-      <div id="grantRows" style="display:flex;flex-direction:column;gap:6px;max-height:170px;overflow-y:auto;font-size:12px"></div>
-      <div style="font-size:11px;color:var(--text2);margin-top:6px">加的「次数」= 对方今天能多开的歌；他下次打开盲盒页会弹出小猫提醒（含你写的这句话）。</div>
+      <div id="grantRows" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto;font-size:12px"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:8px">加的「次数」= 对方今天能多拆几首；会堆在「今日盲盒」下面，他自己一张张拆开（含你写的这句话的小猫提醒）。</div>
     </div>
-    <div style="color:var(--text2);font-size:11px;margin-top:10px;line-height:1.8">
-      朋友打开这个链接 = 每天自动解锁一首（盲盒），已解锁的永久可听。<br>
-      同一 Wi-Fi 直接访问；公网用反代（lucky/nginx）时把目标指向 <b>8766</b> 端口，并在上方填入对外链接。<br>
-      若反代不转发 Authorization 登录头，「仅账号/账号+密码」会一直弹登录框，请改用「无需验证」或开启头转发。<br>
-      工具页（本页）请勿直接暴露公网。
-    </div>
-    <button class="btn small" style="position:absolute;top:14px;right:16px" onclick="document.getElementById('shMask').remove()">关闭</button>
   </div>`;
   document.body.appendChild(m);
   m.addEventListener('click', e => { if(e.target === m) m.remove(); });

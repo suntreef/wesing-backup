@@ -2,8 +2,8 @@
 # PyInstaller 版本信息资源：有版本信息的 exe 触发杀软误报的概率更低
 VSVersionInfo(
     ffi=FixedFileInfo(
-        filevers=(1, 12, 4, 0),
-        prodvers=(1, 12, 4, 0),
+        filevers=(1, 12, 5, 0),
+        prodvers=(1, 12, 5, 0),
         mask=0x3F,
         flags=0x0,
         OS=0x40004,
@@ -15,12 +15,12 @@ VSVersionInfo(
         StringFileInfo([
             StringStruct('CompanyName', 'wesing-backup contributors'),
             StringStruct('FileDescription', '全民K歌备份工具 WeSing Backup'),
-            StringStruct('FileVersion', '1.12.4.0'),
+            StringStruct('FileVersion', '1.12.5.0'),
             StringStruct('InternalName', 'KG-Backup'),
             StringStruct('LegalCopyright', 'MIT License (c) 2026 wesing-backup contributors'),
             StringStruct('OriginalFilename', 'KG-Backup.exe'),
             StringStruct('ProductName', 'KG-Backup'),
-            StringStruct('ProductVersion', '1.12.4.0'),
+            StringStruct('ProductVersion', '1.12.5.0'),
         ]),
         VarFileInfo([VarStruct('Translation', [2052, 1200])]),
     ],

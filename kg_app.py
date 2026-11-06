@@ -152,25 +152,31 @@ def _today_str():
     return os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
 
 
-def mark_opened(share_dir, vid):
-    """记录"这位访客今天已经开过盒"：换浏览器/清 Cookie 也不会再开一遍。"""
+def mark_opened(share_dir, vid, n=1):
+    """记录"这位访客今天开盒进度"（n=已拆开的张数）：换浏览器/清 Cookie 也不会重开。"""
+    try:
+        n = max(1, int(n or 1))
+    except Exception:
+        n = 1
     st, data = visitor_state(share_dir, vid)
     opened = st.setdefault('opened', {})
-    opened[_today_str()] = True
+    # 同一天取较大值（拆开只会越来越多）
+    opened[_today_str()] = max(int(opened.get(_today_str()) or 0), n)
     # 只留最近 120 天，文件不无限膨胀
     st['opened'] = dict(sorted(opened.items())[-120:])
     data[vid] = st
     save_visitors(share_dir, data)
 
 
-def opened_today(share_dir, vid):
+def opened_count(share_dir, vid):
+    """今天已拆开的张数（0 = 今天还没开过）。"""
     if not share_dir or not vid:
-        return False
+        return 0
     try:
         st, _ = visitor_state(share_dir, vid)
-        return bool((st.get('opened') or {}).get(_today_str()))
+        return int((st.get('opened') or {}).get(_today_str()) or 0)
     except Exception:
-        return False
+        return 0
 
 
 def visitor_grants(share_dir, vid):
@@ -809,6 +815,7 @@ class Handler(BaseHTTPRequestHandler):
             return None
 
     def _serve_preview(self, rel):
+        rel = rel.split('?', 1)[0].split('#', 1)[0]  # 带查询串的链接（如 ?v=1）也能打开
         root = self._preview_root()
         if not root or not os.path.isdir(root):
             return self._send(404, b'no backup dir', 'text/plain; charset=utf-8')
@@ -1508,10 +1515,10 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
             comments = comments_of(guest_comments(sh_dir) if sh_dir else {}, vid)
             plays = visitor_plays(sh_dir, vid) if sh_dir else {}
             bonus, msgs = visitor_grants(sh_dir, vid) if sh_dir else (0, [])
-            was_opened = opened_today(sh_dir, vid)
+            was_opened_n = opened_count(sh_dir, vid)
             return self._send(200, {'comments': comments, 'plays': plays,
                                     'me': visitor_label(vid), 'bonus': bonus, 'msgs': msgs,
-                                    'opened_today': was_opened,
+                                    'opened_today': was_opened_n > 0, 'opened_n': was_opened_n,
                                     'unlocked': len(unlocked), 'total': len(entries)})
         if self.path in ('/', '/index.html'):
             # 盲盒端口根路径 → 跳转到盲盒页（避免裸 404 Not Found）
@@ -1571,11 +1578,16 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
             return self._send(401, {'error': '需要登录'})
         vid = self._vid()
         if self.path == '/api/g-open':
-            # 开盒动作落到服务端：换浏览器 / 清 Cookie 也不能把今天的盒再开一遍
+            # 开盒进度落到服务端（n=已拆开的张数）：换浏览器 / 清 Cookie 也不能重开
             sh_dir = load_shares().get('dir') or ''
             try:
                 if sh_dir and vid:
-                    mark_opened(sh_dir, vid)
+                    p = {}
+                    try:
+                        p = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
+                    except Exception:
+                        p = {}
+                    mark_opened(sh_dir, vid, p.get('n') or 1)
             except Exception:
                 pass
             return self._send(200, {'ok': True})
