@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.12'
+APP_VERSION = '1.12.13'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -3297,6 +3297,8 @@ function sheetHtml(){
   const ua = navigator.userAgent;
   const isiOS = /iphone|ipad|ipod/i.test(ua);
   const inWx = /MicroMessenger/i.test(ua);
+  const isEdge = /Edg[A-Za-z]*\//.test(ua);  /* 桌面 Edg/ · 安卓 EdgA/ · iOS EdgiOS/ */
+  const isMobile = /Android|iPhone|iPad|Mobile/i.test(ua);
   const https = window.isSecureContext;
   if (inWx) return ['⚠️ 微信里装不了', '<p>请点右上角「···」→「在浏览器打开」，再用浏览器安装。</p>', '知道了', false];
   if (isiOS) return ['📲 装到 iPhone / iPad 桌面',
@@ -3310,16 +3312,25 @@ function sheetHtml(){
     why = '<li><b>当前是 http + 局域网 IP</b>，浏览器的安全硬限制：这种地址一律只能创建快捷方式，装不成应用。<br>' +
           '解法：① 本机直接用 <b>' + local + '</b> 打开（localhost 属于安全地址，能装）；' +
           '② 朋友要装就给盲盒页配 <b>https 反代</b>（lucky/nginx 挂证书指向本端口），用 https 域名打开本页再点安装</li>';
+  } else if (isEdge && isMobile) {
+    // Edge 手机版实测普遍不触发安装事件，多数版本只建快捷方式（打开还是浏览器标签）
+    why = '<li><b>Edge 手机版对「安装应用」支持不完整</b>：多数版本不提供真正的安装，只会创建网页快捷方式。<br>' +
+          '推荐：复制本页链接，用 <b>Chrome</b> 打开后点「安装到桌面」——安卓上 Chrome 支持最完整，能装成独立应用；' +
+          '也可以试 Edge 菜单（⋯）→「<b>添加到手机</b>」，能否装成应用取决于 Edge 版本</li>';
   } else {
     why = '<li>浏览器还没准备好：Service Worker 刚注册（<b>刷新一次页面</b>再点安装就能弹确认框），' +
-          '或者刚才拒绝过安装被 Chrome 限流（等几分钟再试）</li>';
+          '或者刚才拒绝过安装被限流（等几分钟再试）</li>';
   }
+  const manual = isMobile
+    ? '浏览器菜单（⋮/⋯）→「<b>添加到主屏幕 / 添加到手机</b>」'
+    : '浏览器菜单（⋮）→「投放、保存和分享」→「<b>安装页面为应用</b>」';
   return ['📲 为什么还装不了？',
     '<p>已自动检查：' +
     (https ? '✅ 安全地址' : '⚠️ 非安全地址（http + 局域网 IP）') + ' · ' +
-    ('serviceWorker' in navigator ? '✅ 安装服务就绪' : '⚠️ 浏览器太旧不支持') + '</p>' +
+    ('serviceWorker' in navigator ? '✅ 安装服务就绪' : '⚠️ 浏览器太旧不支持') +
+    (isEdge ? ' · 检测到 Edge' : '') + '</p>' +
     '<ul style="text-align:left;line-height:1.9">' + why + '</ul>' +
-    '<p style="margin-top:8px">手动路径：浏览器菜单（⋮）→「投放、保存和分享」→「<b>安装页面为应用</b>」；' +
+    '<p style="margin-top:8px">手动路径：' + manual + '；' +
     '若菜单里只有「创建快捷方式」，就是上面列出的原因——快捷方式只是网页书签，不是应用。</p>',
     '知道了', false];
 }
