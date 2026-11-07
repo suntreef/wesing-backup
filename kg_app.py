@@ -716,12 +716,12 @@ class Handler(BaseHTTPRequestHandler):
         """访客身份。管理端口一律无身份（全局视角），盲盒端口在 GuestHandler 里重写。"""
         return None
 
-    def _send(self, code, body, ctype='application/json; charset=utf-8'):
+    def _send(self, code, body, ctype='application/json; charset=utf-8', cache='no-store'):
         data = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode()
         self.send_response(code)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', str(len(data)))
-        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Cache-Control', cache)
         for k, v in (getattr(self, '_extra_hdrs', None) or ()):
             self.send_header(k, v)
         self.end_headers()
@@ -809,6 +809,15 @@ class Handler(BaseHTTPRequestHandler):
                     remain -= len(chunk)
         except (BrokenPipeError, ConnectionAbortedError):
             pass
+
+    def _serve_manifest(self):
+        fp = os.path.join(static_dir(), 'guest-manifest.json')
+        try:
+            with open(fp, 'rb') as f:
+                return self._send(200, f.read(),
+                                  'application/manifest+json; charset=utf-8', 'no-cache')
+        except OSError:
+            return self._send(404, {'error': 'manifest missing'})
 
     def _send_file_with_range(self, full, mime):
         """按 Range 请求发送本地文件（音频拖动/断点续传都靠它）。"""
@@ -959,14 +968,17 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith('/static/'):
             name = os.path.basename(self.path[len('/static/'):])
             allow = {'qrcode.min.js': 'application/javascript; charset=utf-8',
-                     'manifest.json': 'application/manifest+json',
-                     'guest-manifest.json': 'application/manifest+json',
+                     'manifest.json': 'application/manifest+json; charset=utf-8',
+                     'guest-manifest.json': 'application/manifest+json; charset=utf-8',
+                     'manifest.webmanifest': 'application/manifest+json; charset=utf-8',
                      'icon-192.png': 'image/png', 'icon-512.png': 'image/png'}
+            nocache = name in ('manifest.json', 'guest-manifest.json', 'manifest.webmanifest',
+                               'icon-192.png', 'icon-512.png')
             if name in allow:
                 fp = os.path.join(static_dir(), name)
                 try:
                     with open(fp, 'rb') as f:
-                        return self._send(200, f.read(), allow[name])
+                        return self._send(200, f.read(), allow[name], 'no-cache' if nocache else 'no-store')
                 except OSError:
                     pass
             return self._send(404, {'error': 'not found'})
@@ -1120,6 +1132,8 @@ class Handler(BaseHTTPRequestHandler):
             # 盲盒页也能从管理端口进（8766 被占用时），SW 必须两个端口都在，
             # 否则 /guest 在 8765 打开时注册 404，浏览器永远不弹一键安装
             return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
+        if self.path == '/manifest.webmanifest':
+            return self._serve_manifest()
         if self.path == '/guest':
             try:
                 entries, profile, unlocked, history, today_keys, today_date, festival = blindbox_state(self._vid())
@@ -1459,8 +1473,8 @@ def _create_g_session(user):
 # 全部走网络，避免音频/封面被缓存成旧版本。
 _SW_JS = r'''/* 盲盒歌单 Service Worker：外壳离线缓存（可安装的关键 = SW 能离线响应 start_url）
   配方对齐已验证可安装的任务魔盒：install 预缓存外壳 + stale-while-revalidate */
-const CACHE = 'kg-guest-v1';
-const SHELL = ['/guest', '/static/guest-manifest.json', '/static/icon-192.png', '/static/icon-512.png'];
+const CACHE = 'kg-guest-v2';
+const SHELL = ['/', '/guest', '/manifest.webmanifest', '/static/icon-192.png', '/static/icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -1662,11 +1676,13 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
 </body></html>'''
 
     def do_GET(self):
-        # SW 脚本不需要鉴权（浏览器取 SW 脚本时未必带 Cookie），先放行；
-        # 必须挂根路径（scope=/）才能覆盖 /guest，浏览器才认"可安装的 PWA"
+        # SW / manifest 不需要鉴权（浏览器取这些资源时未必带 Cookie），先放行；
+        # manifest 挂根路径（对齐任务魔盒：/manifest.webmanifest + charset），浏览器才认"可安装的 PWA"
         if self.path in ('/sw.js', '/g/sw.js'):
             # /g/sw.js 保留兼容旧页面
             return self._send(200, _SW_JS.encode(), 'application/javascript; charset=utf-8')
+        if self.path == '/manifest.webmanifest':
+            return self._serve_manifest()
         # 访客认证：页面请求返回自定义登录页（不用浏览器原生弹窗），接口返回 JSON
         if not self._auth_ok():
             if self.path.startswith('/api/') or self.path.startswith('/g/'):
@@ -1690,15 +1706,10 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
                                     'opened_today': was_opened_n > 0, 'opened_n': was_opened_n,
                                     'unlocked': len(unlocked), 'total': len(entries)})
         if self.path in ('/', '/index.html'):
-            # 盲盒端口根路径 → 跳转到盲盒页（避免裸 404 Not Found）
-            self.send_response(302)
-            self.send_header('Location', '/guest')
-            self.send_header('Content-Length', '0')
-            self._vid()  # 先落身份 Cookie，跳转后身份才稳定
-            for k, v in (getattr(self, '_extra_hdrs', None) or ()):
-                self.send_header(k, v)
-            self.end_headers()
-            return
+            # 盲盒端口根路径直接出盲盒页（PWA start_url='/'，与任务魔盒同构；
+            # 之前 302 到 /guest——部分浏览器对跳转 start_url 的安装校验更苛刻）
+            self._vid()  # 先落身份 Cookie（_extra_hdrs 由最终 _send 统一带上）
+            self.path = '/guest'
         if (self.path == '/guest' or self.path.startswith('/g/') or
                 self.path in ('/static/guest-manifest.json', '/static/icon-192.png',
                               '/static/icon-512.png')):

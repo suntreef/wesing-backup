@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.14'
+APP_VERSION = '1.12.15'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2269,7 +2269,7 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="盲盒歌单">
-<link rel="manifest" href="/static/guest-manifest.json">
+<link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3454,7 +3454,7 @@ function sheetAction(){
 /* 注册 Service Worker：必须挂根路径（scope=/）才能覆盖 /guest，浏览器才认"可安装的 App" */
 if ('serviceWorker' in navigator) {
   addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(() => {});
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
 /* 已安装（独立窗口运行）则不显示安装按钮 */

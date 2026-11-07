@@ -7,6 +7,22 @@
 > 提交 → 打 tag `vX.Y.Z` 推送 → GitHub Actions 自动构建 exe 并推送 Docker 镜像
 > （`ghcr.io/suntreef/wesing-backup:X.Y.Z` 与 `:latest`，**只有打 tag 才会更新镜像**）。
 
+## [1.12.15] - 2026-11-07
+
+与任务魔盒逐项同构：PWA 结构差异清零。
+
+### 修复
+- **对齐任务魔盒的全部残余差异**（同设备同浏览器它装得上、我们装不上的最后嫌疑）：
+  - manifest 挂到根路径 **/manifest.webmanifest**（原在 /static/ 子目录），MIME 补 charset
+  - 去掉 manifest 的 id 字段（浏览器默认取 start_url，与魔盒一致）
+  - manifest / 图标的 Cache-Control 从 no-store 改 no-cache（部分浏览器拒绝 no-store 的 manifest）
+  - SW 注册去掉显式 scope 参数（与魔盒相同的裸注册）
+  - **盲盒端口根路径直接出盲盒页**（原来 302 跳 /guest）：manifest 的 start_url 改为 /，
+    PWA 装好后从桌面图标打开即根路径——与魔盒完全同构（/ start_url、/sw.js、/manifest.webmanifest）
+  - /guest 老链接继续可用；SW 外壳缓存升级 v2（含根路径）
+- 现在 PWA 静态结构与任务魔盒零差异：start_url / · scope / · /sw.js · /manifest.webmanifest ·
+  离线外壳 · maskable 图标 · display_override · iOS meta
+
 ## [1.12.14] - 2026-11-07
 
 安装难根治（学任务魔盒的可安装配方）+ 加赠一次性生效。

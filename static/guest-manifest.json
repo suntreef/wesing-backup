@@ -1,9 +1,8 @@
 {
  "name": "盲盒歌单",
- "id": "/guest?source=pwa",
  "short_name": "盲盒",
  "description": "每天解锁一首歌的盲盒歌单",
- "start_url": "/guest",
+ "start_url": "/",
  "scope": "/",
  "display": "standalone",
  "background_color": "#0f1220",
