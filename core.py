@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.13'
+APP_VERSION = '1.12.14'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2271,6 +2271,10 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="盲盒歌单">
 <link rel="manifest" href="/static/guest-manifest.json">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="盲盒歌单">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="icon" href="/static/icon-192.png">
 <title>__FEST_TITLE____NICK__ 的盲盒歌单</title>
 <style>
@@ -2878,8 +2882,9 @@ function reveal(){
 }
 /* 开盒进度同步到服务端（换浏览器/清缓存也不会重开或跳过加赠） */
 function syncOpenN(){
+  /* 把已拆开的歌一并发给服务端：加赠歌记成"已拆"（一次性生效，拆开永久解锁不回堆叠） */
   fetch('/api/g-open', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({n: revealN()})}).catch(() => {});
+    body: JSON.stringify({n: revealN(), uks: todaySongs.slice(0, Math.max(1, revealN())).map(s => s.uk)})}).catch(() => {});
 }
 /* 已揭晓状态（本地开过 或 服务端记过——换浏览器也不会再开一遍） */
 function showRevealed(){
@@ -2905,7 +2910,7 @@ function addRevealCard(s, k, area){
   card.dataset.reveal = s.uk;
   const playIt = `playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))`;
   card.innerHTML = `<img src="${s.cover || ''}" alt="" onclick="${playIt}" title="点封面播放">` +
-    `<div class="rt">${k > 0 ? '🎁 加更 · ' : ''}${s.title}</div>` +
+    `<div class="rt">${s.festival === '加更' ? '🎁 加更 · ' : (k > 0 && s.festival ? '🧧 ' + s.festival + ' · ' : '')}${s.title}</div>` +
     `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time}</div>` +
     `<button class="rev-play" onclick="${playIt}">▶&nbsp; 播放</button>`;
   area.appendChild(card);
@@ -3371,15 +3376,72 @@ function sheetHtml(){
     '</div></details>',
     '知道了', false];
 }
-function installPwa(){
+function escC(t){ return String(t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+/* 逐项实测安装条件（不是看浏览器支不支持，而是看当前页面的真实状态） */
+async function runInstallChecks(){
+  const rows = [];
+  const add = (ok, label, fix) => rows.push({ok, label, fix});
+  add(window.isSecureContext, '地址安全（https 或电脑本机 127.0.0.1）',
+      '用 https 反代打开，或电脑上用 http://127.0.0.1:端口/guest');
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const st = !reg ? '未注册' : reg.active ? '已激活' : (reg.installing || reg.waiting) ? '注册中' : '异常';
+    add(!!(reg && reg.active), '安装服务（Service Worker）' + st,
+        '刷新一次页面再试；仍不行就清一下浏览器缓存');
+    add(!!navigator.serviceWorker.controller, '当前页面已由安装服务接管', '刷新一次页面再试');
+  } catch (e) {
+    add(false, '此浏览器不支持安装服务', '换 Chrome / Edge');
+  }
+  let mOk = false, mWhy = '';
+  try {
+    const link = document.querySelector('link[rel="manifest"]');
+    const j = await (await fetch(link ? link.href : '/static/guest-manifest.json', {cache: 'no-store'})).json();
+    const big = (j.icons || []).some(i => (parseInt(i.sizes) || 0) >= 192);
+    mOk = !!(j.name && j.start_url && big);
+    if (!j.name) mWhy = '缺名称';
+    else if (!big) mWhy = '缺 192px 以上图标';
+  } catch (e) { mWhy = '读取失败'; }
+  add(mOk, '应用信息（manifest）有效' + (mWhy ? '：' + mWhy : ''), '把服务端更新到最新版');
+  let iconOk = false;
+  try {
+    iconOk = await new Promise(res => {
+      const i = new Image();
+      i.onload = () => res(i.naturalWidth >= 192);
+      i.onerror = () => res(false);
+      i.src = '/static/icon-192.png?c=' + Date.now();
+    });
+  } catch (e) {}
+  add(iconOk, '应用图标可正常读取', '把服务端更新到最新版');
+  const fired = await new Promise(res => {
+    let done = false;
+    const h = () => { done = true; };
+    addEventListener('beforeinstallprompt', h);
+    setTimeout(() => { removeEventListener('beforeinstallprompt', h); res(done); }, 1500);
+  });
+  add(fired || !!installEvt, '浏览器已判定「可安装」（一键安装可用）', '见下面的分浏览器说明');
+  return rows;
+}
+function renderChecks(rows){
+  return '<div style="text-align:left;margin:6px 0 10px">' + rows.map(r =>
+    '<div style="display:flex;gap:6px;padding:3px 0;font-size:12px;line-height:1.6">' +
+    '<span style="flex:none">' + (r.ok ? '✅' : '❌') + '</span><span>' + escC(r.label) +
+    (r.ok || !r.fix ? '' : '<span style="color:#ffd76a"> → ' + escC(r.fix) + '</span>') + '</span></div>').join('') + '</div>';
+}
+async function installPwa(){
   if (installEvt) { installEvt.prompt(); installEvt.userChoice && installEvt.userChoice.then(() => { installEvt = null; }).catch(() => {}); return; }
-  const [title, body, label, canPrompt] = sheetHtml();
-  document.getElementById('sheetBody').innerHTML = body;
-  document.getElementById('sheetTitle').textContent = title;
+  /* 先开"检查中"弹层，逐项实测后再给出结论 + 分浏览器建议 */
+  document.getElementById('sheetTitle').textContent = '📲 正在检查安装条件…';
+  document.getElementById('sheetBody').innerHTML = '<p>逐项核对中，约两秒。</p>';
   const go = document.getElementById('sheetGo');
-  go.textContent = label;
-  go.dataset.mode = canPrompt ? 'prompt' : 'ok';
+  go.textContent = '请稍等'; go.dataset.mode = 'ok';
   openSheet('installSheet');
+  const rows = await runInstallChecks();
+  const [title, body, label, canPrompt] = sheetHtml();
+  document.getElementById('sheetTitle').textContent = title;
+  document.getElementById('sheetBody').innerHTML = renderChecks(rows) +
+    '<div style="text-align:left;border-top:1px dashed rgba(255,255,255,.16);padding-top:8px">' + body + '</div>';
+  go.textContent = canPrompt ? '立即安装' : '知道了';
+  go.dataset.mode = canPrompt ? 'prompt' : 'ok';
 }
 function sheetAction(){
   const go = document.getElementById('sheetGo');

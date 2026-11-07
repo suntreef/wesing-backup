@@ -676,7 +676,7 @@ async function visitorDetail(vid){
     ['累计播放', (d.plays_total || 0) + ' 次'],
     ['最后播放', d.last_play || '—'],
     ['已拆开', revealed.length + ' / ' + hist.length + ' 首'],
-    ['加赠', (d.bonus || 0) + ' 次'],
+    ['加赠', (d.bonus || 0) + ' 次' + ((d.grant_left || 0) > 0 ? '（还有 ' + d.grant_left + ' 首没拆）' : '')],
     ['留言', (d.msgs || 0) + ' 条']
   ];
   m.innerHTML = '<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;padding:18px 20px">' +

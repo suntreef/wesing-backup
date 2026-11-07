@@ -196,16 +196,17 @@ def opened_count(share_dir, vid):
 
 
 def visitor_grants(share_dir, vid):
-    """访客身上挂着的「机主加赠」：开盒次数 + 未读消息。"""
+    """访客身上的「机主加赠」：还没拆的加赠歌数 + 未读消息。"""
     if not vid:
         return 0, []
     try:
         st, _ = visitor_state(share_dir, vid)
     except Exception:
         return 0, []
-    bonus = int(st.get('bonus') or 0)
+    gopened = set(st.get('grants_opened') or [])
+    left = sum(1 for g in (st.get('grants') or []) if g.get('uk') not in gopened)
     msgs = [m for m in (st.get('msgs') or []) if not m.get('seen')]
-    return bonus, msgs
+    return left, msgs
 
 
 def visitor_msg_history(share_dir, vid):
@@ -219,15 +220,68 @@ def visitor_msg_history(share_dir, vid):
     return list(reversed(st.get('msgs') or []))
 
 
-def grant_to_visitor(share_dir, vid, extra=0, msg=''):
-    """给某位访客加开盒次数 / 留言。extra 可为负（回收），结果不小于 0。"""
+def _ensure_grants(share_dir, vid):
+    """读取访客的加赠歌列表。
+
+    老数据迁移：旧版的加赠是"每天按日期重摇 N 首"（每天换歌、昨天拆的今天变回锁定），
+    这里把存量 bonus 一次性补定成固定的加赠歌，之后永久生效。"""
     st, data = visitor_state(share_dir, vid)
+    gl = st.get('grants')
+    if gl is None:
+        gl = []
+        st['grants'] = gl
+        old = int(st.get('bonus') or 0)
+        if old > 0:
+            try:
+                entries = [e for e in share_entries()[0] if e.get('audio')]
+                used = set()
+                for gi in range(min(old, 30)):
+                    p = _pick_distinct(entries, 'migrate|%s|%d' % (vid, gi), vid, used)
+                    if p is None:
+                        break
+                    uk = _uk(p)
+                    used.add(uk)
+                    gl.append({'uk': uk, 'at': _today_str()})
+            except Exception:
+                pass
+        data[vid] = st
+        save_visitors(share_dir, data)
+    return st, gl
+
+
+def grant_to_visitor(share_dir, vid, extra=0, msg=''):
+    """给某位访客加开盒次数 / 留言。extra 可为负（回收），结果不小于 0。
+
+    加赠的歌在发送那一刻就挑定并存进访客档案（一次性生效）：
+    立即可拆、拆开永久解锁，不再每天重摇新歌。"""
+    unlocked = set()
+    today = _today_str()
+    if extra > 0:
+        # 先让 blindbox_state 把这位访客的加赠档案补齐/迁移，同时拿到已解锁集合
+        try:
+            _e, _pf, unlocked, _h, _tk, today, _fe = blindbox_state(vid)
+        except Exception:
+            unlocked = set()
+    st, data = visitor_state(share_dir, vid)   # 此时磁盘上已是迁移后的最新档案
     st['bonus'] = max(0, int(st.get('bonus') or 0) + int(extra or 0))
     st.setdefault('msgs', [])
     if msg:
         st['msgs'].append({'text': str(msg)[:300], 'gift': int(extra or 0),
                            'at': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'seen': False})
         st['msgs'] = st['msgs'][-20:]
+    if extra > 0:
+        # 现在就把加赠歌挑定：避开这位访客已解锁/已加赠过的
+        grants = st.setdefault('grants', [])
+        used = set(unlocked) | {g.get('uk') for g in grants}
+        for gi in range(min(extra, 30)):
+            p = _pick_distinct([e for e in share_entries()[0] if e.get('audio')],
+                               '%s|grant|%d|%d' % (today, int(time.time()), gi), vid, used)
+            if p is None:
+                break
+            uk = _uk(p)
+            used.add(uk)
+            grants.append({'uk': uk, 'at': today})
+        st['grants'] = grants[-120:]
     data[vid] = st
     save_visitors(share_dir, data)
     return st['bonus']
@@ -258,13 +312,14 @@ def blindbox_state(vid=None):
     share_dir = sh.get('dir') or '.'
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     salt = ''
-    grants = 0
+    grants = []
+    st = {}
     if vid:
         try:
-            st, _ = visitor_state(share_dir, vid)
+            st, _ = _ensure_grants(share_dir, vid)
             start = st.get('start') or today
             salt = '' if st.get('legacy') else vid
-            grants = int(st.get('bonus') or 0)
+            grants = st.get('grants') or []
         except Exception:
             start, salt = today, vid
     else:
@@ -311,17 +366,23 @@ def blindbox_state(vid=None):
         if bonus is not None:
             unlocked.add(_uk(bonus))
             today_keys.add(_uk(bonus))
-    # 机主加赠的开盒次数：今天就能多开几首（每首都不与他人重复，也避开已有解锁）
-    if grants > 0:
-        for gi in range(min(grants, 30)):
-            pick = _pick_distinct(pool, today + '|grant%d' % gi, salt, unlocked)
-            if pick is None:
-                break
-            unlocked.add(_uk(pick))
-            today_keys.add(_uk(pick))
-            history.append({'date': today, 'title': pick.get('title') or '',
-                            'singer': pick.get('singer_name') or '', 'uk': _uk(pick),
+    # 机主加赠：发送时就挑定的歌，一次性立即生效——立即可拆、拆开永久解锁，
+    # 不再按天重摇（旧版每天换一批新歌、昨天拆的今天变回锁定）
+    if grants:
+        by_uk = {_uk(e): e for e in entries}
+        gopened = set(st.get('grants_opened') or [])
+        for g in grants:
+            e = by_uk.get(g.get('uk'))
+            if e is None:
+                continue
+            k = _uk(e)
+            unlocked.add(k)
+            e['_fest'] = '加更'   # 卡片/揭晓卡上的角标
+            history.append({'date': g.get('at') or today, 'title': e.get('title') or '',
+                            'singer': e.get('singer_name') or '', 'uk': k,
                             'festival': '加更'})
+            if k not in gopened:
+                today_keys.add(k)   # 还没拆的进今天的堆叠
     return entries, profile, unlocked, history, today_keys, today, festival
 
 
@@ -973,28 +1034,32 @@ class Handler(BaseHTTPRequestHandler):
                 entries, _pf, unlocked, history, _tk, today, _fe = blindbox_state(vid)
             except Exception:
                 entries, unlocked, history, today = [], set(), [], ''
-            # 每个日期内的第几张（节日双倍/机主加更会同日多张）：opened[date] ≥ 序号+1 才算真拆开；
-            # 老访客（没开盒进度记录）按服务端解锁集兜底
+            # 每个日期内的第几张（节日双倍会同日多张）：opened[date] ≥ 序号+1 才算真拆开；
+            # 加更（机主加赠）以 grants_opened 为准；老访客（没开盒进度记录）按服务端解锁集兜底
+            gopened = set(st.get('grants_opened') or [])
             per_day = {}
             rows = []
             for h in history:
                 k = per_day.get(h['date'], 0)
                 per_day[h['date']] = k + 1
-                if st.get('legacy'):
+                if h.get('festival') == '加更':
+                    rev = h['uk'] in gopened
+                elif st.get('legacy'):
                     rev = h['uk'] in unlocked
                 else:
                     rev = int((st.get('opened') or {}).get(h['date']) or 0) >= k + 1
                 rows.append({'date': h['date'], 'title': h.get('title') or '',
                              'singer': h.get('singer') or '', 'festival': h.get('festival') or '',
-                             'revealed': rev})
+                             'uk': h.get('uk') or '', 'revealed': rev})
             rows.sort(key=lambda x: x['date'], reverse=True)
             plays = st.get('plays') if isinstance(st.get('plays'), dict) else {}
             tmap = {_uk(e): (e.get('title') or '未命名') for e in entries}
             msgs = st.get('msgs') or []
+            grant_left = sum(1 for g in (st.get('grants') or []) if g.get('uk') not in gopened)
             return self._send(200, {
                 'vid': vid, 'name': visitor_label(vid),
                 'start': st.get('start') or '', 'legacy': bool(st.get('legacy')),
-                'bonus': int(st.get('bonus') or 0), 'msgs': len(msgs),
+                'bonus': int(st.get('bonus') or 0), 'grant_left': grant_left, 'msgs': len(msgs),
                 'last_msg': (msgs[-1].get('text') or '') if msgs else '',
                 'last_msg_at': (msgs[-1].get('at') or '') if msgs else '',
                 'last_play': st.get('last') or '',
@@ -1392,17 +1457,37 @@ def _create_g_session(user):
 
 # Service Worker：只要有一个能响应 fetch 的 SW，浏览器就把本站当成"可安装的 App"。
 # 全部走网络，避免音频/封面被缓存成旧版本。
-_SW_JS = r'''/* 盲盒歌单 Service Worker */
-self.addEventListener('install', e => self.skipWaiting());
-self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+_SW_JS = r'''/* 盲盒歌单 Service Worker：外壳离线缓存（可安装的关键 = SW 能离线响应 start_url）
+  配方对齐已验证可安装的任务魔盒：install 预缓存外壳 + stale-while-revalidate */
+const CACHE = 'kg-guest-v1';
+const SHELL = ['/guest', '/static/guest-manifest.json', '/static/icon-192.png', '/static/icon-512.png'];
+
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks =>
+    Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))).then(() => self.clients.claim())));
+});
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== location.origin) return;          /* 第三方直接放过 */
-  if (url.pathname.startsWith('/api/')) return;        /* 接口不插手 */
-  if (req.headers.get('range')) return;                /* 音频分段请求不插手 */
-  e.respondWith(fetch(req).catch(() => caches.match(req)));
+  if (url.origin !== location.origin) return;      /* 第三方直接放过 */
+  if (url.pathname.startsWith('/api/')) return;    /* 接口永远走网络 */
+  if (req.headers.get('range')) return;            /* 音频分段/拖动不插手 */
+  if (/\.(m4a|mp3|mp4|flac)$/i.test(url.pathname)) return;  /* 大音频不缓存 */
+  e.respondWith(caches.open(CACHE).then(async c => {
+    const hit = await c.match(req, {ignoreSearch: true});
+    const net = fetch(req).then(r => {
+      if (r && r.ok && (req.mode === 'navigate' || url.pathname.startsWith('/static/') ||
+                        /\.(png|jpe?g|webp|css|js|json|lrc|webmanifest)$/i.test(url.pathname))) {
+        c.put(req, r.clone()).catch(() => {});
+      }
+      return r;
+    }).catch(() => hit);
+    return hit || net;   /* 外壳/封面离线可开（盲盒页装成应用后断网也不白屏） */
+  }));
 });
 '''
 
@@ -1662,7 +1747,8 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
             return self._send(401, {'error': '需要登录'})
         vid = self._vid()
         if self.path == '/api/g-open':
-            # 开盒进度落到服务端（n=已拆开的张数）：换浏览器 / 清 Cookie 也不能重开
+            # 开盒进度落到服务端（n=已拆开的张数）：换浏览器 / 清 Cookie 也不能重开；
+            # uks=本轮已拆开的歌：若是机主加赠歌，记成"已拆"（一次性生效后永久解锁，不再回堆叠）
             sh_dir = load_shares().get('dir') or ''
             try:
                 if sh_dir and vid:
@@ -1672,6 +1758,20 @@ if (location.search.indexOf('err=1') > -1) document.getElementById('err').textCo
                     except Exception:
                         p = {}
                     mark_opened(sh_dir, vid, p.get('n') or 1)
+                    uks = p.get('uks') or []
+                    if uks:
+                        st, data = visitor_state(sh_dir, vid)
+                        gset = {g.get('uk') for g in (st.get('grants') or [])}
+                        go = st.setdefault('grants_opened', [])
+                        changed = False
+                        for uk in uks:
+                            if uk in gset and uk not in go:
+                                go.append(uk)
+                                changed = True
+                        if changed:
+                            st['grants_opened'] = go[-120:]
+                            data[vid] = st
+                            save_visitors(sh_dir, data)
             except Exception:
                 pass
             return self._send(200, {'ok': True})
