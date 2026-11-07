@@ -444,6 +444,15 @@ function shareModal(){
         <input id="shDir" placeholder="自定义备份目录路径（相对数据根目录或绝对路径）" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:13px">
         <button class="btn small" onclick="setShare()">设为分享</button>
       </div>
+      <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;text-align:left">
+        <div style="font-size:12px;font-weight:700;margin-bottom:6px">🎁 盲盒池作者（可多选混合，朋友的抽卡范围默认=这里全部）</div>
+        <div id="poolChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">加载中…</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="poolNick" placeholder="盲盒页昵称（留空 = 第一位作者的昵称）" style="flex:1;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:12px">
+          <button class="btn small" onclick="savePool()">保存池/昵称</button>
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:5px">给单个朋友单独指定范围：去「🎁 加赠」页签按人分配。改动范围后该朋友的每日掉落会重新洗牌（已拆的加赠歌不受影响）。</div>
+      </div>
       <div style="display:flex;gap:14px;align-items:center;margin:6px 0 8px">
         <div id="shQr" style="width:150px;height:150px;flex:none;display:flex;align-items:center;justify-content:center"></div>
         <div style="flex:1;min-width:0;text-align:left">
@@ -566,6 +575,11 @@ async function refreshShare(){
   renderAccounts(s.accounts || []);
   const qr = document.getElementById('shQr'), url = s.guestUrl;
   window.__guestUrl = url || '';
+  window.__allDirs = s.allDirs || [];
+  window.__poolDirs = s.poolDirs || [];
+  renderPoolChips();
+  const pn = document.getElementById('poolNick');
+  if (pn && document.activeElement !== pn) pn.value = s.nick || '';
   if(url && window.qrcode){
     const q = qrcode(0, 'M'); q.addData(url); q.make();
     qr.innerHTML = q.createImgTag(4, 8);
@@ -637,6 +651,7 @@ async function loadVisitors(){
   try{
     const r = await (await fetch('/api/visitors')).json();
     const list = r.visitors || [];
+    window.__visitors = list;
     const cur = sel.value;
     sel.innerHTML = '<option value="*">全部朋友（' + (r.total||0) + '）</option>' +
       list.map(v => `<option value="${esc(v.vid)}">${esc(v.name)}${v.bonus?(' · 已加'+v.bonus+'次'):''}</option>`).join('');
@@ -646,6 +661,8 @@ async function loadVisitors(){
         <b style="font-size:12px">${esc(v.name)}</b>
         <span style="font-size:10px;color:var(--text2)">从 ${esc(v.start||'—')} 起 · 听过 ${v.plays||0} 次${v.last?(' · 最后 '+esc(v.last)):''}</span>
         <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex:none">
+          <span style="font-size:10px;color:var(--text2)">${(v.pools&&v.pools.length)?('池 '+v.pools.length):'池·全部'}</span>
+          <button class="btn small ghost" style="padding:3px 10px" onclick="visitorPools('${esc(v.vid)}')">作者</button>
           <span style="font-size:10px;color:#ffd76a">加赠 ${v.bonus||0} 次</span>
           <button class="btn small ghost" style="padding:3px 10px" onclick="visitorDetail('${esc(v.vid)}')">详情</button>
         </span>
@@ -654,6 +671,76 @@ async function loadVisitors(){
   }catch(e){
     box.innerHTML = '<div style="color:var(--text2)">名单加载失败</div>';
   }
+}
+/* ---- 盲盒池作者（多选混合）+ 按访客分配 ---- */
+let _poolSel = null;   // null = 跟随已保存配置；数组 = 本地勾选中的绝对路径
+const _dirName = p => { try { const a = String(p).replace(/\\/g, '/').split('/'); return a[a.length - 1] || p; } catch (e) { return p; } };
+function renderPoolChips(){
+  const box = document.getElementById('poolChips');
+  if (!box) return;
+  const all = (window.__allDirs || []).map(x => typeof x === 'string' ? {path: x} : x);
+  const saved = window.__poolDirs || [];
+  const sel = _poolSel === null ? saved.slice() : _poolSel;
+  box.innerHTML = all.length ? all.map(d =>
+    `<button class="btn small ${sel.includes(d.path) ? '' : 'ghost'}" style="padding:5px 12px;${sel.includes(d.path) ? 'border-color:#ffd76a;color:#ffd76a' : ''}"
+      onclick="togglePoolDir('${esc(d.path)}')">${sel.includes(d.path) ? '✅' : '⬜'} ${esc(_dirName(d.path))}</button>`).join('')
+    : '<span style="font-size:11px;color:var(--text2)">还没有已备份的目录（先完成一次备份）</span>';
+}
+function togglePoolDir(p){
+  const saved = window.__poolDirs || [];
+  const cur = _poolSel === null ? saved.slice() : _poolSel;
+  _poolSel = cur.includes(p) ? cur.filter(x => x !== p) : cur.concat([p]);
+  renderPoolChips();
+}
+async function savePool(){
+  const sel = _poolSel === null ? (window.__poolDirs || []).slice() : _poolSel;
+  try{
+    const r1 = await (await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({pool_dirs: sel})})).json();
+    if(!r1.ok){ toast(r1.error || '保存失败'); return; }
+    const nick = (document.getElementById('poolNick').value || '').trim();
+    const r2 = await (await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({nick: nick})})).json();
+    if(!r2.ok){ toast(r2.error || '昵称保存失败'); return; }
+    toast('盲盒池已保存：' + (sel.length ? sel.map(_dirName).join(' + ') : '主目录'));
+    loadShareState();
+  }catch(e){ toast('保存失败'); }
+}
+function visitorPools(vid){
+  const opts = (window.__poolDirs && window.__poolDirs.length) ? window.__poolDirs
+             : ((window.__allDirs || []).map(d => d.path));
+  if (!opts.length){ toast('还没有可分配的备份目录'); return; }
+  const v = (window.__visitors || []).find(x => x.vid === vid) || {};
+  const cur = v.pools || [];
+  const old = document.getElementById('vpMask'); if (old) old.remove();
+  const m = document.createElement('div'); m.id = 'vpMask';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:60;display:flex;align-items:center;justify-content:center';
+  m.innerHTML = '<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:460px;width:92%;padding:18px 20px">' +
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+    '<div style="font-size:14px;font-weight:700;flex:1;text-align:left">🎯 分配可抽作者</div>' +
+    '<button class="btn small ghost" style="padding:5px 12px" onclick="document.getElementById(\'vpMask\').remove()">取消</button></div>' +
+    '<div style="font-size:11px;color:var(--text2);text-align:left;margin-bottom:8px">勾选 = 只能从这些作者的备份里抽；全部不勾 = 不限制（抽全部）。</div>' +
+    '<div id="vpChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">' +
+    opts.map(d => { const on = cur.includes(d); const nm = esc(_dirName(d));
+      return '<button class="btn small ' + (on ? 'vp-on' : 'ghost') + '" style="padding:6px 12px;' +
+      (on ? 'border-color:#ffd76a;color:#ffd76a' : '') + '" data-p="' + esc(d) + '" data-n="' + nm + '">' +
+      (on ? '✅ ' : '⬜ ') + nm + '</button>'; }).join('') + '</div>' +
+    '<button class="btn" style="width:100%" onclick="saveVisitorPools(\'' + esc(vid) + '\')">保存分配</button></div>';
+  m.querySelectorAll('#vpChips button').forEach(b => b.onclick = () => {
+    b.classList.toggle('ghost'); b.classList.toggle('vp-on');
+    b.innerHTML = (b.classList.contains('vp-on') ? '✅ ' : '⬜ ') + esc(b.dataset.n);
+  });
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  document.body.appendChild(m);
+}
+async function saveVisitorPools(vid){
+  const pools = [...document.querySelectorAll('#vpChips .vp-on')].map(b => b.dataset.p);
+  try{
+    const r = await (await fetch('/api/grant', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({vid: vid, pools: pools})})).json();
+    if(r.ok){ toast('已保存：' + (pools.length ? '只抽 ' + pools.map(_dirName).join(' + ') : '不限制（全部）')); document.getElementById('vpMask').remove(); loadVisitors(); }
+    else toast(r.error || '保存失败');
+  }catch(e){ toast('保存失败'); }
 }
 function previewGuest(){
   // 预览走盲盒端口（SW/PWA 只在那边完整），8766 被占才退回本页 /guest
@@ -677,6 +764,7 @@ async function visitorDetail(vid){
     ['最后播放', d.last_play || '—'],
     ['已拆开', revealed.length + ' / ' + hist.length + ' 首'],
     ['加赠', (d.bonus || 0) + ' 次' + ((d.grant_left || 0) > 0 ? '（还有 ' + d.grant_left + ' 首没拆）' : '')],
+    ['可抽作者', (d.pools && d.pools.length) ? d.pools.length + ' 个（指定）' : '全部'],
     ['留言', (d.msgs || 0) + ' 条']
   ];
   m.innerHTML = '<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:560px;width:92%;max-height:88vh;overflow-y:auto;padding:18px 20px">' +

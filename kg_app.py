@@ -57,32 +57,49 @@ def save_shares(sh):
 
 
 def share_entries():
-    """读取当前分享目录的 index.json，返回 (entries_sorted, profile, share)。"""
+    """读取盲盒池的 index.json，返回 (entries, profile, share)。
+
+    盲盒池 = shares.pool_dirs（多作者目录，管理端勾选）若已设置，否则只用 shares.dir。
+    合并时每首作品打上 _pool（来源目录）标记；seq 全池重编，保证前端编号稳定；
+    昵称优先用 shares.nick（机主自定义），否则取第一个有效作者的资料。"""
     sh = load_shares()
-    d = sh.get('dir') or ''
-    if not d or not os.path.isdir(d):
-        return [], {}, sh
-    try:
-        with open(os.path.join(d, 'index.json'), encoding='utf-8') as f:
-            idx = json.load(f)
-    except Exception:
-        return [], {}, sh
-    entries = sorted(idx.get('works', {}).values(), key=lambda x: x.get('seq') or 0)
-    # 老备份没有「收录时间」：用音频文件的修改时间兜底（= 当初下载备份进盲盒的时间）
-    for e in entries:
-        if e.get('collected'):
+    dirs = [d for d in (sh.get('pool_dirs') or []) if d]
+    if not dirs:
+        dirs = [sh.get('dir') or '']
+    merged, profile = [], {}
+    for d in dirs:
+        if not d or not os.path.isdir(d):
             continue
-        m = ''
-        for f in (e.get('audio'), e.get('cover')):
-            if not f:
-                continue
-            p = os.path.join(d, f)
-            if os.path.isfile(p):
-                m = dt_date.fromtimestamp(os.path.getmtime(p)).isoformat()
-                break
-        if m:
-            e['collected'] = m
-    return entries, idx.get('profile', {}), sh
+        try:
+            with open(os.path.join(d, 'index.json'), encoding='utf-8') as f:
+                idx = json.load(f)
+        except Exception:
+            continue
+        if not profile:
+            profile = idx.get('profile', {})
+        # 老备份没有「收录时间」：用该目录音频文件的修改时间兜底（= 当初备份进盲盒的时间）
+        for e in idx.get('works', {}).values():
+            e = dict(e)
+            e['_pool'] = d
+            if not e.get('collected'):
+                m = ''
+                for f in (e.get('audio'), e.get('cover')):
+                    if not f:
+                        continue
+                    p = os.path.join(d, f)
+                    if os.path.isfile(p):
+                        m = dt_date.fromtimestamp(os.path.getmtime(p)).isoformat()
+                        break
+                if m:
+                    e['collected'] = m
+            merged.append(e)
+    merged.sort(key=lambda x: ((x.get('_pool') or ''), x.get('seq') or 0))
+    for i, e in enumerate(merged, 1):
+        e['seq'] = i
+    if sh.get('nick'):
+        profile = dict(profile or {})
+        profile['nickname'] = str(sh['nick'])
+    return merged, profile, sh
 
 
 def _uk(e):
@@ -259,7 +276,7 @@ def grant_to_visitor(share_dir, vid, extra=0, msg=''):
     if extra > 0:
         # 先让 blindbox_state 把这位访客的加赠档案补齐/迁移，同时拿到已解锁集合
         try:
-            _e, _pf, unlocked, _h, _tk, today, _fe = blindbox_state(vid)
+            entries, _pf, unlocked, _h, _tk, today, _fe = blindbox_state(vid)
         except Exception:
             unlocked = set()
     st, data = visitor_state(share_dir, vid)   # 此时磁盘上已是迁移后的最新档案
@@ -270,12 +287,12 @@ def grant_to_visitor(share_dir, vid, extra=0, msg=''):
                            'at': dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'seen': False})
         st['msgs'] = st['msgs'][-20:]
     if extra > 0:
-        # 现在就把加赠歌挑定：避开这位访客已解锁/已加赠过的
+        # 现在就把加赠歌挑定：只从这位访客自己的可抽范围里挑
+        # （entries 已按其分配的作者池过滤），避开已解锁/已加赠过的
         grants = st.setdefault('grants', [])
         used = set(unlocked) | {g.get('uk') for g in grants}
         for gi in range(min(extra, 30)):
-            p = _pick_distinct([e for e in share_entries()[0] if e.get('audio')],
-                               '%s|grant|%d|%d' % (today, int(time.time()), gi), vid, used)
+            p = _pick_distinct(entries, '%s|grant|%d|%d' % (today, int(time.time()), gi), vid, used)
             if p is None:
                 break
             uk = _uk(p)
@@ -305,10 +322,6 @@ def blindbox_state(vid=None):
     entries, profile, sh = share_entries()
     if not entries:
         return entries, profile, set(), [], set(), '', None
-    # 盲盒池只收有音频文件的作品：纯 MV / 音频缺失的歌抽中了也没法听
-    pool = [e for e in entries if e.get('audio')]
-    if not pool:
-        return entries, profile, set(), [], set(), '', None
     share_dir = sh.get('dir') or '.'
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     salt = ''
@@ -323,6 +336,7 @@ def blindbox_state(vid=None):
         except Exception:
             start, salt = today, vid
     else:
+        # 全局视角（管理端）：沿用 guest_start 记录的分享起点
         start_file = os.path.join(share_dir, 'guest_start')
         if not os.path.exists(start_file):
             try:
@@ -335,6 +349,14 @@ def blindbox_state(vid=None):
                 start = f.read().strip() or today
         except Exception:
             start = today
+    # 管理端分配：这位访客只从指定的作者池里抽（未分配 = 全部可用）
+    allowed = set((st or {}).get('pools') or [])
+    if allowed:
+        entries = [e for e in entries if e.get('_pool') in allowed]
+    # 盲盒池只收有音频文件的作品：纯 MV / 音频缺失的歌抽中了也没法听
+    pool = [e for e in entries if e.get('audio')]
+    if not pool:
+        return entries, profile, set(), [], set(), '', None
     history, unlocked = [], set()
     try:
         d = dt_date.fromisoformat(start)
@@ -1014,6 +1036,7 @@ class Handler(BaseHTTPRequestHandler):
                              'start': st.get('start') or '', 'bonus': int(st.get('bonus') or 0),
                              'plays': sum(int(v or 0) for v in (st.get('plays') or {}).values()),
                              'last': st.get('last') or '',
+                             'pools': st.get('pools') or [],
                              'msgs': len(st.get('msgs') or [])})
             rows.sort(key=lambda x: (-x['bonus'], x['name']))
             return self._send(200, {'visitors': rows, 'total': len(rows)})
@@ -1072,6 +1095,7 @@ class Handler(BaseHTTPRequestHandler):
                 'vid': vid, 'name': visitor_label(vid),
                 'start': st.get('start') or '', 'legacy': bool(st.get('legacy')),
                 'bonus': int(st.get('bonus') or 0), 'grant_left': grant_left, 'msgs': len(msgs),
+                'pools': st.get('pools') or [],
                 'last_msg': (msgs[-1].get('text') or '') if msgs else '',
                 'last_msg_at': (msgs[-1].get('at') or '') if msgs else '',
                 'last_play': st.get('last') or '',
@@ -1116,8 +1140,21 @@ class Handler(BaseHTTPRequestHandler):
             gurl = custom + '/guest' if custom else guest_url_from_host(self.headers.get('Host'), gport or port)
             if not gurl:
                 gurl = f'http://{ips[0]}:{gport}/guest' if (ips and gport) else (f'http://{ips[0]}:{port}/guest' if ips else '')
+            _sh = load_shares()
+            _all = []
+            _root = data_root()
+            try:
+                for name in sorted(os.listdir(_root)):
+                    full = os.path.join(_root, name)
+                    if os.path.isdir(full) and os.path.exists(os.path.join(full, 'index.json')):
+                        _all.append(full)
+            except OSError:
+                pass
             return self._send(200, {
-                'dir': (load_shares().get('dir') or ''),
+                'dir': (_sh.get('dir') or ''),
+                'poolDirs': (_sh.get('pool_dirs') or []),
+                'allDirs': _all,
+                'nick': (_sh.get('nick') or ''),
                 'guestUrl': gurl, 'guestBase': custom, 'unlocked': len(unlocked), 'total': len(entries),
                 'pool': sum(1 for e in entries if e.get('audio')),
                 'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
@@ -1261,6 +1298,7 @@ class Handler(BaseHTTPRequestHandler):
                 extra = 0
             msg = str(p.get('msg') or '').strip()[:300]
             who = p.get('vid') or p.get('to') or ''
+            pools = p.get('pools') if isinstance(p.get('pools'), list) else None
             if who and who != '*':
                 targets = [str(who)]
             else:
@@ -1271,8 +1309,14 @@ class Handler(BaseHTTPRequestHandler):
             for vid in targets:
                 if not _VID_ANY_RE.match(vid):
                     continue
-                done.append({'vid': vid, 'name': visitor_label(vid),
-                             'bonus': grant_to_visitor(sh_dir, vid, extra, msg)})
+                bonus = grant_to_visitor(sh_dir, vid, extra, msg)
+                if pools is not None:
+                    st2, data2 = visitor_state(sh_dir, vid)
+                    st2['pools'] = [str(x) for x in pools if str(x).strip()]
+                    data2[vid] = st2
+                    save_visitors(sh_dir, data2)
+                done.append({'vid': vid, 'name': visitor_label(vid), 'bonus': bonus,
+                             'pools': (st2 or {}).get('pools') if pools is not None else None})
             return self._send(200, {'ok': True, 'sent': len(done), 'rows': done})
         if self.path == '/api/share':
             p = self._body()
@@ -1290,6 +1334,32 @@ class Handler(BaseHTTPRequestHandler):
                     save_shares(sh)
                     return self._send(200, {'ok': True, 'dir': d})
                 return self._send(400, {'error': '目录不存在或还没有 index.json（先完成一次备份）'})
+            if 'pool_dirs' in p:
+                # 盲盒池作者集合：勾选哪些备份目录参与盲盒（可混合可单独）；空 = 只用主目录
+                sh = load_shares()
+                root = os.environ.get('KG_DATA_DIR') or ''
+                dirs = []
+                for d in (p.get('pool_dirs') or []):
+                    d = str(d or '').strip()
+                    if not d:
+                        continue
+                    if not os.path.isabs(d) and root:
+                        d = os.path.join(root, d)
+                    if os.path.isdir(d) and os.path.exists(os.path.join(d, 'index.json')):
+                        dirs.append(d)
+                sh['pool_dirs'] = dirs
+                save_shares(sh)
+                return self._send(200, {'ok': True, 'pool_dirs': dirs})
+            if 'nick' in p:
+                # 盲盒页昵称覆盖（多作者混合时不再只显示第一个作者的名字）
+                sh = load_shares()
+                nick = str(p.get('nick') or '').strip()[:30]
+                if nick:
+                    sh['nick'] = nick
+                else:
+                    sh.pop('nick', None)
+                save_shares(sh)
+                return self._send(200, {'ok': True, 'nick': nick})
             if 'guest_base' in p:
                 # 自定义盲盒链接前缀（反代/域名/端口与直连不一致时用），空 = 自动生成
                 base = str(p.get('guest_base') or '').strip().rstrip('/')
