@@ -7,6 +7,19 @@
 > 提交 → 打 tag `vX.Y.Z` 推送 → GitHub Actions 自动构建 exe 并推送 Docker 镜像
 > （`ghcr.io/suntreef/wesing-backup:X.Y.Z` 与 `:latest`，**只有打 tag 才会更新镜像**）。
 
+## [1.12.16] - 2026-11-07
+
+iOS 安装后的两处适配：状态栏遮挡 + 回弹露白。
+
+### 修复
+- **iPhone 安装到桌面后顶部被状态栏遮挡**：iOS 独立窗口（black-translucent 状态栏）下
+  页面内容会顶到状态栏底下。现在 header、右上角主题/消息圆钮统一加
+  `env(safe-area-inset-top)` 安全区避让；播放条底部加 `env(safe-area-inset-bottom)`
+  并同步加高页面底部预留（home 条不再压住播放条）。安卓与桌面浏览器 env=0，布局不变
+- **iOS 下拉/上滑到底露出白色界面**：橡皮筋回弹露出的是 html 根元素的背景
+  （body 的深色渐变盖不到那里）。现在 html 根元素设为同色深底、浅色主题用
+  `:has(body.light)` + 主题切换 JS 双保险同步为浅色——回弹区域和页面浑然一体
+
 ## [1.12.15] - 2026-11-07
 
 与任务魔盒逐项同构：PWA 结构差异清零。

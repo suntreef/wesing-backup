@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.15'
+APP_VERSION = '1.12.16'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2279,13 +2279,15 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <title>__FEST_TITLE____NICK__ 的盲盒歌单</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+html{background:#0b0d13}
+html:has(body.light){background:#f2f4f8}
 body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
- font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;overflow-y:auto;padding-bottom:104px;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;overflow-y:auto;padding-bottom:calc(104px + env(safe-area-inset-bottom));
  -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
  overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
 button{touch-action:manipulation}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
-header{position:sticky;top:0;z-index:9;text-align:left;padding:13px 18px 11px;background:rgba(15,18,32,.78);
+header{position:sticky;top:0;z-index:9;text-align:left;padding:calc(13px + env(safe-area-inset-top)) 18px 11px;background:rgba(15,18,32,.78);
  backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
  border-bottom:1px solid rgba(255,255,255,.07)}
 body.light header{background:rgba(247,248,252,.86);border-bottom-color:rgba(0,0,0,.06)}
@@ -2468,7 +2470,7 @@ body.light .crow .creply{background:rgba(184,134,11,.08);color:#1d2430}
 /* 播放计数 */
 .pcount{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:#8f9aac}
 /* 主题切换（固定右上角小按钮，不再挡歌柜） */
-.theme-toggle{position:fixed;top:10px;right:10px;z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
+.theme-toggle{position:fixed;top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
  background:rgba(255,255,255,.07);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#ffd76a;font-size:14px;cursor:pointer;
  -webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.2s}
 .theme-toggle:hover{border-color:#ffd76a}
@@ -2511,7 +2513,7 @@ body.light .bar button:hover{background:rgba(0,0,0,.11)}
 body.light .comment-form input{background:#fff;border-color:#d8dce8;color:#1d2430}
 body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
 /* 消息中心：固定小圆钮（有历史消息才出现，和主题按钮并排）+ 底部抽屉列表 */
-.msg-toggle{position:fixed;top:10px;right:52px;z-index:9;width:34px;height:34px;border-radius:50%;
+.msg-toggle{position:fixed;top:calc(10px + env(safe-area-inset-top));right:calc(52px + env(safe-area-inset-right));z-index:9;width:34px;height:34px;border-radius:50%;
  border:1px solid rgba(255,255,255,.12);background:rgba(30,34,52,.72);color:#e8eaf0;font-size:15px;
  display:none;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;
  -webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -2695,12 +2697,14 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
 try {
   if (localStorage.getItem('kgtheme') === 'light') {
     document.body.classList.add('light');
+    document.documentElement.style.background = '#f2f4f8';
     document.querySelector('.theme-toggle').textContent = '🌙';
   }
 } catch(e){}
 function toggleTheme(){
   const light = !document.body.classList.contains('light');
   document.body.classList.toggle('light', light);
+  document.documentElement.style.background = light ? '#f2f4f8' : '';
   try { localStorage.setItem('kgtheme', light ? 'light' : 'dark'); } catch(e){}
   const t = document.querySelector('.theme-toggle');
   if (t) t.textContent = light ? '🌙' : '🌗';
