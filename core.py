@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.17'
+APP_VERSION = '1.12.18'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2829,7 +2829,7 @@ function parseLrc(text){
 }
 let glrc = [], glrcOn = -1;
 /* 今日盲盒 */
-const todaySongs = SONGS.filter(s => s.today);
+const todaySongs = SONGS.filter(s => s.today).sort((a, b) => (a.torder || 0) - (b.torder || 0));
 let revealed = false, opening = false;
 try { revealed = localStorage.getItem('kgreveal_' + '__TODAY__') === '1'; } catch(e){}
 /* 今日已拆开几张（每日第 1 张随开盒仪式翻开，加赠的要自己一张张拆） */
@@ -3606,6 +3606,7 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
             'audio': '' if locked else '/g/' + (e.get('audio') or ''),
             'lrc': '' if locked else '/g/' + (e.get('lrc') or ''),
             'locked': locked, 'today': is_today,
+            'torder': (list(today_keys).index(k) if k in today_keys else -1),
             'festival': e.get('_fest') or '',
         })
     # uk/festival 必须带上：日历靠 uk 隐藏未拆的今日歌、靠 festival 标「🎁 加更」

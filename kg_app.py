@@ -56,19 +56,37 @@ def save_shares(sh):
         pass
 
 
-def share_entries():
+def share_entries(scope='pool'):
     """读取盲盒池的 index.json，返回 (entries, profile, share)。
 
-    盲盒池 = shares.pool_dirs（多作者目录，管理端勾选）若已设置，否则只用 shares.dir。
+    scope='pool'：盲盒池 = shares.pool_dirs（多作者目录，管理端勾选）若已设置，否则只用 shares.dir。
+    scope='all' ：池 + 数据根目录下所有有效备份目录（历史掉落/加赠永久解锁的数据来源）。
     合并时每首作品打上 _pool（来源目录）标记；seq 全池重编，保证前端编号稳定；
     昵称优先用 shares.nick（机主自定义），否则取第一个有效作者的资料。"""
     sh = load_shares()
-    dirs = [d for d in (sh.get('pool_dirs') or []) if d]
-    if not dirs:
-        dirs = [sh.get('dir') or '']
+    dirs, seen = [], set()
+
+    def _add(d):
+        if not d:
+            return
+        ap = os.path.abspath(d)
+        if ap not in seen and os.path.isdir(ap) and os.path.exists(os.path.join(ap, 'index.json')):
+            seen.add(ap)
+            dirs.append(ap)
+
+    if scope == 'all':
+        root = data_root()
+        try:
+            for name in sorted(os.listdir(root)):
+                _add(os.path.join(root, name))
+        except OSError:
+            pass
+    for d in (sh.get('pool_dirs') or []):
+        _add(d)
+    _add(sh.get('dir') or '')
     merged, profile = [], {}
     for d in dirs:
-        if not d or not os.path.isdir(d):
+        if not d:
             continue
         try:
             with open(os.path.join(d, 'index.json'), encoding='utf-8') as f:
@@ -319,9 +337,9 @@ def blindbox_state(vid=None):
     vid 为空 → 全局视角（管理后台统计"从分享第一天到今天"应有的进度）；
     给了 vid → 这位访客自己的起点与掉落序列（互不相通）。
     """
-    entries, profile, sh = share_entries()
-    if not entries:
-        return entries, profile, set(), [], set(), '', None
+    all_entries, profile, sh = share_entries('all')
+    if not all_entries:
+        return all_entries, profile, set(), [], set(), '', None
     share_dir = sh.get('dir') or '.'
     today = os.environ.get('KG_FAKE_DATE') or dt_date.today().isoformat()
     salt = ''
@@ -349,15 +367,28 @@ def blindbox_state(vid=None):
                 start = f.read().strip() or today
         except Exception:
             start = today
-    # 管理端分配：这位访客只从指定的作者池里抽（未分配 = 全部可用）
-    allowed = set((st or {}).get('pools') or [])
-    if allowed:
-        entries = [e for e in entries if e.get('_pool') in allowed]
+    # 视图层：访客的掉落范围 = 管理端分配（未分配 = 盲盒池），全局视角 = 盲盒池。
+    # all_entries 是全库（历史掉落/加赠的歌即使被移出当前池/分配范围，
+    # 也凭记录保持已解锁可听——已解锁的永久可听）
+    pool_names = {os.path.abspath(p) for p in (sh.get('pool_dirs') or [])}
+    if not pool_names and sh.get('dir'):
+        pool_names = {os.path.abspath(sh['dir'])}
+    if vid:
+        allowed = {os.path.abspath(a) for a in ((st or {}).get('pools') or [])}
+        base = allowed if allowed else pool_names
+    else:
+        base = pool_names
+    entries = [e for e in all_entries if (not base or e.get('_pool') in base)]
     # 盲盒池只收有音频文件的作品：纯 MV / 音频缺失的歌抽中了也没法听
     pool = [e for e in entries if e.get('audio')]
     if not pool:
         return entries, profile, set(), [], set(), '', None
     history, unlocked = [], set()
+    # 掉落按访客持久化：换池/扩池/修池后，历史解锁的歌永不消失、日历永不重排
+    drops = st.setdefault('drops', {}) if isinstance(st, dict) and st else None
+    drops_changed = False
+    by_all_uk = {_uk(e): e for e in all_entries}
+    today_picks = []
     try:
         d = dt_date.fromisoformat(start)
     except ValueError:
@@ -367,9 +398,23 @@ def blindbox_state(vid=None):
     while d <= end and guard < 3650:
         day = d.isoformat()
         fest = __import__('core').get_festival(day)
-        picks = [_pick_for_date(pool, day, salt)]
-        if fest and fest.get('double'):
-            picks.append(_pick_for_date(pool, day + '|bonus', salt))
+        rec = drops.get(day) if drops is not None else None
+        picks = []
+        if rec:
+            # 已记录的掉落优先按记录取（记录的歌被移出备份时跳过）
+            for uk in rec:
+                e = by_all_uk.get(uk)
+                if e is not None:
+                    picks.append(e)
+        else:
+            picks = [_pick_for_date(pool, day, salt)]
+            if fest and fest.get('double'):
+                picks.append(_pick_for_date(pool, day + '|bonus', salt))
+            if drops is not None:
+                drops[day] = [_uk(p) for p in picks if p is not None]
+                drops_changed = True
+        if day == today:
+            today_picks = [p for p in picks if p is not None]
         for pi, pick in enumerate(picks):
             if pick is None:
                 continue
@@ -379,19 +424,25 @@ def blindbox_state(vid=None):
                             'festival': (fest['name'] + (pi > 0 and '加更' or '')) if fest and fest.get('double') else (fest['name'] if fest else '')})
         d += dt.timedelta(days=1)
         guard += 1
-    today_pick = _pick_for_date(pool, today, salt)
-    today_keys = {_uk(today_pick)} if today_pick else set()
+    if drops_changed and drops is not None:
+        try:
+            st2, data2 = visitor_state(share_dir, vid)   # 重新读盘合并，避免覆盖并发的加赠/分配
+            st2['drops'] = drops
+            data2[vid] = st2
+            save_visitors(share_dir, data2)
+        except Exception:
+            pass
+    # 今日堆叠 = 有序列表：日常在前、节日双倍其次（加赠在其后追加）
+    today_keys = []
+    for p in today_picks:
+        k = _uk(p)
+        if k not in today_keys:
+            today_keys.append(k)
     festival = __import__('core').get_festival(today)
-    # 节日双倍：加更歌也标记为 today 并加入解锁集
-    if festival and festival.get('double') and today_pick is not None:
-        bonus = _pick_for_date(pool, today + '|bonus', salt)
-        if bonus is not None:
-            unlocked.add(_uk(bonus))
-            today_keys.add(_uk(bonus))
     # 机主加赠：发送时就挑定的歌，一次性立即生效——立即可拆、拆开永久解锁，
     # 不再按天重摇（旧版每天换一批新歌、昨天拆的今天变回锁定）
     if grants:
-        by_uk = {_uk(e): e for e in entries}
+        by_uk = by_all_uk
         gopened = set(st.get('grants_opened') or [])
         for g in grants:
             e = by_uk.get(g.get('uk'))
@@ -403,8 +454,23 @@ def blindbox_state(vid=None):
             history.append({'date': g.get('at') or today, 'title': e.get('title') or '',
                             'singer': e.get('singer_name') or '', 'uk': k,
                             'festival': '加更'})
-            if k not in gopened:
-                today_keys.add(k)   # 还没拆的进今天的堆叠
+            if k not in gopened and k not in today_keys:
+                today_keys.append(k)   # 还没拆的进今天的堆叠（追加在日常之后，顺序稳定）
+    # 历史掉落/加赠里的歌若已不在当前视图（缩池/改分配），凭记录补回——已解锁的永久可听
+    if vid and st:
+        have = {_uk(e) for e in entries}
+        keep = set()
+        for _day, uks in (st.get('drops') or {}).items():
+            keep.update(uks or [])
+        for g in (st.get('grants') or []):
+            keep.add(g.get('uk'))
+        missing = [by_all_uk[uk] for uk in keep
+                   if uk and uk in by_all_uk and uk not in have and uk in unlocked]
+        if missing:
+            entries = entries + missing
+            entries.sort(key=lambda x: ((x.get('_pool') or ''), x.get('seq') or 0))
+            for i, e in enumerate(entries, 1):
+                e['seq'] = i
     return entries, profile, unlocked, history, today_keys, today, festival
 
 
@@ -790,6 +856,19 @@ class Handler(BaseHTTPRequestHandler):
                     break
             if not ok:
                 return self._send(403, b'locked', 'text/plain; charset=utf-8')
+        if not os.path.exists(full):
+            # 歌可能来自其他作者的目录（历史掉落/加赠的跨池解锁）：在已解锁条目的来源目录里找
+            for e in entries:
+                if _uk(e) not in unlocked:
+                    continue
+                for f in (e.get('audio'), e.get('cover'), e.get('lrc')):
+                    if f and os.path.basename(f) == os.path.basename(full):
+                        cand = os.path.abspath(os.path.join(e.get('_pool') or root, f))
+                        if os.path.isfile(cand):
+                            full = cand
+                            break
+                if os.path.exists(full):
+                    break
         if not os.path.exists(full):
             return self._send(404, b'not found', 'text/plain; charset=utf-8')
         size = os.path.getsize(full)
@@ -1299,6 +1378,7 @@ class Handler(BaseHTTPRequestHandler):
             msg = str(p.get('msg') or '').strip()[:300]
             who = p.get('vid') or p.get('to') or ''
             pools = p.get('pools') if isinstance(p.get('pools'), list) else None
+            one_uk = str(p.get('uk') or '').strip()
             if who and who != '*':
                 targets = [str(who)]
             else:
@@ -1310,6 +1390,15 @@ class Handler(BaseHTTPRequestHandler):
                 if not _VID_ANY_RE.match(vid):
                     continue
                 bonus = grant_to_visitor(sh_dir, vid, extra, msg)
+                if one_uk:
+                    # 定向补偿：把指定歌作为该访客的未拆加更送出（进堆叠，拆开永久解锁）
+                    st3, data3 = visitor_state(sh_dir, vid)
+                    gl = st3.setdefault('grants', [])
+                    if one_uk not in [g.get('uk') for g in gl]:
+                        gl.append({'uk': one_uk, 'at': _today_str()})
+                        st3['grants'] = gl[-120:]
+                        data3[vid] = st3
+                        save_visitors(sh_dir, data3)
                 if pools is not None:
                     st2, data2 = visitor_state(sh_dir, vid)
                     st2['pools'] = [str(x) for x in pools if str(x).strip()]
