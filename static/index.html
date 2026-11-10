@@ -25,6 +25,23 @@
          --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 36px rgba(0,0,0,.5);
          --shadow-h:0 2px 8px rgba(0,0,0,.5),0 16px 48px rgba(0,0,0,.6); }
 }
+html[data-theme="dark"]{ --bg:#0a0a0c; --card:#17171a; --card2:#1e1e22; --text:#f5f5f7; --text2:#a1a1a6;
+  --line:#2c2c30; --line2:#3a3a3e; --track:#2a2a2e; --log:#101216;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 36px rgba(0,0,0,.5);
+  --shadow-h:0 2px 8px rgba(0,0,0,.5),0 16px 48px rgba(0,0,0,.6); }
+html[data-theme="light"]{ --bg:#f5f5f7; --card:#ffffff; --card2:#fbfbfd; --text:#1d1d1f; --text2:#6e6e73;
+  --line:#e3e3e8; --line2:#d2d2d7; --track:#ececf0; --log:#16181d;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.07);
+  --shadow-h:0 2px 6px rgba(0,0,0,.06),0 14px 44px rgba(0,0,0,.11); }
+@media (prefers-color-scheme: dark){ html[data-theme="light"]{
+  --bg:#f5f5f7; --card:#ffffff; --card2:#fbfbfd; --text:#1d1d1f; --text2:#6e6e73;
+  --line:#e3e3e8; --line2:#d2d2d7; --track:#ececf0; --log:#16181d;
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.07);
+  --shadow-h:0 2px 6px rgba(0,0,0,.06),0 14px 44px rgba(0,0,0,.11); } }
+header{background:color-mix(in srgb, var(--card) 80%, transparent)}
+.badge-dot{position:absolute;top:-4px;right:-6px;width:16px;height:16px;border-radius:50%;
+  background:var(--red);color:#fff;font-size:9.5px;font-weight:700;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 2px 6px rgba(255,59,48,.5)}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);min-height:100vh;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
@@ -156,12 +173,14 @@ footer a{color:var(--text2)}
 </style>
 </head>
 <body>
+<script>try{const t=localStorage.getItem('kgadm');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 <header>
   <div class="bico">🎤</div>
   <div class="btxt"><b>全民K歌备份</b><i>本地备份工作台</i></div>
+  <button class="btn ghost small" id="themeBtn" onclick="cycleTheme()" title="切换深浅色">🌗</button>
   <div class="v" id="ver">本地运行 · v?</div>
   <button class="btn ghost small" onclick="lanModal()">📱 手机访问</button>
-  <button class="btn small" onclick="shareModal()">🎁 朋友盲盒</button>
+  <button class="btn small" id="giftBtn" onclick="shareModal()" style="position:relative">🎁 朋友盲盒</button>
 </header>
 
 <main>
@@ -172,8 +191,14 @@ footer a{color:var(--text2)}
 
   <!-- 我的备份库 -->
   <section class="card hidden" id="libCard">
-    <div class="cardhead"><h2>💾 我的备份库</h2><span class="chint">「设为分享」= 切换朋友盲盒的内容来源</span></div>
+    <div class="cardhead"><h2>💾 我的备份库</h2><span class="chint">🔑=cookie 状态 · 🗑=删除（双重确认，只删单个目录）</span>
+      <span style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn ghost small" onclick="exportBundle()" title="打包导出访客/掉落/留言/配置">⬇️ 导出数据</button>
+        <button class="btn ghost small" onclick="document.getElementById('importFile').click()">⬆️ 导入数据</button>
+        <input type="file" id="importFile" accept=".zip" style="display:none" onchange="importBundle(this)">
+      </span></div>
     <div id="libRows" class="librows"></div>
+    <div id="libFoot" style="margin-top:10px;text-align:right"><button class="btn ghost small" style="color:var(--text2)" onclick="cleanJunk()">🧹 清理无效残留目录</button></div>
   </section>
 
   <!-- 新建备份 -->
@@ -252,6 +277,56 @@ footer a{color:var(--text2)}
 <script>
 const $ = s => document.querySelector(s);
 let curState = 'idle', lastLogLen = -1, doneNoted = false, renderedLogs = 0, curPaused = false;
+/* 主题循环：跟随系统 → 浅色 → 深色 */
+function cycleTheme(){
+  const cur = document.documentElement.dataset.theme || '';
+  const next = cur === '' ? 'light' : cur === 'light' ? 'dark' : '';
+  if (next) document.documentElement.dataset.theme = next;
+  else delete document.documentElement.dataset.theme;
+  try { localStorage.setItem('kgadm', next); } catch(e){}
+  const b = document.getElementById('themeBtn');
+  if (b) b.textContent = next === 'light' ? '☀️' : next === 'dark' ? '🌙' : '🌗';
+}
+try { const b = document.getElementById('themeBtn');
+  if (b) b.textContent = (document.documentElement.dataset.theme === 'light' ? '☀️'
+    : document.documentElement.dataset.theme === 'dark' ? '🌙' : '🌗'); } catch(e){}
+/* 朋友盲盒按钮未读徽标：有新留言时亮红点 */
+let _cmtTotal = -1;
+function paintGiftBadge(){
+  const b = document.getElementById('giftBtn');
+  if (!b) return;
+  let dot = b.querySelector('.badge-dot');
+  const seen = parseInt(localStorage.getItem('kgadmseen') || '0', 10);
+  const unread = (_cmtTotal > 0 && _cmtTotal > seen) ? Math.min(_cmtTotal - seen, 9) : 0;
+  if (unread && !dot){
+    dot = document.createElement('span'); dot.className = 'badge-dot'; b.appendChild(dot);
+  }
+  if (dot) { dot.textContent = unread > 0 ? (unread > 9 ? '9+' : unread) : ''; dot.style.display = unread ? 'flex' : 'none'; }
+}
+async function pollBadge(){
+  try{
+    const j = await (await fetch('/api/comments')).json();
+    const n = (j.comments || []).length;
+    if (_cmtTotal >= 0 && n > _cmtTotal) toast('💬 朋友有新留言');
+    _cmtTotal = n;
+    paintGiftBadge();
+  }catch(e){}
+}
+setInterval(pollBadge, 8000);
+/* 进度速度 + 最近完成（从日志解析） */
+let _lastOk = 0, _lastTs = 0, _speed = 0, _totalFromLog = 0;
+const _recent = [];
+function parseNewLogs(logs){
+  for (let i = renderedLogs; i < logs.length; i++){
+    const ln = String(logs[i] || '');
+    const m = ln.match(/列表抓取完成：\d+/);
+    if (m) _totalFromLog = parseInt(m[0].replace(/\D/g, ''), 10) || 0;
+    if (ln.startsWith('✓')){
+      const t = ln.split(']').slice(1).join(']').split('·')[0].trim();
+      if (t && _recent[_recent.length - 1] !== t) { _recent.push(t); if (_recent.length > 4) _recent.shift(); }
+    }
+  }
+}
 
 const STATE_TXT = {idle:'待命', listing:'正在获取作品列表…', running:'正在备份…',
                    done:'备份完成 ✓', stopped:'已停止（进度已保存）', error:'出错了'};
@@ -299,6 +374,26 @@ async function poll(){
     if(stt.fail) chips.push(`失败 <b style="color:var(--red)">${stt.fail}</b>`);
     if(stt.bytes) chips.push(`已下载 <b>${(stt.bytes / 1048576).toFixed(1)} MB</b>`);
     if(stt.index) chips.push(`曲库总计 <b>${stt.index}</b> 首`);
+    // 速度 + 最近完成 + 队列
+    const okNow = stt.ok || 0, now = Date.now();
+    if (st === 'running' && !curPaused){
+      if (_lastTs && okNow > _lastOk){
+        const inst = (okNow - _lastOk) / ((now - _lastTs) / 60000);
+        _speed = _speed ? _speed * .6 + inst * .4 : inst;
+      }
+      _lastOk = okNow; _lastTs = now;
+    }
+    if (st === 'idle') { _speed = 0; _totalFromLog = 0; _recent.length = 0; }
+    parseNewLogs(s.logs || []);
+    if (_speed > 0.1) chips.push('⚡ ' + _speed.toFixed(1) + ' 首/分');
+    if (_totalFromLog > 0 && st === 'running'){
+      const done = (stt.ok || 0) + (stt.fail || 0);
+      const remain = Math.max(0, _totalFromLog - done);
+      if (remain > 0 && _speed > 0.1) chips.push('⏱ 剩余约 ' + Math.max(1, Math.round(remain / _speed)) + ' 分钟');
+    }
+    const q = s.queue || [];
+    if (q.length) chips.push('⏳ 队列 ' + q.length + '：' + esc(q[0]));
+    if (_recent.length) chips.push('🎵 最近：' + _recent.slice(-3).join(' / '));
     $('#chips').innerHTML = chips.map(c=>`<span class="chip">${c}</span>`).join('');
 
     const lg = $('#log');
@@ -459,6 +554,7 @@ function shTab(name, btn){
   if (name === 'gift') loadVisitors();
 }
 function shareModal(){
+  if (window._cmtTotal >= 0) { try { localStorage.setItem('kgadmseen', String(_cmtTotal)); } catch(e){} paintGiftBadge(); }
   if(document.getElementById('shMask')) { document.getElementById('shMask').remove(); return; }
   const m = document.createElement('div'); m.id='shMask';
   m.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:50;display:flex;align-items:center;justify-content:center';
@@ -542,6 +638,17 @@ function shareModal(){
       <div id="shAccounts"></div>
       <div style="font-size:11px;color:var(--text2);margin-top:8px">密码按账号各管各的：清空保存 = 这个账号免密。</div>
     </div>
+      <div style="border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;text-align:left">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="font-size:12.5px;font-weight:700">🛡️ 管理页也加密码（本页所有操作）</div>
+          <span class="sw"><input type="checkbox" id="admAuthSw" onchange="saveAdminAuth(this)"><i></i></span>
+        </div>
+        <div style="font-size:10.5px;color:var(--text2);margin-top:6px;line-height:1.7">
+          开启后：打开本工具页需要用上面配置的朋友盲盒账号登录（防局域网内他人误触）。<br>
+          朋友的盲盒页不受影响。登录 Cookie 有效期 7 天。<span id="admAuthState"></span>
+          <button class="btn ghost small" style="padding:3px 10px;margin-left:6px" onclick="admLogout()">退出管理登录</button></div>
+      </div>
+
     <!-- ===== 页签：朋友留言 ===== -->
     <div class="sh-pane hidden" data-pane="cmt" style="text-align:left">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
@@ -616,6 +723,10 @@ async function refreshShare(){
   loadVisitors();
   if(document.getElementById('shAuthMode')) document.getElementById('shAuthMode').value = s.authMode || 'none';
   authFields();
+  const asw = document.getElementById('admAuthSw');
+  if (asw) asw.checked = !!s.adminAuth;
+  const ast = document.getElementById('admAuthState');
+  if (ast) ast.textContent = s.adminAuth ? '（当前：已开启）' : '（当前：未开启）';
   renderAccounts(s.accounts || []);
   const qr = document.getElementById('shQr'), url = s.guestUrl;
   window.__guestUrl = url || '';
@@ -859,6 +970,23 @@ async function visitorDetail(vid){
   m.onclick = e => { if(e.target === m) m.remove(); };
   document.body.appendChild(m);
 }
+async function saveAdminAuth(sw){
+  const on = !!sw.checked;
+  if (on && !confirm('开启后，打开管理页需要登录（用朋友盲盒的账号）。确定开启？')) { sw.checked = false; return; }
+  try{
+    const r = await (await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({admin_auth: on})})).json();
+    if(r.ok){
+      toast(on ? '已开启管理页密码保护' : '已关闭管理页密码保护');
+      if (on) setTimeout(() => location.reload(), 900);
+      else { const ast = document.getElementById('admAuthState'); if (ast) ast.textContent = '（当前：未开启）'; }
+    } else { toast(r.error || '保存失败'); sw.checked = !on; }
+  }catch(e){ toast('保存失败'); sw.checked = !on; }
+}
+function admLogout(){
+  try{ localStorage.removeItem('kgadmseen'); }catch(e){}
+  fetch('/api/admin-logout', {method:'POST'}).finally(() => location.reload());
+}
 async function sendGrant(){
   const who = document.getElementById('grantWho').value || '*';
   const n = parseInt(document.getElementById('grantN').value || '0', 10);
@@ -1022,16 +1150,103 @@ async function loadLib(){
   try{ d = await (await fetch('/api/dirs')).json(); }catch(e){ return; }
   const card = document.getElementById('libCard'), box = document.getElementById('libRows');
   if(!card || !box) return;
+  try{ const a = await (await fetch('/api/authors')).json(); window.__authors = a.authors || []; }catch(e){ window.__authors = []; }
   const dirs = (d.dirs || []).filter(x => x.valid);
   card.classList.toggle('hidden', !dirs.length);
   const cur = d.current || '';
-  box.innerHTML = dirs.map(x =>
-    `<div class="librow">
+  const amap = {};
+  (window.__authors || []).forEach(a => { try { amap[os_path_norm(a.dir)] = a; } catch(e){} });
+  function os_path_norm(p){ try { return String(p).replace(/\\/g, '/').replace(/\/$/, '').toLowerCase(); } catch(e){ return p; } }
+  window.__hasJunk = (d.dirs || []).some(x => !x.valid && x.name !== '.kgbak');
+  const foot = document.getElementById('libFoot');
+  if (foot) foot.style.display = (d.dirs || []).some(x => !x.valid) ? '' : 'none';
+  box.innerHTML = dirs.map(x => {
+    const key = os_path_norm(x.path);
+    const a = amap[key];
+    let cookie = '';
+    if (a && a.cookie_ok === true) cookie = '<button class="btn ghost small" style="padding:3px 10px;color:#34c759;border-color:rgba(52,199,89,.4)" title="cookie 有效（' + esc(a.checked || '') + '），点击重校验" onclick="recheckCookie(\'' + esc(a.uid) + '\')">🔑 ✓</button>';
+    else if (a && a.cookie_ok === false) cookie = '<button class="btn ghost small" style="padding:3px 10px;color:var(--red);border-color:rgba(255,59,48,.4)" title="cookie 已失效（' + esc(a.checked || '') + '），私密歌将备份失败，点击重校验" onclick="recheckCookie(\'' + esc(a.uid) + '\')">🔑 ✗</button>';
+    return `<div class="librow">
       <span class="lname">🎵 ${esc(x.name)}</span>
-      <span class="lmeta">${x.songs || 0} 首${x.path === cur ? '' : ''}</span>
+      <span class="lmeta">${x.songs || 0} 首</span>
+      ${cookie}
       ${x.path === cur ? '<span class="badge-cur">✓ 当前分享</span>' : ''}
       <button class="btn ghost small" style="padding:5px 14px" onclick="libShare('${esc(x.name)}')">${x.path === cur ? '重新分享' : '设为分享'}</button>
-    </div>`).join('');
+      <button class="btn ghost small danger" style="padding:5px 10px" title="删除该目录（双重确认）" onclick="delDir('${esc(x.name)}')">🗑</button>
+    </div>`; }).join('');
+}
+function delDir(name){
+  const m = document.createElement('div');
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:flex;align-items:center;justify-content:center';
+  m.innerHTML = `<div style="background:var(--card);color:var(--text);border-radius:18px;max-width:430px;width:92%;padding:20px 22px;text-align:left">
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px">⚠️ 删除备份目录「${esc(name)}」</div>
+    <div style="font-size:12.5px;color:var(--text2);line-height:1.8;margin-bottom:10px">
+      将<b style="color:var(--red)">永久删除</b>该目录下的全部备份文件（音频/封面/歌词/详情），<b>不可恢复</b>。<br>
+      朋友的盲盒记录若引用了这里的歌，相关歌将无法再播放。<br>
+      为防误删：请<b style="color:var(--text)">在下方输入目录名 <u>${esc(name)}</u></b> 以启用删除按钮。</div>
+    <input id="delConfirm" placeholder="输入目录名以确认" style="width:100%;padding:11px 14px;font-size:14px;border-radius:11px;border:1px solid var(--line2);background:var(--card2);color:var(--text);outline:none;margin-bottom:12px">
+    <div style="display:flex;gap:8px">
+      <button class="btn ghost small" style="flex:1" onclick="this.closest('[style*=fixed]').remove()">取消</button>
+      <button class="btn small" id="delGo" disabled style="flex:1;background:var(--red)">永久删除</button>
+    </div></div>`;
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  document.body.appendChild(m);
+  const inp = m.querySelector('#delConfirm'), go = m.querySelector('#delGo');
+  inp.addEventListener('input', () => { go.disabled = inp.value.trim() !== name; });
+  go.onclick = async () => {
+    try{
+      const r = await (await fetch('/api/del-dir', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name: name, confirm: inp.value.trim()})})).json();
+      if(r.ok){ toast('已删除：' + name); m.remove(); loadLib(); }
+      else { toast(r.error || '删除失败'); inp.value = ''; go.disabled = true; }
+    }catch(e){ toast('删除失败'); }
+  };
+}
+async function cleanJunk(){
+  if (!confirm('清理所有没有 index.json 的残留目录？（有效备份不受影响）')) return;
+  try{
+    const r = await (await fetch('/api/clean-dirs', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'})).json();
+    if(r.ok){ toast('已清理 ' + (r.removed||[]).length + ' 个残留目录'); loadLib(); }
+    else toast(r.error || '清理失败');
+  }catch(e){ toast('清理失败'); }
+}
+async function recheckCookie(uid){
+  toast('正在校验 cookie…');
+  try{
+    const r = await (await fetch('/api/cookie-check', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({uid: uid})})).json();
+    if(r.ok) toast('✓ cookie 有效：' + (r.nickname || '') + '（' + (r.count||'?') + ' 首作品）');
+    else if(r.noCookie) toast('该作者没有存过 cookie');
+    else toast('✗ cookie 已失效：' + (r.error || '').slice(0, 60));
+    loadLib();
+  }catch(e){ toast('校验失败'); }
+}
+async function exportBundle(){
+  try{
+    const r = await fetch('/api/bundle');
+    if(!r.ok){ toast('导出失败'); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'kg-backup-bundle.zip';
+    a.click(); URL.revokeObjectURL(a.href);
+    toast('已导出备份数据包');
+  }catch(e){ toast('导出失败'); }
+}
+async function importBundle(input){
+  const f = input.files && input.files[0];
+  if(!f) return;
+  if(!confirm('导入将覆盖现有的访客记录与配置（shares/authors 等），继续？')) { input.value = ''; return; }
+  try{
+    const buf = new Uint8Array(await f.arrayBuffer());
+    let bin = ''; buf.forEach(b => bin += String.fromCharCode(b));
+    const b64 = btoa(bin);
+    const r = await (await fetch('/api/bundle-import', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({data: b64})})).json();
+    if(r.ok){ toast('已导入 ' + (r.restored||[]).length + ' 个文件，建议刷新页面'); setTimeout(() => location.reload(), 1200); }
+    else toast(r.error || '导入失败');
+  }catch(e){ toast('导入失败'); }
+  input.value = '';
 }
 async function libShare(name){
   try{

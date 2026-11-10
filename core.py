@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.19'
+APP_VERSION = '1.12.20'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2271,6 +2271,10 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="盲盒歌单">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/icon-192.png">
+<meta property="og:title" content="__FEST_TITLE____NICK__ 的盲盒歌单">
+<meta property="og:description" content="每天解锁一首歌的盲盒歌单 🎁 · 共 __TOTAL__ 首作品 · 点开开盒听歌">
+<meta property="og:image" content="__OGIMAGE__">
+<meta property="og:type" content="website">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="盲盒歌单">
@@ -3107,7 +3111,26 @@ function playSong(i){
   paintProgress();
   document.getElementById('barPlay').textContent = '⏸';  // 点击瞬间就切图标，不等音频事件（iOS 下事件可能延迟）
   au.play().catch(() => { document.getElementById('barPlay').textContent = '▶'; });  // 点选即播；被浏览器拦截则回退
+  try { if ('mediaSession' in navigator) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: s.title, artist: s.singer || '', album: '盲盒歌单',
+      artwork: s.cover ? [{src: s.cover, sizes: '512x512', type: 'image/jpeg'}] : []
+    });
+  } } catch(e) {}
 }
+
+try { if ('mediaSession' in navigator) {
+  const _ms = navigator.mediaSession;
+  _ms.setActionHandler('play', () => au.play());
+  _ms.setActionHandler('pause', () => au.pause());
+  _ms.setActionHandler('previoustrack', () => barPrev());
+  _ms.setActionHandler('nexttrack', () => barNext());
+  au.addEventListener('timeupdate', () => { try {
+    if (au.duration) _ms.setPositionState({duration: au.duration, position: au.currentTime, playbackRate: au.playbackRate || 1});
+  } catch(e) {} });
+  au.addEventListener('play', () => { _ms.playbackState = 'playing'; });
+  au.addEventListener('pause', () => { _ms.playbackState = 'paused'; });
+} } catch(e) {}
 
 au.onplay = () => { document.getElementById('barPlay').textContent = '⏸'; paintProgress();
   try { const s = SONGS[cur]; if (s && !s.locked) startListenTimer(s); } catch(e){} };

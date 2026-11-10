@@ -12,6 +12,7 @@ kg_app.py — 全民K歌备份工具 · 图形界面入口
 """
 
 import hashlib
+import io
 import json
 import os
 import re
@@ -33,7 +34,37 @@ dt_date = dt.date
 from core import APP_NAME, APP_VERSION, Job, backup_one, render_guest_page
 
 # 仅本机可访问，单一活动任务
-_STATE = {'job': None, 'thread': None, 'server': None, 'lan': False}
+_STATE = {'job': None, 'thread': None, 'server': None, 'lan': False, 'queue': []}
+
+
+def _start_job(target, p):
+    """启动一个备份任务线程（/api/start 与队列共用的入口）。"""
+    args = build_args(p)
+    job = Job()
+    _STATE['job'] = job
+    t = threading.Thread(target=_run_job, args=(target, args, job), daemon=True)
+    _STATE['thread'] = t
+    t.start()
+
+
+def _queue_watch():
+    """备份队列看护：空闲时自动弹出下一个任务（每 2.5 秒检查）。"""
+    while True:
+        time.sleep(2.5)
+        try:
+            q = _STATE.get('queue') or []
+            if not q:
+                continue
+            alive = _STATE.get('thread') and _STATE['thread'].is_alive()
+            if alive:
+                continue
+            item = q.pop(0)
+            target = str(item.get('target') or '').strip()
+            if not target:
+                continue
+            _start_job(target, item)
+        except Exception:
+            pass
 
 
 def _shares_file():
@@ -799,6 +830,38 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *a):  # 静默访问日志
         pass
 
+    # 管理页密码：guest 盲盒公共资源放行，其余都要 kg_adm 会话/Basic
+    def _is_public(self, path):
+        if path in ('/guest', '/sw.js', '/manifest.webmanifest',
+                    '/api/admin-login', '/api/admin-logout', '/favicon.ico'):
+            return True
+        return path.startswith('/g/') or path.startswith('/api/g-') or path.startswith('/static/')
+
+    def _admin_ok(self):
+        sh = load_shares()
+        if not sh.get('admin_auth'):
+            return True
+        for part in (self.headers.get('Cookie') or '').split(';'):
+            k, _, v = part.strip().partition('=')
+            if k == 'kg_adm' and v in _adm_sessions:
+                if _adm_sessions[v].get('exp', 0) > time.time():
+                    return True
+                _adm_sessions.pop(v, None)
+        import base64
+        auth = self.headers.get('Authorization') or ''
+        if auth.startswith('Basic '):
+            try:
+                user, _, pwd = base64.b64decode(auth[6:]).decode('utf-8').partition(':')
+                gmode = (sh.get('auth') or {}).get('mode') or 'none'
+                for acc in (sh.get('accounts') or []):
+                    if acc.get('disabled') or acc.get('user') != user:
+                        continue
+                    if gmode == 'user' or acc.get('pass') == pwd:
+                        return True
+            except Exception:
+                pass
+        return False
+
     # ---------- 工具 ----------
     def _vid(self):
         """访客身份。管理端口一律无身份（全局视角），盲盒端口在 GuestHandler 里重写。"""
@@ -1059,6 +1122,11 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if not self._is_public(self.path) and not self._admin_ok():
+            if self.path.startswith('/api/'):
+                return self._send(401, {'error': '管理页需要登录', 'login': True})
+            return self._send(200, _ADMIN_LOGIN_HTML.replace('__ERR__', '').encode(),
+                              'text/html; charset=utf-8')
         if self.path in ('/', '/index.html'):
             fp = os.path.join(static_dir(), 'index.html')
             try:
@@ -1090,6 +1158,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 data = {}
             authors = sorted(data.values(), key=lambda x: x.get('last') or '', reverse=True)
+            authors = [{k: v for k, v in a.items() if k != 'cookie'} for a in authors]
             return self._send(200, {'authors': authors})
         if self.path == '/api/comments':
             """管理端查看全部访客留言（留言已按访客隔离，这里负责汇总）。"""
@@ -1187,6 +1256,32 @@ class Handler(BaseHTTPRequestHandler):
                                      'festival': r['festival']} for r in rows
                                     if r['date'] == today and r['revealed']]},
                 'history': rows})
+        if self.path == '/api/bundle':
+            """管理端：打包导出盲盒全部用户数据（访客/掉落/留言/播放/配置）。"""
+            import zipfile as _zip
+            sh = load_shares()
+            sh_dir = sh.get('dir') or ''
+            buf = io.BytesIO()
+            with _zip.ZipFile(buf, 'w', _zip.ZIP_DEFLATED) as z:
+                if sh_dir and os.path.isdir(sh_dir):
+                    for name in sorted(os.listdir(sh_dir)):
+                        if name.startswith('guest_') or name == 'guest_start':
+                            fp = os.path.join(sh_dir, name)
+                            if os.path.isfile(fp):
+                                z.write(fp, 'sharedir/' + name)
+                for name in ('shares.json', 'authors.json', 'auto_update.json'):
+                    fp = os.path.join(os.getcwd(), name)
+                    if os.path.isfile(fp):
+                        z.write(fp, name)
+                z.writestr('meta.txt', 'kg-backup bundle · ' + time.strftime('%Y-%m-%d %H:%M:%S'))
+            data = buf.getvalue()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/zip')
+            self.send_header('Content-Disposition', 'attachment; filename="kg-backup-bundle.zip"')
+            self.send_header('Content-Length', str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if self.path == '/api/dirs':
             """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
             root = data_root()
@@ -1234,6 +1329,7 @@ class Handler(BaseHTTPRequestHandler):
                 'poolDirs': (_sh.get('pool_dirs') or []),
                 'allDirs': _all,
                 'nick': (_sh.get('nick') or ''),
+                'adminAuth': bool(_sh.get('admin_auth')),
                 'guestUrl': gurl, 'guestBase': custom, 'unlocked': len(unlocked), 'total': len(entries),
                 'pool': sum(1 for e in entries if e.get('audio')),
                 'today': next((e.get('title') for e in entries if _uk(e) in today_keys), ''),
@@ -1258,6 +1354,14 @@ class Handler(BaseHTTPRequestHandler):
             if not entries:
                 return self._send(200, '<html><body style="font-family:sans-serif;padding:40px;text-align:center"><h2>🎁 盲盒歌单</h2><p>还没有可分享的备份目录。</p><p>请先在工具页完成一次备份。</p></body></html>'.encode(), 'text/html; charset=utf-8')
             html = render_guest_page(entries, profile, unlocked, history, today_keys, today_date, festival)
+            # 分享卡片 og:image 需要绝对地址：反代域名优先，其次按 Host 头
+            _base = (load_shares().get('guest_base') or '').rstrip('/')
+            if not _base:
+                _host = self.headers.get('Host') or ''
+                if _host:
+                    _base = 'http://' + _host
+            if _base:
+                html = html.replace('__OGIMAGE__', _base + '/static/icon-512.png')
             return self._send(200, html.encode(), 'text/html; charset=utf-8')
         if self.path.startswith('/g/'):
             return self._serve_guest_file(self.path[3:])
@@ -1270,6 +1374,7 @@ class Handler(BaseHTTPRequestHandler):
             snap['lan'] = _STATE.get('lan', False)
             snap['port'] = _STATE['server'].server_address[1]
             snap['lan_ips'] = lan_ips() if snap['lan'] else []
+            snap['queue'] = [str(x.get('target') or '')[:46] for x in (_STATE.get('queue') or [])]
             return self._send(200, snap)
         if self.path.startswith('/api/open'):
             job = _STATE['job']
@@ -1300,20 +1405,168 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- POST ----------
     def do_POST(self):
+        if self.path == '/api/admin-login':
+            try:
+                raw = self.rfile.read(int(self.headers.get('Content-Length') or 0)).decode('utf-8')
+                from urllib.parse import parse_qs
+                qs = parse_qs(raw)
+                user = (qs.get('user') or [''])[0].strip()
+                pwd = (qs.get('pass') or [''])[0]
+            except Exception:
+                return self._send(400, {'error': '请求格式错误'})
+            sh = load_shares()
+            gmode = (sh.get('auth') or {}).get('mode') or 'none'
+            ok = False
+            for acc in (sh.get('accounts') or []):
+                if acc.get('disabled') or acc.get('user') != user:
+                    continue
+                if gmode == 'user' or acc.get('pass') == pwd:
+                    ok = True
+                    break
+            if not ok:
+                return self._send(200, _ADMIN_LOGIN_HTML.replace('__ERR__', '账号或密码不对').encode(),
+                                  'text/html; charset=utf-8')
+            token = _create_adm_session(user)
+            self.send_response(303)
+            self.send_header('Location', '/')
+            self.send_header('Set-Cookie', f'kg_adm={token}; Path=/; Max-Age=604800; SameSite=Lax')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+        if self.path == '/api/admin-logout':
+            for part in (self.headers.get('Cookie') or '').split(';'):
+                k, _, v = part.strip().partition('=')
+                if k == 'kg_adm':
+                    _adm_sessions.pop(v, None)
+            self.send_response(303)
+            self.send_header('Location', '/')
+            self.send_header('Set-Cookie', 'kg_adm=; Path=/; Max-Age=0')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+        if not self._is_public(self.path) and not self._admin_ok():
+            return self._send(401, {'error': '管理页需要登录', 'login': True})
+        if self.path == '/api/bundle-import':
+            """管理端：导入打包的用户数据（只恢复白名单文件，避免任意写盘）。"""
+            p = self._body()
+            b64 = str(p.get('data') or '').strip()
+            if not b64:
+                return self._send(400, {'error': '缺少数据'})
+            import base64 as _b64
+            import zipfile as _zip
+            try:
+                zf = _zip.ZipFile(io.BytesIO(_b64.b64decode(b64)))
+            except Exception as e:
+                return self._send(400, {'error': '压缩包解析失败：' + str(e)})
+            sh = load_shares()
+            sh_dir = sh.get('dir') or ''
+            restored = []
+            for info in zf.infolist():
+                arc = info.filename.replace('\\', '/')
+                name = os.path.basename(arc)
+                if not name:
+                    continue
+                if arc.startswith('sharedir/') and (name.startswith('guest_') or name == 'guest_start') and sh_dir:
+                    with open(os.path.join(sh_dir, name), 'wb') as f:
+                        f.write(zf.read(info))
+                    restored.append(name)
+                elif name in ('shares.json', 'authors.json', 'auto_update.json'):
+                    with open(os.path.join(os.getcwd(), name), 'wb') as f:
+                        f.write(zf.read(info))
+                    restored.append(name)
+            return self._send(200, {'ok': True, 'restored': restored})
+        if self.path == '/api/del-dir':
+            """管理端：删除数据根目录下的某个备份目录。
+            前端必须二次确认；这里再加三道围栏——只许删数据根下的单个目录、
+            不许删数据根本身、当前分享目录必须先切换走。"""
+            p = self._body()
+            name = str(p.get('name') or '').strip()
+            confirm = str(p.get('confirm') or '').strip()
+            root = os.path.abspath(data_root())
+            sh = load_shares()
+            if not name or name in ('.', '..') or '/' in name or '\\' in name:
+                return self._send(400, {'error': '目录名不合法'})
+            if confirm != name:
+                return self._send(400, {'error': '确认文字与目录名不一致'})
+            full = os.path.abspath(os.path.join(root, name))
+            if not full.startswith(root + os.sep) or full == root:
+                return self._send(400, {'error': '只能删除数据根目录下的备份目录'})
+            if os.path.abspath(sh.get('dir') or '') == full:
+                return self._send(400, {'error': '这是当前分享目录：请先把其他目录「设为分享」后再删除'})
+            if os.path.abspath(sh.get('nick') or '') == full:
+                sh.pop('nick', None)
+            if (sh.get('pool_dirs') or []):
+                keep = [d for d in sh['pool_dirs'] if os.path.abspath(d) != full]
+                if len(keep) != len(sh['pool_dirs']):
+                    sh['pool_dirs'] = keep
+                    save_shares(sh)
+            if not os.path.isdir(full):
+                return self._send(400, {'error': '目录不存在（可能已删除）'})
+            import shutil as _shutil
+            try:
+                _shutil.rmtree(full)
+            except Exception as e:
+                return self._send(400, {'error': '删除失败：' + str(e)})
+            return self._send(200, {'ok': True})
+        if self.path == '/api/clean-dirs':
+            """管理端：清理无 index.json 的残留目录（如 .kgbak），有效目录与当前分享目录不动。"""
+            root = os.path.abspath(data_root())
+            sh = load_shares()
+            cur = os.path.abspath(sh.get('dir') or '')
+            removed, failed = [], []
+            import shutil as _shutil
+            try:
+                for name in sorted(os.listdir(root)):
+                    full = os.path.abspath(os.path.join(root, name))
+                    if not os.path.isdir(full) or full == root or full == cur:
+                        continue
+                    if os.path.exists(os.path.join(full, 'index.json')):
+                        continue
+                    try:
+                        _shutil.rmtree(full)
+                        removed.append(name)
+                    except Exception:
+                        failed.append(name)
+            except OSError as e:
+                return self._send(400, {'error': str(e)})
+            return self._send(200, {'ok': True, 'removed': removed, 'failed': failed})
+
         if self.path == '/api/start':
-            if _STATE['thread'] and _STATE['thread'].is_alive():
-                return self._send(409, {'error': '已有任务在进行中，请等待完成或先停止'})
             try:
                 p = self._body()
                 target = str(p.get('target') or '').strip()
                 if not target:
                     return self._send(400, {'error': '请先填写个人主页链接或 uid'})
-                args = build_args(p)
-                job = Job()
-                _STATE['job'] = job
-                t = threading.Thread(target=_run_job, args=(target, args, job), daemon=True)
-                _STATE['thread'] = t
-                t.start()
+                if _STATE['thread'] and _STATE['thread'].is_alive():
+                    q = _STATE.setdefault('queue', [])
+                    if len(q) >= 10:
+                        return self._send(429, {'error': '队列已满（最多 10 个）'})
+                    q.append(p)
+                    return self._send(200, {'ok': True, 'queued': True, 'pos': len(q),
+                                            'msg': f'已有任务进行中，已加入队列（第 {len(q)} 位）'})
+                _STATE['queue'] = []
+                _start_job(target, p)
+                ck = str(p.get('cookie') or '').strip()
+                if ck:
+                    try:
+                        from core import parse_uid as _puid
+                        au = str(_puid(target) or '').strip()
+                        if au:
+                            fp = os.path.join(os.getcwd(), 'authors.json')
+                            ad = {}
+                            try:
+                                with open(fp, encoding='utf-8') as f:
+                                    ad = json.load(f)
+                            except Exception:
+                                pass
+                            ent = ad.get(au) or {'uid': au, 'nickname': au}
+                            ent['cookie'] = ck
+                            ent['cookie_ok'] = True
+                            ad[au] = ent
+                            with open(fp, 'w', encoding='utf-8') as f:
+                                json.dump(ad, f, ensure_ascii=False, indent=1)
+                    except Exception:
+                        pass
                 return self._send(200, {'ok': True})
             except Exception as e:
                 return self._send(400, {'error': str(e)})
@@ -1328,6 +1581,41 @@ class Handler(BaseHTTPRequestHandler):
             if job:
                 job.cancelled = True
             return self._send(200, {'ok': True})
+        if self.path == '/api/cookie-check':
+            """管理端：校验某位已备份作者的存储 cookie 是否仍有效（私密歌备份的前提）。"""
+            p = self._body()
+            uid = str(p.get('uid') or '').strip()
+            try:
+                with open(os.path.join(os.getcwd(), 'authors.json'), encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = {}
+            a = data.get(uid)
+            if not a:
+                return self._send(404, {'error': '没有这位作者的档案'})
+            cookie = str(a.get('cookie') or '').strip()
+            if not cookie:
+                return self._send(200, {'ok': False, 'noCookie': True,
+                                        'error': '该作者没有存过 cookie（备份时没填）'})
+            try:
+                from core import KGClient
+                client = KGClient(cookie, '', 20, 2)
+                client.share_uid = uid
+                d = client.get_work_page(uid, 1)
+                a['cookie_ok'] = True
+                a['checked'] = ts2str(time.time())
+                data[uid] = a
+                with open(os.path.join(os.getcwd(), 'authors.json'), 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=1)
+                return self._send(200, {'ok': True, 'nickname': d.get('nickname', ''),
+                                        'count': d.get('ugc_total_count')})
+            except Exception as e:
+                a['cookie_ok'] = False
+                a['checked'] = ts2str(time.time())
+                data[uid] = a
+                with open(os.path.join(os.getcwd(), 'authors.json'), 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=1)
+                return self._send(200, {'ok': False, 'error': str(e)})
         if self.path == '/api/check-cookie':
             try:
                 p = self._body()
@@ -1411,9 +1699,9 @@ class Handler(BaseHTTPRequestHandler):
             p = self._body()
             if 'dir' in p:
                 d = str(p.get('dir') or '').strip()
-                data_root = os.environ.get('KG_DATA_DIR') or ''
-                if d and not os.path.isabs(d) and data_root:
-                    d = os.path.join(data_root, d)
+                dr_base = os.environ.get('KG_DATA_DIR') or ''
+                if d and not os.path.isabs(d) and dr_base:
+                    d = os.path.join(dr_base, d)
                 if d and os.path.isdir(d) and os.path.exists(os.path.join(d, 'index.json')):
                     sh = load_shares()
                     if not sh.get('since'):
@@ -1439,6 +1727,11 @@ class Handler(BaseHTTPRequestHandler):
                 sh['pool_dirs'] = dirs
                 save_shares(sh)
                 return self._send(200, {'ok': True, 'pool_dirs': dirs})
+            if 'admin_auth' in p:
+                sh = load_shares()
+                sh['admin_auth'] = bool(p.get('admin_auth'))
+                save_shares(sh)
+                return self._send(200, {'ok': True, 'admin_auth': sh['admin_auth']})
             if 'nick' in p:
                 # 盲盒页昵称覆盖（多作者混合时不再只显示第一个作者的名字）
                 sh = load_shares()
@@ -1614,6 +1907,52 @@ def _quit():
 
 # 盲盒端口登录会话：token -> {'user': 账号名, 'exp': 过期时间}
 _g_sessions = {}
+_adm_sessions = {}
+
+
+def _create_adm_session(user):
+    import secrets as _sec
+    token = _sec.token_hex(32)
+    for k in [k for k, v in _adm_sessions.items() if v.get('exp', 0) < time.time()]:
+        _adm_sessions.pop(k, None)
+    _adm_sessions[token] = {'user': user, 'exp': time.time() + 7 * 86400}
+    return token
+
+
+_ADMIN_LOGIN_HTML = '''<!DOCTYPE html>
+<html lang="zh-cn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录 · 管理页</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+ background:radial-gradient(700px 480px at 50% -6%,#1c2536,#0b0d13 60%);
+ font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}
+.card{width:min(360px,100%);border-radius:20px;padding:30px 26px;text-align:center;
+ background:linear-gradient(180deg,#1c2231,#131722);border:1px solid #2a3140;
+ box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.ic{font-size:40px}
+h1{font-size:17px;color:#eef2f8;margin:8px 0 4px}
+p{font-size:12px;color:#8b94a6;margin-bottom:18px}
+input{width:100%;padding:12px 14px;margin-bottom:10px;border-radius:12px;border:1px solid #2a3140;
+ background:#0d1119;color:#e8ecf3;font-size:14px;outline:none;text-align:center;font-family:inherit}
+input:focus{border-color:#4c9aff;box-shadow:0 0 0 3px rgba(76,154,255,.2)}
+.btn{width:100%;padding:12px;border:none;border-radius:12px;cursor:pointer;font-family:inherit;
+ background:linear-gradient(135deg,#0071e3,#4c9aff);color:#fff;font-size:15px;font-weight:700}
+.err{color:#ff6b6b;font-size:12px;margin-top:10px;min-height:16px}
+</style></head><body>
+<div class="card">
+ <div class="ic">🛡️</div>
+ <h1>管理页登录</h1>
+ <p>已开启管理页密码保护，输入朋友盲盒的账号即可</p>
+ <form method="POST" action="/api/admin-login">
+  <input name="user" placeholder="账号" required>
+  <input name="pass" type="password" placeholder="密码（免密账号留空）">
+  <button class="btn" type="submit">进 入</button>
+ </form>
+ <div class="err">__ERR__</div>
+</div>
+</body></html>'''
 _G_SESS_TTL = 7 * 86400
 
 
@@ -2085,6 +2424,7 @@ def main():
               + (f' · 已备份 {len(snap)} 个' if snap else ''), flush=True)
     import atexit
     atexit.register(remove_instance_file)
+    threading.Thread(target=_queue_watch, daemon=True).start()
     url = f'http://127.0.0.1:{port}'
     if sys.stdout:
         print(f'{APP_NAME} v{APP_VERSION} 已启动: {url} （关闭此窗口即退出）', flush=True)
