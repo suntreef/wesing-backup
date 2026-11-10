@@ -12,98 +12,113 @@
 <title>全民K歌备份工具</title>
 <style>
 :root{
-  --bg:#f5f5f7; --card:#ffffff; --text:#1d1d1f; --text2:#6e6e73; --line:#d2d2d7;
-  --blue:#0071e3; --blue-h:#0077ed; --green:#34c759; --red:#ff3b30; --track:#e8e8ed;
-  --log:#1d1d1f; --ring:rgba(0,113,227,.35);
+  --bg:#f5f5f7; --card:#ffffff; --card2:#fbfbfd; --text:#1d1d1f; --text2:#6e6e73;
+  --line:#e3e3e8; --line2:#d2d2d7;
+  --blue:#0071e3; --blue-h:#0077ed; --green:#34c759; --red:#ff3b30; --amber:#ff9f0a;
+  --track:#ececf0; --log:#16181d; --ring:rgba(0,113,227,.28);
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 32px rgba(0,0,0,.07);
+  --shadow-h:0 2px 6px rgba(0,0,0,.06),0 14px 44px rgba(0,0,0,.11);
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#000; --card:#1c1c1e; --text:#f5f5f7; --text2:#a1a1a6; --line:#38383a;
-         --track:#2c2c2e; --log:#111113; }
+  :root{ --bg:#0a0a0c; --card:#17171a; --card2:#1e1e22; --text:#f5f5f7; --text2:#a1a1a6;
+         --line:#2c2c30; --line2:#3a3a3e; --track:#2a2a2e; --log:#101216;
+         --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 36px rgba(0,0,0,.5);
+         --shadow-h:0 2px 8px rgba(0,0,0,.5),0 16px 48px rgba(0,0,0,.6); }
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);min-height:100vh;
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
-  -webkit-font-smoothing:antialiased}
-header{position:sticky;top:0;z-index:20;backdrop-filter:saturate(180%) blur(18px);
-  background:rgba(251,251,253,.78);border-bottom:1px solid rgba(0,0,0,.06);
-  display:flex;align-items:center;justify-content:space-between;padding:12px 22px}
-@media (prefers-color-scheme: dark){header{background:rgba(22,22,23,.75);border-bottom-color:rgba(255,255,255,.08)}}
-header .brand{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
-header .v{font-size:11px;color:var(--text2);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
- header{gap:10px;flex-wrap:wrap}
- @media (max-width:640px){
-  #q{width:min(200px,38vw)}
-  .meta{flex-wrap:wrap;row-gap:6px}
- }
-main{max-width:680px;margin:0 auto;padding:52px 20px 30px}
-.hero{text-align:center;margin-bottom:34px}
-.hero h1{font-size:clamp(28px,5.4vw,44px);font-weight:700;letter-spacing:-.02em;line-height:1.15}
-.hero p{color:var(--text2);font-size:16px;margin-top:12px;line-height:1.6}
-.card{background:var(--card);border-radius:20px;padding:26px;
-  box-shadow:0 4px 24px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);margin-bottom:18px}
+  -webkit-font-smoothing:antialiased;background-image:
+  radial-gradient(720px 380px at 12% -4%,rgba(0,113,227,.07),transparent 62%),
+  radial-gradient(640px 360px at 88% -6%,rgba(52,199,89,.06),transparent 60%);
+  background-attachment:fixed}
+/* ---------- 顶栏 ---------- */
+header{position:sticky;top:0;z-index:20;backdrop-filter:saturate(180%) blur(20px);
+  background:rgba(255,255,255,.78);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:12px;padding:10px 22px}
+@media (prefers-color-scheme: dark){header{background:rgba(23,23,26,.78)}}
+.bico{width:34px;height:34px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;
+  font-size:18px;background:linear-gradient(135deg,#0071e3,#34c759);box-shadow:0 4px 12px rgba(0,113,227,.3)}
+.btxt{display:flex;flex-direction:column;line-height:1.2;margin-right:auto}
+.btxt b{font-size:14.5px;font-weight:700}
+.btxt i{font-style:normal;font-size:10.5px;color:var(--text2)}
+header .v{font-size:11px;color:var(--text2);border:1px solid var(--line);border-radius:999px;padding:3px 10px;white-space:nowrap}
+/* ---------- 主区 ---------- */
+main{max-width:720px;margin:0 auto;padding:40px 20px 24px}
+.hero{text-align:center;margin-bottom:30px}
+.hero h1{font-size:clamp(27px,5vw,40px);font-weight:800;letter-spacing:-.02em;line-height:1.16}
+.hero h1 .grad{background:linear-gradient(92deg,#0071e3,#34c759);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:var(--text2);font-size:15px;margin-top:10px;line-height:1.7}
+/* ---------- 卡片 ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:24px;
+  box-shadow:var(--shadow);margin-bottom:18px;transition:box-shadow .25s}
+.card:hover{box-shadow:var(--shadow-h)}
+.cardhead{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
+.cardhead h2{font-size:16.5px;font-weight:700;letter-spacing:-.01em}
+.cardhead .chint{font-size:11.5px;color:var(--text2)}
 label.fl{display:block;font-size:13px;font-weight:600;margin:0 0 7px;color:var(--text)}
-input[type=text],input[type=number],input[type=date],textarea{
-  width:100%;padding:11px 14px;font-size:15px;color:var(--text);background:var(--card);
-  border:1px solid var(--line);border-radius:12px;outline:none;transition:.15s;font-family:inherit}
-input:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3.5px var(--ring)}
+label.fl .step{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;margin-right:7px;
+  border-radius:50%;background:var(--blue);color:#fff;font-size:11px;vertical-align:-3px}
+input[type=text],input[type=number],input[type=date],textarea,select{
+  width:100%;padding:12px 15px;font-size:15px;color:var(--text);background:var(--card2);
+  border:1px solid var(--line2);border-radius:13px;outline:none;transition:.15s;font-family:inherit}
+input[type=text]:focus,input[type=number]:focus,input[type=date]:focus,textarea:focus,select:focus{
+  border-color:var(--blue);box-shadow:0 0 0 3.5px var(--ring);background:var(--card)}
 textarea{resize:vertical;min-height:64px}
-.hint{font-size:12px;color:var(--text2);margin-top:7px;line-height:1.55}
-details{margin-top:16px;border-top:1px solid var(--track);padding-top:14px}
-details summary{cursor:pointer;font-size:14px;font-weight:600;color:var(--text2);list-style:none;
-  display:flex;align-items:center;gap:6px;user-select:none}
+.hint{font-size:12px;color:var(--text2);margin-top:7px;line-height:1.6}
+/* 折叠区 */
+details{margin-top:14px;background:var(--card2);border:1px solid var(--line);border-radius:15px;padding:13px 16px}
+details summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--text);list-style:none;
+  display:flex;align-items:center;gap:7px;user-select:none}
 details summary::-webkit-details-marker{display:none}
-details summary::before{content:'›';transform:rotate(90deg);transition:.2s;font-size:15px}
+details summary::before{content:'›';transform:rotate(90deg);transition:.2s;font-size:15px;color:var(--text2)}
 details[open] summary::before{transform:rotate(90deg)}
-details .inner{margin-top:14px}
+details .inner{margin-top:13px;border-top:1px dashed var(--line);padding-top:13px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media (max-width:560px){.grid2{grid-template-columns:1fr}}
-.swrow{display:flex;align-items:center;justify-content:space-between;padding:9px 2px;border-bottom:1px solid var(--track);font-size:14px}
+/* 开关 */
+.swrow{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--track);font-size:13.5px}
 .swrow:last-child{border-bottom:none}
 .sw{position:relative;width:44px;height:27px;flex:none}
 .sw input{opacity:0;width:100%;height:100%;position:absolute;margin:0;cursor:pointer;z-index:2}
-.sw i{position:absolute;inset:0;background:#e9e9eb;border-radius:999px;transition:.25s}
+.sw i{position:absolute;inset:0;background:#d9d9de;border-radius:999px;transition:.25s}
+@media (prefers-color-scheme: dark){.sw i{background:#3a3a3e}}
 .sw i::after{content:'';position:absolute;top:2px;left:2px;width:23px;height:23px;background:#fff;
   border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:.25s}
 .sw input:checked+i{background:var(--green)}
 .sw input:checked+i::after{left:19px}
-/* 朋友盲盒弹窗：页签 */
-.sh-seg{display:flex;gap:4px;background:var(--track);border-radius:12px;padding:4px;margin-bottom:12px}
-.sh-tab{flex:1;padding:8px 2px;border:none;border-radius:9px;background:transparent;color:var(--text2);
-  font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.18s;white-space:nowrap}
-.sh-tab:hover{color:var(--text)}
-.sh-tab.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
-@media (prefers-color-scheme: dark){.sh-tab.on{background:#3a3a3c;box-shadow:none}}
-.sh-pane{animation:shin .2s ease}
-@keyframes shin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+/* ---------- 按钮 ---------- */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;cursor:pointer;
-  font-family:inherit;font-size:16px;font-weight:600;color:#fff;background:var(--blue);
+  font-family:inherit;font-size:15.5px;font-weight:600;color:#fff;background:var(--blue);
   border-radius:980px;padding:13px 26px;transition:.15s}
-.btn:hover{background:var(--blue-h)}
-.btn:disabled{background:#a6a6ad;cursor:not-allowed}
-.btn.ghost{background:transparent;color:var(--blue);border:1px solid var(--line)}
-.btn.ghost:hover{background:rgba(0,113,227,.06)}
+.btn:hover{background:var(--blue-h);transform:translateY(-1px)}
+.btn:active{transform:translateY(0) scale(.98)}
+.btn:disabled{background:#a6a6ad;cursor:not-allowed;transform:none}
+.btn.ghost{background:transparent;color:var(--blue);border:1px solid var(--line2)}
+.btn.ghost:hover{background:rgba(0,113,227,.07)}
 .btn.small{font-size:13px;padding:8px 16px}
 .btn.danger{color:var(--red)}
-#startBtn{width:100%;margin-top:22px}
+.btn.grad{background:linear-gradient(135deg,#0071e3,#4c9aff);box-shadow:0 8px 22px rgba(0,113,227,.32)}
+.btn.grad:hover{filter:brightness(1.06)}
+#startBtn{width:100%;margin-top:20px}
 .hidden{display:none!important}
- @media (max-width:640px){
-  header{padding:10px 14px;gap:8px;flex-wrap:wrap}
-  header .brand{font-size:14px}
-  #q{width:min(200px,40vw)}
-  main{padding:28px 14px 20px}
-  .card{padding:18px 14px}
-  .hero h1{font-size:26px}
-  .btn{font-size:15px}
- }
-/* 进度区 */
+/* ---------- 备份库 ---------- */
+.librows{display:flex;flex-direction:column;gap:8px}
+.librow{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--line);
+  border-radius:14px;background:var(--card2);transition:.15s}
+.librow:hover{border-color:var(--blue)}
+.librow .lname{font-size:13.5px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.librow .lmeta{font-size:11px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.badge-cur{font-size:10px;color:#34c759;border:1px solid rgba(52,199,89,.4);border-radius:999px;padding:2px 9px;white-space:nowrap}
+/* ---------- 进度区 ---------- */
 .staterow{display:flex;align-items:center;gap:10px;margin-bottom:16px}
 .dot{width:10px;height:10px;border-radius:50%;background:#a1a1a6;flex:none}
 .dot.run{background:var(--blue);animation:pulse 1.2s infinite}
-.dot.ok{background:var(--green)} .dot.err{background:var(--red)} .dot.stop{background:#ff9f0a}
+.dot.ok{background:var(--green)} .dot.err{background:var(--red)} .dot.stop{background:var(--amber)}
 @keyframes pulse{50%{opacity:.35}}
-.statetext{font-size:16px;font-weight:600;flex:1}
-.track{height:6px;border-radius:99px;background:var(--track);overflow:hidden}
-.fill{height:100%;width:0%;border-radius:99px;background:var(--blue);transition:width .4s}
+.statetext{font-size:15.5px;font-weight:600;flex:1}
+.track{height:8px;border-radius:99px;background:var(--track);overflow:hidden}
+.fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg,#0071e3,#4c9aff);transition:width .4s}
 .fill.indet{width:36%;animation:slide 1.1s infinite}
 @keyframes slide{from{margin-left:-36%}to{margin-left:100%}}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}
@@ -114,29 +129,57 @@ details .inner{margin-top:14px}
 .log .ok{color:#30d158} .log .err{color:#ff453a} .log .skip{color:#98989d} .log .ts{color:#6e6e73;margin-right:8px}
 .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
 .errbox{background:rgba(255,59,48,.1);color:var(--red);border-radius:12px;padding:12px 16px;font-size:14px;margin-top:14px;line-height:1.5}
+/* ---------- 朋友盲盒弹窗：页签 ---------- */
+.sh-seg{display:flex;gap:4px;background:var(--track);border-radius:12px;padding:4px;margin-bottom:12px}
+.sh-tab{flex:1;padding:8px 2px;border:none;border-radius:9px;background:transparent;color:var(--text2);
+  font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.18s;white-space:nowrap}
+.sh-tab:hover{color:var(--text)}
+.sh-tab.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+@media (prefers-color-scheme: dark){.sh-tab.on{background:#3a3a3c;box-shadow:none}}
+.sh-pane{animation:shin .2s ease}
+@keyframes shin{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+/* ---------- 页脚 / 其他 ---------- */
 footer{text-align:center;color:var(--text2);font-size:12px;line-height:1.9;padding:26px 20px 40px}
 footer a{color:var(--text2)}
 .quitmask{position:fixed;inset:0;background:var(--bg);z-index:99;display:flex;align-items:center;justify-content:center;
   font-size:17px;color:var(--text2);font-weight:600}
+@media (max-width:640px){
+  header{padding:10px 14px;flex-wrap:wrap}
+  .btxt i{display:none}
+  header .v{margin-left:auto}
+  main{padding:26px 14px 18px}
+  .card{padding:18px 15px;border-radius:18px}
+  .hero{margin-bottom:22px}
+  .hero h1{font-size:25px}
+  .btn{font-size:15px}
+}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">🎤 全民K歌备份</div>
-  <button class="btn ghost small" onclick="shareModal()" style="margin-left:auto">🎁 朋友盲盒</button>
-  <button class="btn ghost small" onclick="lanModal()">📱 手机访问</button>
+  <div class="bico">🎤</div>
+  <div class="btxt"><b>全民K歌备份</b><i>本地备份工作台</i></div>
   <div class="v" id="ver">本地运行 · v?</div>
+  <button class="btn ghost small" onclick="lanModal()">📱 手机访问</button>
+  <button class="btn small" onclick="shareModal()">🎁 朋友盲盒</button>
 </header>
 
 <main>
-  <div class="hero">
-    <h1>把你的K歌岁月，<br>带回本地。</h1>
+  <section class="hero">
+    <h1>把你的K歌岁月，<span class="grad">带回本地。</span></h1>
     <p>粘贴个人主页链接，批量备份全部作品：歌曲、封面、上传时间、介绍、评论与全部详情。<br>生成可试听的本地歌单，增量备份、自动续传。</p>
-  </div>
+  </section>
 
-  <!-- 表单 -->
-  <div class="card" id="formCard">
-    <label class="fl">全民K歌个人主页链接（或 uid）</label>
+  <!-- 我的备份库 -->
+  <section class="card hidden" id="libCard">
+    <div class="cardhead"><h2>💾 我的备份库</h2><span class="chint">「设为分享」= 切换朋友盲盒的内容来源</span></div>
+    <div id="libRows" class="librows"></div>
+  </section>
+
+  <!-- 新建备份 -->
+  <section class="card" id="formCard">
+    <div class="cardhead"><h2>🚀 新建备份任务</h2><span class="chint">增量备份 · 已备份过的作品自动跳过</span></div>
+    <label class="fl"><span class="step">1</span>全民K歌个人主页链接（或 uid）</label>
     <input type="text" id="target" placeholder="https://kg.qq.com/node/personal?uid=xxxxxxxx…" autocomplete="off">
     <div class="hint">App 内：「我的」→「…」→「分享主页」→ 复制链接，粘贴到这里。</div>
     <div id="authorsRow" class="hidden" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
@@ -144,7 +187,7 @@ footer a{color:var(--text2)}
     </div>
 
     <details>
-      <summary>登录 Cookie（备份“仅自己可见”的私密作品时才需要）</summary>
+      <summary>🔐 登录 Cookie（备份“仅自己可见”的私密作品时才需要）</summary>
       <div class="inner">
         <textarea id="cookie" placeholder="电脑浏览器登录 kg.qq.com → F12 → Network → 任意请求 → 复制 Cookie: 后面的完整内容，粘贴到这里（可选）"></textarea>
         <div class="hint">不填也能备份全部<b>公开</b>作品；填写后可连同私密作品一起备份。Cookie 只在本机使用，不会上传。
@@ -155,7 +198,7 @@ footer a{color:var(--text2)}
     </details>
 
     <details>
-      <summary>高级选项</summary>
+      <summary>⚙️ 高级选项</summary>
       <div class="inner">
         <div class="grid2">
           <div><label class="fl">输出目录（可选）</label><input type="text" id="out" list="outList" placeholder="默认：kg_backup_昵称">
@@ -176,12 +219,13 @@ footer a{color:var(--text2)}
       </div>
     </details>
 
-    <button class="btn" id="startBtn" onclick="start()">开始备份</button>
+    <button class="btn grad" id="startBtn" onclick="start()">开始备份</button>
     <div class="hint" id="envHint" style="text-align:center;margin-top:10px"></div>
-  </div>
+  </section>
 
   <!-- 进度 -->
-  <div class="card hidden" id="progCard">
+  <section class="card hidden" id="progCard">
+    <div class="cardhead"><h2>📊 任务进度</h2><span class="chint">可暂停/停止，进度已保存，随时续传</span></div>
     <div class="staterow">
       <span class="dot" id="dot"></span>
       <span class="statetext" id="stateText">待命</span>
@@ -197,7 +241,7 @@ footer a{color:var(--text2)}
       <button class="btn ghost small" onclick="openIt('html')">🎵 打开HTML歌单</button>
       <button class="btn ghost small danger" onclick="quitApp()">退出程序</button>
     </div>
-  </div>
+  </section>
 </main>
 
 <footer>
@@ -972,6 +1016,32 @@ fetch('/api/dirs').then(r=>r.json()).then(loadOutList).catch(()=>{});  // 启动
 <script src="/static/qrcode.min.js"></script>
 <script>
 poll(); setInterval(poll, 1200);
+/* 我的备份库：目录列表 + 一键设为分享（朋友盲盒内容来源切换） */
+async function loadLib(){
+  let d;
+  try{ d = await (await fetch('/api/dirs')).json(); }catch(e){ return; }
+  const card = document.getElementById('libCard'), box = document.getElementById('libRows');
+  if(!card || !box) return;
+  const dirs = (d.dirs || []).filter(x => x.valid);
+  card.classList.toggle('hidden', !dirs.length);
+  const cur = d.current || '';
+  box.innerHTML = dirs.map(x =>
+    `<div class="librow">
+      <span class="lname">🎵 ${esc(x.name)}</span>
+      <span class="lmeta">${x.songs || 0} 首${x.path === cur ? '' : ''}</span>
+      ${x.path === cur ? '<span class="badge-cur">✓ 当前分享</span>' : ''}
+      <button class="btn ghost small" style="padding:5px 14px" onclick="libShare('${esc(x.name)}')">${x.path === cur ? '重新分享' : '设为分享'}</button>
+    </div>`).join('');
+}
+async function libShare(name){
+  try{
+    const r = await (await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({dir: name})})).json();
+    if(r.ok){ toast('已设为分享：' + name); loadLib(); }
+    else toast(r.error || '设置失败');
+  }catch(e){ toast('设置失败'); }
+}
+loadLib(); setInterval(loadLib, 4000);
 </script>
 </body>
 </html>
