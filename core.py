@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.21'
+APP_VERSION = '1.12.22'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2918,7 +2918,7 @@ function addRevealCard(s, k, area){
   card.dataset.reveal = s.uk;
   const playIt = `playSong(SONGS.indexOf(SONGS.find(x => x.uk === '${s.uk}')))`;
   card.innerHTML = `<img src="${s.cover || ''}" alt="" onclick="${playIt}" title="点封面播放">` +
-    `<div class="rt">${s.festival === '加更' ? '🎁 加更 · ' : (k > 0 && s.festival ? '🧧 ' + s.festival + ' · ' : '')}${s.title}</div>` +
+    `<div class="rt">${s.festival === '加更' ? '🎁 加更 · ' : (k > 0 && s.festival ? '🧧 ' + s.festival + ' · ' : '')}${s.title}${s.author ? ' <span style="font-size:11px;opacity:.65">· 来自 ' + esc(s.author) + '</span>' : ''}</div>` +
     `<div class="rs">原唱：${s.singer ? s.singer + '《' + s.song + '》' : s.song} · ${s.time}</div>` +
     `<button class="rev-play" onclick="${playIt}">▶&nbsp; 播放</button>`;
   area.appendChild(card);
@@ -3022,7 +3022,7 @@ SONGS.forEach(s => {
     (hide ? '<div class="q">❓</div>' : '') +
     (s.today ? '<div class="tag">今日</div>' : (hide ? '<div class="tag">🔒</div>' : '')) +
     (s.festival ? '<div class="ftag">🧧</div>' : '') +
-    `<div class="nm">${hide ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}</div>` +
+    `<div class="nm">${hide ? '？？？' : s.seq + '. ' + s.title}</div><div class="dt">${s.time}${s.author ? ' · 来自 ' + s.author : ''}</div>` +
     (!hide && dateMap[s.uk] ? `<div class="ud">📅 ${dateMap[s.uk].date} 掉落${dateMap[s.uk].festival ? ' · ' + dateMap[s.uk].festival : ''}</div>` : '');
   d.onclick = () => {
     if (hide) { d.classList.add('shake'); setTimeout(()=>d.classList.remove('shake'), 450); return; }
@@ -3106,7 +3106,7 @@ function playSong(i){
   if (s.lrc) fetch(s.lrc).then(r => r.ok ? r.text() : '').then(t => { if (SONGS[cur] === s && t) { glrc = parseLrc(t); } }).catch(() => {});
   document.getElementById('barCover').src = s.cover || '';
   document.getElementById('barTitle').textContent = s.seq + '. ' + s.title;
-  document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time;
+  document.getElementById('barSub').textContent = '原唱：' + (s.singer ? s.singer + '《' + s.song + '》' : s.song) + ' · ' + s.time + (s.author ? ' · 来自 ' + s.author : '');
   document.getElementById('bar').classList.add('show');
   paintProgress();
   document.getElementById('barPlay').textContent = '⏸';  // 点击瞬间就切图标，不等音频事件（iOS 下事件可能延迟）
@@ -3607,6 +3607,21 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
     def esc(s):
         return html_mod.escape(str(s if s is not None else ''))
 
+    # 多作者混合池：给每首歌标注「来自哪位作者」（单作者池不标注，避免噪音）
+    amap = {}
+    try:
+        with open(os.path.join(os.getcwd(), 'authors.json'), encoding='utf-8') as f:
+            for a in json.load(f).values():
+                amap[os.path.abspath(a.get('dir') or '')] = (a.get('nickname') or '').strip()
+    except Exception:
+        pass
+    pool2nick = {}
+    for e in entries:
+        p = e.get('_pool') or ''
+        if p and p not in pool2nick:
+            pool2nick[p] = amap.get(os.path.abspath(p)) or ''
+    multi_author = len({v for v in pool2nick.values() if v}) >= 2
+
     def uk(e):
         return e.get('ugcid') or ('s' + str(e.get('seq')))
 
@@ -3631,6 +3646,7 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
             'locked': locked, 'today': is_today,
             'torder': (list(today_keys).index(k) if k in today_keys else -1),
             'festival': e.get('_fest') or '',
+            'author': (pool2nick.get(e.get('_pool') or '', '') if multi_author else ''),
         })
     # uk/festival 必须带上：日历靠 uk 隐藏未拆的今日歌、靠 festival 标「🎁 加更」
     hist = [{'date': h['date'], 'title': h['title'], 'singer': h.get('singer') or '',

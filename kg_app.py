@@ -1282,6 +1282,10 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
+        if self.path == '/api/auto-update':
+            cfg = _load_json_safe(os.path.join(os.getcwd(), 'auto_update.json'))
+            cfg['running'] = bool(_auto_thread and _auto_thread.is_alive())
+            return self._send(200, cfg)
         if self.path == '/api/dirs':
             """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
             root = data_root()
@@ -1799,10 +1803,6 @@ class Handler(BaseHTTPRequestHandler):
                 'ips': ips})
         if self.path == '/api/auto-update':
             cfg_path = os.path.join(os.getcwd(), 'auto_update.json')
-            if self.command == 'GET':
-                cfg = _load_json_safe(cfg_path)
-                cfg['running'] = bool(_auto_thread and _auto_thread.is_alive())
-                return self._send(200, cfg)
             p = self._body()
             cfg = _load_json_safe(cfg_path)
             if 'enabled' in p:
@@ -1818,6 +1818,11 @@ class Handler(BaseHTTPRequestHandler):
             if 'authors' in p:
                 cfg['authors'] = p['authors']
             _save_json_safe(cfg_path, cfg)
+            if p.get('run_now'):
+                if _STATE['thread'] and _STATE['thread'].is_alive():
+                    return self._send(409, {'error': '备份任务进行中，稍后再试'})
+                threading.Thread(target=_auto_check_once, daemon=True).start()
+                return self._send(200, dict(cfg, run_now=True))
             return self._send(200, cfg)
         if self.path == '/api/health-check':
             p = self._body()
@@ -2338,6 +2343,44 @@ _auto_thread = None
 _auto_stop = threading.Event()
 
 
+def _auto_check_once():
+    """执行一轮作者新歌检查（定时循环与「立即检查」共用）。完成后记录 last_check/last_result。"""
+    cfg_path = os.path.join(os.getcwd(), 'auto_update.json')
+    cfg = _load_json_safe(cfg_path)
+    authors = cfg.get('authors') or []
+    ok_n, err_msgs = 0, []
+    for a in authors:
+        if _auto_stop.is_set():
+            break
+        uid, out_dir = a.get('uid'), a.get('dir')
+        if not uid or not out_dir or not os.path.isdir(out_dir):
+            continue
+        try:
+            job = Job()
+            from core import KGClient
+            client = KGClient(cfg.get('cookie') or '', cfg.get('proxy') or '', 30, 3)
+            client.share_uid = uid
+            args = types.SimpleNamespace(
+                out=out_dir, cookie=cfg.get('cookie') or '', cookie_file='',
+                proxy=cfg.get('proxy') or '', workers=2, page_sleep=1.0,
+                retries=3, timeout=30, max=0, since='', until='',
+                no_audio=False, no_cover=False, no_comments=False, no_meta=False,
+                no_html=False, no_tags=False, video=False, mp3=False, zip=False,
+                list_only=False, force=False, flat=bool(cfg.get('flat')))
+            from core import _backup_one
+            _backup_one(uid, args, job)
+            ok_n += 1
+        except Exception as e:
+            err_msgs.append((a.get('nickname') or uid) + '：' + str(e)[:40])
+    cfg = _load_json_safe(cfg_path)
+    cfg['last_check'] = ts2str(time.time())
+    if err_msgs:
+        cfg['last_result'] = f'{ok_n}/{len(authors)} 成功 · ' + '；'.join(err_msgs[:2])
+    else:
+        cfg['last_result'] = f'{ok_n}/{len(authors)} 位作者检查完成'
+    _save_json_safe(cfg_path, cfg)
+
+
 def _auto_update_loop():
     """定时检查订阅作者的新歌并自动下载。"""
     while not _auto_stop.is_set():
@@ -2347,33 +2390,10 @@ def _auto_update_loop():
                 _auto_stop.wait(300)
                 continue
             interval_h = max(1, cfg.get('interval_hours', 6))
-            authors = cfg.get('authors') or []
-            for a in authors:
-                if _auto_stop.is_set():
-                    break
-                uid, out_dir = a.get('uid'), a.get('dir')
-                if not uid or not out_dir or not os.path.isdir(out_dir):
-                    continue
-                try:
-                    job = Job()
-                    from core import KGClient
-                    client = KGClient(cfg.get('cookie') or '', cfg.get('proxy') or '', 30, 3)
-                    client.share_uid = uid
-                    args = types.SimpleNamespace(
-                        out=out_dir, cookie=cfg.get('cookie') or '', cookie_file='',
-                        proxy=cfg.get('proxy') or '', workers=2, page_sleep=1.0,
-                        retries=3, timeout=30, max=0, since='', until='',
-                        no_audio=False, no_cover=False, no_comments=False, no_meta=False,
-                        no_html=False, no_tags=False, video=False, mp3=False, zip=False,
-                        list_only=False, force=False, flat=bool(cfg.get('flat')))
-                    from core import _backup_one
-                    _backup_one(uid, args, job)
-                    job.log(f'⏰ 定时更新完成: {a.get("nickname") or uid}')
-                except Exception as e:
-                    job.log(f'⏰ 定时更新失败: {e}')
+            _auto_check_once()
+            _auto_stop.wait(3600 * interval_h)
         except Exception:
-            pass
-        _auto_stop.wait(3600 * max(1, interval_h) if 'interval_h' in dir() else 3600)
+            _auto_stop.wait(60)
 
 
 def start_auto_update():

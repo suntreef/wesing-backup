@@ -241,6 +241,30 @@ footer a{color:var(--text2)}
     <div id="libRows" class="librows"></div>
   </section>
 
+  <!-- 自动追更 -->
+  <section class="card hidden" id="autoCard">
+    <div class="cardhead">
+      <span class="cico"><svg class="ic" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></span><h2>自动追更</h2>
+      <span class="chint" id="autoState">未开启</span>
+      <div class="spacer"></div>
+      <span class="sw"><input type="checkbox" id="autoSw" onchange="saveAutoSw(this)"><i></i></span>
+    </div>
+    <div id="autoBody">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px" id="autoChips"></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label class="fl" style="margin:0">检查间隔</label>
+        <select id="autoInterval" style="width:auto;padding:7px 10px;font-size:12.5px">
+          <option value="1">每 1 小时</option><option value="2">每 2 小时</option>
+          <option value="3">每 3 小时</option><option value="6">每 6 小时</option>
+          <option value="12">每 12 小时</option><option value="24">每天一次</option>
+        </select>
+        <button class="btn small" onclick="autoRunNow()">立即检查</button>
+      </div>
+      <div class="hint" id="autoLast"></div>
+      <div class="hint">勾选的作者会按间隔自动增量备份新歌（私密歌需要 cookie 时用备份表单里填过的那份）。</div>
+    </div>
+  </section>
+
   <!-- 新建备份 -->
   <section class="card" id="formCard">
     <div class="cardhead">
@@ -1309,6 +1333,70 @@ async function importBundle(input){
     else toast(r.error || '导入失败');
   }catch(e){ toast('导入失败'); }
   input.value = '';
+}
+/* ---- 自动追更 ---- */
+async function loadAuto(){
+  let cfg, au;
+  try{
+    cfg = await (await fetch('/api/auto-update')).json();
+    au = await (await fetch('/api/authors')).json();
+  }catch(e){ return; }
+  const card = document.getElementById('autoCard');
+  if (!card) return;
+  const authors = au.authors || [];
+  card.classList.toggle('hidden', !authors.length);
+  const sw = document.getElementById('autoSw');
+  if (sw) sw.checked = !!cfg.enabled;
+  const st = document.getElementById('autoState');
+  if (st) st.textContent = cfg.enabled ? ('已开启 · ' + (cfg.last_check ? '上次检查 ' + cfg.last_check : '等待首轮检查')) : '未开启';
+  const sel = document.getElementById('autoInterval');
+  if (sel) sel.value = String(cfg.interval_hours || 6);
+  const chosen = new Set((cfg.authors || []).map(a => a.uid));
+  const chips = document.getElementById('autoChips');
+  if (chips) chips.innerHTML = authors.map(a =>
+    '<button class="tbtn" data-uid="' + esc(a.uid) + '" data-dir="' + esc(a.dir || '') + '" data-nick="' + esc(a.nickname || '') + '"' +
+    (chosen.has(a.uid) ? ' style="border-color:var(--accent);color:var(--accent);background:var(--accent-soft)"' : '') + '>' +
+    (chosen.has(a.uid) ? '✓ ' : '') + esc(a.nickname || a.uid) + '</button>').join('');
+  chips.querySelectorAll('.tbtn').forEach(b => { if (chosen.has(b.dataset.uid)) b.dataset.on = '1'; });
+  chips.querySelectorAll('.tbtn').forEach(b => { b.onclick = () => {
+    const on = b.dataset.on !== '1';
+    b.dataset.on = on ? '1' : '';
+    b.style.borderColor = on ? 'var(--accent)' : '';
+    b.style.color = on ? 'var(--accent)' : '';
+    b.style.background = on ? 'var(--accent-soft)' : '';
+    b.innerHTML = (on ? '✓ ' : '') + esc(b.dataset.nick);
+  }; });
+  const last = document.getElementById('autoLast');
+  if (last) last.textContent = cfg.last_check ? ('上次检查：' + cfg.last_check + ' · ' + (cfg.last_result || '')) : '';
+}
+async function saveAutoSw(sw){
+  const on = !!sw.checked;
+  const authors = [...document.querySelectorAll('#autoChips .tbtn')]
+    .filter(b => b.dataset.on === '1')
+    .map(b => ({uid: b.dataset.uid, dir: b.dataset.dir, nickname: b.dataset.nick}));
+  try{
+    const r = await (await fetch('/api/auto-update', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({enabled: on, authors: authors,
+        interval_hours: parseInt(document.getElementById('autoInterval').value || '6', 10)})})).json();
+    if(r.ok !== undefined){
+      toast(on ? '自动追更已开启（' + authors.length + ' 位作者）' : '自动追更已关闭');
+      loadAuto();
+    } else { toast('保存失败'); sw.checked = !on; }
+  }catch(e){ toast('保存失败'); sw.checked = !on; }
+}
+async function autoRunNow(){
+  const authors = [...document.querySelectorAll('#autoChips .tbtn')]
+    .filter(b => b.dataset.on === '1')
+    .map(b => ({uid: b.dataset.uid, dir: b.dataset.dir, nickname: b.dataset.nick}));
+  try{
+    await (await fetch('/api/auto-update', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({authors: authors,
+        interval_hours: parseInt(document.getElementById('autoInterval').value || '6', 10)})})).json();
+    const r = await (await fetch('/api/auto-update', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({run_now: true})})).json();
+    if(r.run_now){ toast('已开始检查，完成后状态自动更新'); loadAuto(); }
+    else toast(r.error || '无法立即检查');
+  }catch(e){ toast('触发失败'); }
 }
 async function libShare(name){
   try{
