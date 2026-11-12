@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.22'
+APP_VERSION = '1.12.23'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -663,10 +663,11 @@ PAGE_TEMPLATE = r"""<!DOCTYPE html>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#111418;color:#eee;min-height:100vh;display:flex;flex-direction:column;
- font-family:"Microsoft YaHei",system-ui,sans-serif;overflow-x:hidden}
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif;
+ -webkit-font-smoothing:antialiased;overflow-x:hidden}
 canvas#bg{position:fixed;inset:0;z-index:0}
-header{position:sticky;top:0;z-index:9;padding:18px 24px 10px;background:rgba(17,20,24,.96);
- backdrop-filter:blur(6px);border-bottom:1px solid #2a2f36}
+header{position:sticky;top:0;z-index:9;padding:16px 24px 10px;background:rgba(17,20,24,.9);
+ backdrop-filter:saturate(160%) blur(18px);-webkit-backdrop-filter:saturate(160%) blur(18px);border-bottom:1px solid rgba(255,255,255,.06)}
 .hrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 h1{margin:0;font-size:22px}
 .seg{display:inline-flex;align-items:center;background:#1a1f26;border-radius:999px;padding:4px;gap:4px;margin-left:auto;
@@ -3620,7 +3621,10 @@ def render_guest_page(entries, profile, unlocked_keys, history, today_keys, toda
         p = e.get('_pool') or ''
         if p and p not in pool2nick:
             pool2nick[p] = amap.get(os.path.abspath(p)) or ''
-    multi_author = len({v for v in pool2nick.values() if v}) >= 2
+    # 「混合盲盒」判定只看当前视图的正常条目：跨池复活的历史掉落不算
+    view_pools = {e.get('_pool') for e in entries if not e.get('_resurrected')}
+    multi_author = len({pool2nick.get(p, '') for p in view_pools
+                        if pool2nick.get(p, '')}) >= 2
 
     def uk(e):
         return e.get('ugcid') or ('s' + str(e.get('seq')))

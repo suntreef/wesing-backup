@@ -265,6 +265,23 @@ footer a{color:var(--text2)}
     </div>
   </section>
 
+  <!-- 运行与服务 -->
+  <section class="card hidden" id="opsCard">
+    <div class="cardhead">
+      <span class="cico"><svg class="ic" viewBox="0 0 24 24"><path d="M3 21h18M6 17V9M11 17V5M16 17v-7M21 17V8"/></svg></span><h2>运行与服务</h2>
+      <span class="chint">盲盒统计 · 自启 · 任务历史</span>
+    </div>
+    <div id="opsStats" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div class="swrow" id="autoStartRow" style="border-radius:10px">
+      <span>🖥️ 开机自启（启动后台常驻服务，托盘可控制）</span>
+      <span class="sw"><input type="checkbox" id="autoStartSw" onchange="saveAutoStart(this)"><i></i></span>
+    </div>
+    <details style="margin-top:10px">
+      <summary>📜 任务历史（最近 30 次）</summary>
+      <div class="inner" id="histRows" style="color:var(--text2);font-size:12px;line-height:2">加载中…</div>
+    </details>
+  </section>
+
   <!-- 新建备份 -->
   <section class="card" id="formCard">
     <div class="cardhead">
@@ -490,12 +507,25 @@ async function poll(){
     const eb = $('#errbox');
     if(st === 'error'){ eb.classList.remove('hidden'); eb.textContent = s.error || '未知错误，请查看日志'; }
     else eb.classList.add('hidden');
-    if((st==='done'||st==='stopped') && !doneNoted){ doneNoted = true; loadAuthors(); }
+    if((st==='done'||st==='stopped'||st==='error') && !doneNoted){
+      doneNoted = true; loadAuthors();
+      try{
+        if ('Notification' in navigator && Notification.permission === 'granted'){
+          const stt = s.stats || {};
+          const body = st === 'done' ? ('新增 ' + (stt.ok || 0) + ' 首，失败 ' + (stt.fail || 0) + '，跳过 ' + (stt.skip || 0))
+                     : st === 'error' ? (s.error || '备份出错，详情见管理页')
+                     : '已停止（进度已保存，可续传）';
+          new Notification(st === 'done' ? '✓ 备份完成' : st === 'error' ? '✗ 备份出错' : '⏸ 备份已停止',
+                           {body: body, icon: '/static/icon-192.png'});
+        }
+      }catch(e){}
+    }
     if(st==='running'||st==='listing'){ doneNoted = false; }
   }
 }
 
 async function start(){
+  try{ if ('Notification' in navigator && Notification.permission === 'default') Notification.requestPermission(); }catch(e){}
   const target = $('#target').value.trim();
   if(!target){ $('#target').focus(); $('#target').style.borderColor='var(--red)'; setTimeout(()=>$('#target').style.borderColor='',1200); return; }
   $('#startBtn').disabled = true; $('#startBtn').textContent = '正在启动…';
@@ -1398,6 +1428,16 @@ async function autoRunNow(){
     else toast(r.error || '无法立即检查');
   }catch(e){ toast('触发失败'); }
 }
+async function saveAutoStart(sw){
+  const on = !!sw.checked;
+  if (on && !confirm('开机自启会在电脑启动时后台常驻服务（托盘图标可打开页面/退出）。确定开启？')) { sw.checked = false; return; }
+  try{
+    const r = await (await fetch('/api/autostart', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({on: on})})).json();
+    if(r.ok){ toast(on ? '已开启开机自启' : '已关闭开机自启'); }
+    else { toast(r.error || '设置失败'); sw.checked = !on; }
+  }catch(e){ toast('设置失败'); sw.checked = !on; }
+}
 async function libShare(name){
   try{
     const r = await (await fetch('/api/share', {method:'POST', headers:{'Content-Type':'application/json'},
@@ -1407,6 +1447,39 @@ async function libShare(name){
   }catch(e){ toast('设置失败'); }
 }
 loadLib(); setInterval(loadLib, 4000);
+/* ---- 运行与服务：统计 / 自启 / 任务历史 ---- */
+async function loadOps(){
+  try{
+    const [st, as, rh] = await Promise.all([
+      fetch('/api/stats').then(r => r.json()),
+      fetch('/api/autostart').then(r => r.json()),
+      fetch('/api/run-history').then(r => r.json()).catch(() => ({runs: []}))
+    ]);
+    const sw = document.getElementById('autoStartSw');
+    if (sw){ sw.checked = !!as.on; sw.disabled = !as.supported;
+             document.getElementById('autoStartRow').style.display = as.supported ? '' : 'none'; }
+    const box = document.getElementById('opsStats');
+    if (box){
+      const num = (v, label) => '<div style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px 14px">' +
+        '<div style="font-size:10px;color:var(--text3);letter-spacing:.05em">' + label + '</div>' +
+        '<div style="font-size:20px;font-weight:700;margin-top:2px;font-variant-numeric:tabular-nums">' + esc(v) + '</div></div>';
+      box.innerHTML = num(st.visitors || 0, '👥 朋友总数') + num(st.plays_total || 0, '▶ 累计播放') +
+        '<div style="flex:1.6;min-width:170px;background:var(--surface2);border:1px solid var(--line);border-radius:11px;padding:10px 14px">' +
+        '<div style="font-size:10px;color:var(--text3);letter-spacing:.05em">🔥 最热歌</div>' +
+        '<div style="font-size:13px;font-weight:600;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(st.top || '—') + '</div></div>' +
+        num((st.unlocked || 0) + '/' + (st.total || 0), '🔓 已解锁');
+    }
+    const rows = (rh.runs || []).slice(0, 8).map(rn =>
+      '<div style="display:flex;gap:8px;border-bottom:1px dashed var(--line);padding:4px 0">' +
+      '<span style="flex:none">' + (rn.state === 'done' ? '✅' : rn.state === 'error' ? '❌' : rn.state === 'stopped' ? '⏸' : '•') + '</span>' +
+      '<span style="flex:none;color:var(--text3)">' + esc((rn.time || '').slice(5, 16)) + '</span>' +
+      '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(rn.nickname || rn.target || '') + '</span>' +
+      '<span style="margin-left:auto;flex:none;color:var(--text3)">+' + (rn.ok || 0) + ' 首' + (rn.fail ? ' / 失败 ' + rn.fail : '') + '</span></div>').join('');
+    const hr = document.getElementById('histRows');
+    if (hr) hr.innerHTML = rows || '还没有任务记录';
+  }catch(e){}
+}
+loadOps(); setInterval(loadOps, 6000);
 </script>
 </body>
 </html>

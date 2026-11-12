@@ -1286,6 +1286,44 @@ class Handler(BaseHTTPRequestHandler):
             cfg = _load_json_safe(os.path.join(os.getcwd(), 'auto_update.json'))
             cfg['running'] = bool(_auto_thread and _auto_thread.is_alive())
             return self._send(200, cfg)
+        if self.path == '/api/stats':
+            """管理端：盲盒聚合统计（朋友数/累计播放/最热歌/已解锁）。"""
+            entries, profile, sh = share_entries()
+            sh_dir = sh.get('dir') or ''
+            vdata = visitors(sh_dir) if sh_dir else {}
+            plays_total, top_title = 0, ''
+            per_song = {}
+            for st in (vdata or {}).values():
+                if not isinstance(st, dict):
+                    continue
+                for uk, c in (st.get('plays') or {}).items():
+                    per_song[uk] = per_song.get(uk, 0) + int(c or 0)
+                    plays_total += int(c or 0)
+            tmap = {_uk(e): (e.get('title') or '未命名') for e in entries}
+            if per_song:
+                best = max(per_song.items(), key=lambda x: x[1])
+                top_title = tmap.get(best[0], '') + f'（{best[1]} 次）'
+            unlocked_n, total_n = len(entries), len(entries)
+            try:
+                _e2, _p2, unlocked_set, _h, _tk, _td, _fe = blindbox_state()
+                unlocked_n = len(unlocked_set)
+                total_n = len(_e2)
+            except Exception:
+                pass
+            return self._send(200, {'visitors': len(vdata or {}),
+                                    'plays_total': plays_total,
+                                    'top': top_title,
+                                    'unlocked': unlocked_n, 'total': total_n})
+        if self.path == '/api/run-history':
+            fp = os.path.join(os.getcwd(), 'run_history.json')
+            try:
+                with open(fp, encoding='utf-8') as f:
+                    data = json.load(f)
+            except Exception:
+                data = []
+            return self._send(200, {'runs': data[:30]})
+        if self.path == '/api/autostart':
+            return self._send(200, autostart_status())
         if self.path == '/api/dirs':
             """列出数据根目录下所有可备份/已备份的子目录（含 index.json 的标记为有效）。"""
             root = data_root()
@@ -1479,6 +1517,10 @@ class Handler(BaseHTTPRequestHandler):
                         f.write(zf.read(info))
                     restored.append(name)
             return self._send(200, {'ok': True, 'restored': restored})
+        if self.path == '/api/autostart':
+            p = self._body()
+            r = autostart_set(bool(p.get('on')))
+            return self._send(200 if r.get('ok') else 400, r)
         if self.path == '/api/del-dir':
             """管理端：删除数据根目录下的某个备份目录。
             前端必须二次确认；这里再加三道围栏——只许删数据根下的单个目录、
@@ -1900,6 +1942,35 @@ def _run_job(target, args, job):
             save_shares(sh)
     except BaseException as e:  # 状态已记入 job，线程不抛栈
         job.log(f'任务结束（{job.state}）: {e}' if job.state == 'error' else f'任务结束（{job.state}）')
+    finally:
+        try:
+            _record_run_history(target, job)
+        except Exception:
+            pass
+
+
+def _record_run_history(target, job):
+    """备份任务历史：最近 30 次运行（时间/作者/结果/新增数），管理页可回看。"""
+    fp = os.path.join(os.getcwd(), 'run_history.json')
+    try:
+        data = []
+        if os.path.isfile(fp):
+            with open(fp, encoding='utf-8') as f:
+                data = json.load(f)
+    except Exception:
+        data = []
+    st = job.stats or {}
+    nick = ''
+    try:
+        nick = (job.profile or {}).get('nickname') or ''
+    except Exception:
+        pass
+    data.insert(0, {'time': ts2str(time.time()), 'nickname': nick,
+                    'target': str(target)[:60], 'state': job.state,
+                    'ok': int(st.get('ok') or 0), 'skip': int(st.get('skip') or 0),
+                    'fail': int(st.get('fail') or 0), 'out': job.out_dir or ''})
+    with open(fp, 'w', encoding='utf-8') as f:
+        json.dump(data[:30], f, ensure_ascii=False, indent=1)
 
 
 def _quit():
@@ -1908,6 +1979,72 @@ def _quit():
         threading.Thread(target=srv.shutdown, daemon=True).start()
     remove_instance_file()
     os._exit(0)
+
+
+# ---------- 托盘常驻 + 开机自启 ----------
+def _autostart_file():
+    """开机自启 bat 的位置（当前用户的「启动」文件夹）。"""
+    base = os.environ.get('APPDATA') or ''
+    if not base:
+        return None
+    return os.path.join(base, 'Microsoft', 'Windows', 'Start Menu', 'Programs',
+                        'KG-Backup 服务.bat')
+
+
+def _exe_path():
+    try:
+        return os.path.abspath(sys.executable)  # PyInstaller 冻结后即 exe 本体
+    except Exception:
+        return None
+
+
+def autostart_status():
+    if not _autostart_file() or not _exe_path() or not getattr(sys, 'frozen', False):
+        return {'supported': False, 'on': False}
+    return {'supported': True, 'on': os.path.isfile(_autostart_file())}
+
+
+def autostart_set(on):
+    if not _autostart_file() or not getattr(sys, 'frozen', False):
+        return {'ok': False, 'error': '仅 Windows 桌面版（exe）支持开机自启'}
+    exe = _exe_path()
+    fp = _autostart_file()
+    crlf = chr(13) + chr(10)
+    try:
+        if on:
+            os.makedirs(os.path.dirname(fp), exist_ok=True)
+            with open(fp, 'w', encoding='utf-8') as f:
+                f.write('@echo off' + crlf + 'start "" ' + chr(34) + exe + chr(34) +
+                        ' --tray' + crlf)
+        elif os.path.isfile(fp):
+            os.remove(fp)
+        return {'ok': True, 'on': bool(on)}
+    except Exception as e:
+        return {'ok': False, 'error': str(e)}
+
+
+def _tray_icon(url):
+    """系统托盘常驻：图标 + 右键菜单（打开页面 / 退出）。窗口版默认启用。"""
+    try:
+        import pystray
+        from PIL import Image
+        icon_path = None
+        base = getattr(sys, '_MEIPASS', None) or os.path.dirname(os.path.abspath(__file__))
+        for cand in (os.path.join(base, 'assets', 'icon.png'),
+                     os.path.join(base, 'assets', 'icon.ico')):
+            if os.path.isfile(cand):
+                icon_path = cand
+                break
+        img = Image.open(icon_path) if icon_path else Image.new('RGB', (64, 64), (64, 102, 240))
+        menu = pystray.Menu(
+            pystray.MenuItem('打开备份页面', lambda: webbrowser.open(url), default=True),
+            pystray.MenuItem('退出服务', lambda: _quit()))
+        ic = pystray.Icon('KG-Backup', img, '全民K歌备份 · ' + url, menu)
+        threading.Thread(target=ic.run, daemon=True).start()
+        _STATE['tray'] = ic
+        return True
+    except Exception:
+        return False
 
 
 # 盲盒端口登录会话：token -> {'user': 账号名, 'exp': 过期时间}
@@ -2405,6 +2542,13 @@ def start_auto_update():
     _auto_thread.start()
 
 def main():
+    # 控制台代码页兜底：从终端启动时 GBK 编不了 emoji 会崩，强制 UTF-8
+    for _s in (sys.stdout, sys.stderr):
+        if _s:
+            try:
+                _s.reconfigure(encoding='utf-8', errors='replace')
+            except Exception:
+                pass
     # 单实例守卫：已有实例在跑就直接打开它的页面，避免重复双击 exe 叠开一堆窗口
     port = 0
     lan = False
@@ -2464,6 +2608,11 @@ def main():
         except OSError as e:
             if sys.stdout:
                 print(f'盲盒访客端口 {guest_port} 启动失败: {e}', flush=True)
+    # 窗口版（--noconsole，无控制台）默认进系统托盘常驻；控制台模式保持原行为
+    if not sys.stdout and not os.environ.get('KG_NO_TRAY'):
+        if _tray_icon(url):
+            while True:
+                time.sleep(3600)
     try:
         while True:
             time.sleep(3600)
