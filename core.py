@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.23'
+APP_VERSION = '1.12.24'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2998,6 +2998,17 @@ function tickCd(){
   const now = new Date();
   const mid = new Date(now); mid.setHours(24,0,0,0);
   const d = mid - now;
+  if (d <= 0) {
+    /* 倒计时归零 = 新的一天：页面开过夜也会在零点自动换新盒（每天只刷一次防循环） */
+    try {
+      const today = new Date().toDateString();
+      if (localStorage.getItem('kgmidflip') !== today) {
+        localStorage.setItem('kgmidflip', today);
+        location.reload();
+        return;
+      }
+    } catch(e){}
+  }
   const h = String(d/3600000|0).padStart(2,'0'), m = String((d/60000|0)%60).padStart(2,'0'), s = String((d/1000|0)%60).padStart(2,'0');
   document.getElementById('cd').textContent = h + ':' + m + ':' + s;
 const ct = document.getElementById('cdTop'); if (ct) ct.textContent = h + ':' + m + ':' + s;

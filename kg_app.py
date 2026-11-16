@@ -2113,7 +2113,7 @@ def _create_g_session(user):
 # 全部走网络，避免音频/封面被缓存成旧版本。
 _SW_JS = r'''/* 盲盒歌单 Service Worker：外壳离线缓存（可安装的关键 = SW 能离线响应 start_url）
   配方对齐已验证可安装的任务魔盒：install 预缓存外壳 + stale-while-revalidate */
-const CACHE = 'kg-guest-v2';
+const CACHE = 'kg-guest-v3';
 const SHELL = ['/', '/guest', '/manifest.webmanifest', '/static/icon-192.png', '/static/icon-512.png'];
 
 self.addEventListener('install', e => {
@@ -2133,14 +2133,23 @@ self.addEventListener('fetch', e => {
   if (/\.(m4a|mp3|mp4|flac)$/i.test(url.pathname)) return;  /* 大音频不缓存 */
   e.respondWith(caches.open(CACHE).then(async c => {
     const hit = await c.match(req, {ignoreSearch: true});
+    if (req.mode === 'navigate') {
+      /* 页面本身：网络优先——盲盒数据嵌在 HTML 里，必须每天第一屏就是新的；
+         断网时才回退缓存（离线仍可打开外壳）。成功后顺手更新缓存 */
+      return fetch(req).then(r => {
+        if (r && r.ok) c.put(req, r.clone()).catch(() => {});
+        return r;
+      }).catch(() => hit || Response.error());
+    }
+    /* 静态资源/封面：先缓存后更新（stale-while-revalidate） */
     const net = fetch(req).then(r => {
-      if (r && r.ok && (req.mode === 'navigate' || url.pathname.startsWith('/static/') ||
+      if (r && r.ok && (url.pathname.startsWith('/static/') ||
                         /\.(png|jpe?g|webp|css|js|json|lrc|webmanifest)$/i.test(url.pathname))) {
         c.put(req, r.clone()).catch(() => {});
       }
       return r;
     }).catch(() => hit);
-    return hit || net;   /* 外壳/封面离线可开（盲盒页装成应用后断网也不白屏） */
+    return hit || net;
   }));
 });
 '''
