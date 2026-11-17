@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.24'
+APP_VERSION = '1.12.25'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1028,6 +1028,16 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
   .lyrics{min-height:170px}
   .jk-cab{padding:14px 12px 12px}
   .grid{padding:18px 16px}
+}
+
+
+/* ---- 无障碍降级 ---- */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important}
+  canvas#bg{display:none!important}
+}
+@media (prefers-reduced-transparency: reduce){
+  header{background:#111418;backdrop-filter:none;-webkit-backdrop-filter:none}
 }
 
 </style></head><body data-view="grid">
@@ -2632,6 +2642,32 @@ body.light .sheet{background:#fff;border-color:#e2e6f0;color:#1d2430}
 body.light .sheet p,body.light .sheet li{color:#5a6474}
 body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
 @media (max-width:420px){#catStack{left:12px;right:12px;top:64px;max-width:none}}
+
+/* ---- 无障碍降级（Apple：减弱动态≠无反馈，是更温和的等效） ---- */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+   transition-duration:.15s!important}
+  .gift{animation:none!important}            /* 礼盒不摇摆 */
+  canvas#fx{display:none!important}          /* 彩带画布整个隐藏 */
+  .reel{animation:none!important}
+  body{scroll-behavior:auto!important}
+}
+@media (prefers-reduced-transparency: reduce){
+  header,.bar{background:#14171f;background-filter:none;-webkit-backdrop-filter:none;backdrop-filter:none}
+  body.light header,body.light .bar{background:#f2f4f8}
+  .today{background:#191d27;backdrop-filter:none;-webkit-backdrop-filter:none}
+  body.light .today{background:#fff}
+}
+@media (prefers-contrast: more){
+  header,.bar{border-color:rgba(255,255,255,.35)}
+  body.light header,body.light .bar{border-color:rgba(0,0,0,.4)}
+  .hint,.ud,.dt{color:#b8c1d1}
+  body.light .hint,body.light .ud,body.light .dt{color:#454b56}
+}
+/* 主题切换缓动（Apple：明暗切换避免亮度跳变） */
+body,.card,body{transition:background-color .3s ease,color .3s ease}
+header,.bar,.today,.item,.hrow,.crow{transition:background-color .3s ease,border-color .3s ease}
+
 </style></head><body class="__FEST_CLASS__">
 
 <canvas id="fx"></canvas>
@@ -2855,6 +2891,7 @@ function reveal(){
   if (opening) return;  // 仪式进行中防连点
   if (revealed) { playSong(SONGS.indexOf(todaySongs[0])); return; }
   revealed = true; opening = true;
+  try { if (navigator.vibrate) navigator.vibrate([28, 40, 28]); } catch(e){}
   try { localStorage.setItem('kgreveal_' + '__TODAY__', '1'); } catch(e){}
   if (revealN() < 1) setRevealN(1);
   syncOpenN();
