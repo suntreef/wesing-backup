@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.27'
+APP_VERSION = '1.12.28'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2318,8 +2318,8 @@ button{touch-action:manipulation}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
 header{position:sticky;top:0;z-index:9;text-align:left;padding:calc(13px + env(safe-area-inset-top)) 18px 11px;background:rgba(15,18,32,.78);
  backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
- border-bottom:1px solid rgba(255,255,255,.07)}
-body.light header{background:rgba(247,248,252,.86);border-bottom-color:rgba(0,0,0,.06)}
+ border-bottom:1px solid transparent;transition:transform .32s ease,border-color var(--dur-med) ease,background-color var(--dur-med) ease}
+body.light header{background:rgba(247,248,252,.86)}
 header h1{font-size:17px;font-weight:800;letter-spacing:.2px}
 header .gold{color:#ffd76a}
 /* 信息胶囊条：解锁进度 + 下一首倒计时，替代原来一大段副标题 */
@@ -2337,6 +2337,8 @@ body.light .hchips .chip b,body.light .hchips .chip .gold{color:#b8860b}
    旧版用 max-height:0 压缩文档流，锚定回调把 scrollY 拉回 40 以下又还原、
    又涨回收起阈值，无限抖动——就是用户报的闪屏 */
 header{transition:transform .32s ease}
+body.scrolled header{border-bottom-color:rgba(255,255,255,.08)}
+body.light.scrolled header{border-bottom-color:rgba(0,0,0,.07)}
 body.hcompact header{transform:translateY(-102%)}
 /* 手机上右上角两个圆钮（主题/消息）是悬浮的，文字留出右侧空间不重叠 */
 @media (max-width:700px){ header{padding-left:14px;padding-right:96px} }
@@ -2347,7 +2349,7 @@ body.fest .fest-banner{display:block}
 /* 今日盲盒 */
 .today{position:relative;text-align:center;border-radius:26px;padding:30px 22px 26px;margin-bottom:30px;
  background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));
- box-shadow:0 0 0 1px rgba(255,255,255,.08) inset,0 18px 50px rgba(0,0,0,.45);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+ box-shadow:0 0 0 1px rgba(255,255,255,.09) inset,0 24px 64px rgba(0,0,0,.55);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180deg,#2e1420,#1c0f1c)}
 .today .day{color:#9aa3b8;font-size:12px;letter-spacing:2px}
 .gift{font-size:84px;line-height:1.15;display:inline-block;cursor:pointer;user-select:none;
@@ -2457,7 +2459,7 @@ body.light .hrow .etag{color:#9a7b1c;background:rgba(184,134,11,.1)}
 /* 播放条（iOS 毛玻璃迷你播放器，高度恒定不跳动） */
 .bar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:rgba(22,24,36,.78);
  backdrop-filter:blur(24px) saturate(1.7);-webkit-backdrop-filter:blur(24px) saturate(1.7);
- border-top:1px solid rgba(255,255,255,.07);padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+ border-top:1px solid rgba(255,255,255,.18);padding:8px 14px calc(8px + env(safe-area-inset-bottom));
  display:none;align-items:center;gap:10px;flex-wrap:wrap}
 .bar.show{display:flex}
 .bar img{width:40px;height:40px;border-radius:9px;object-fit:cover;box-shadow:0 4px 14px rgba(0,0,0,.4)}
@@ -3093,6 +3095,7 @@ addEventListener('scroll', () => {
   const y = scrollY || document.documentElement.scrollTop || 0;
   if (!hcompact && y > 96) { hcompact = true; document.body.classList.add('hcompact'); }
   else if (hcompact && y < 40) { hcompact = false; document.body.classList.remove('hcompact'); }
+  document.body.classList.toggle('scrolled', y > 4);   /* 滚动后顶栏分割线渐现 */
 }, {passive: true});
 /* 歌柜（已解锁在前） */
 const cab = document.getElementById('cabinet');

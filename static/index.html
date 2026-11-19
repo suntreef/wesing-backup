@@ -66,8 +66,9 @@ svg.ic{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-wid
 header{position:sticky;top:0;z-index:30;height:52px;
   background:color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter:saturate(160%) blur(18px);-webkit-backdrop-filter:saturate(160%) blur(18px);
-  border-bottom:1px solid var(--line);
+  border-bottom:1px solid transparent;transition:border-color var(--dur-med,250ms) ease;
   display:flex;align-items:center;gap:10px;padding:0 18px}
+body.scrolled header{border-bottom-color:var(--line)}
 .mark{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;
   background:var(--accent-soft);color:var(--accent)}
 .mark svg.ic{width:17px;height:17px}
@@ -1274,6 +1275,7 @@ fetch('/api/dirs').then(r=>r.json()).then(loadOutList).catch(()=>{});  // 启动
 <script src="/static/qrcode.min.js"></script>
 <script>
 poll(); setInterval(poll, 1200);
+addEventListener('scroll', () => { document.body.classList.toggle('scrolled', (scrollY || 0) > 4); }, {passive: true});
 /* 我的备份库：目录列表 + 一键设为分享（朋友盲盒内容来源切换） */
 async function loadLib(){
   let d;

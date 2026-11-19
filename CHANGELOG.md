@@ -7,6 +7,19 @@
 > 提交 → 打 tag `vX.Y.Z` 推送 → GitHub Actions 自动构建 exe 并推送 Docker 镜像
 > （`ghcr.io/suntreef/wesing-backup:X.Y.Z` 与 `:latest`，**只有打 tag 才会更新镜像**）。
 
+## [1.12.28] - 2026-11-20
+
+按设计规范完成「材质与深度」轮（Apple：Material weight encodes hierarchy）。
+
+### 打磨（盲盒页 + 管理页）
+- **滚动边缘渐现替代硬分割线**：顶栏的 1px 分割线在页面顶部时隐藏，
+  内容开始滚动后才 250ms 渐现——界面在"起点"更干净，滚动后层级更清楚
+  （Apple: scroll edge effects, not hard dividers）
+- **播放条亮边捕获**：播放条顶边从 .07 提亮到 .18，模拟光线打在材质上沿
+  （light catching the material）
+- **今日主卡加深投影**：大面材质配更深的阴影（0 24px 64px），层级更有立体感
+- 管理页顶栏同步滚动渐现处理
+
 ## [1.12.27] - 2026-11-19
 
 建立设计规范文档（docs/DESIGN.md）并落地到全部界面。
