@@ -13,6 +13,8 @@
 <style>
 /* ============ 设计令牌 ============ */
 :root{
+  /* 旧令牌别名：JS 动态弹窗（分享/详情/删除确认）引用的旧名必须可用，否则卡片底色变透明 */
+  --card:var(--surface); --red:var(--err); --blue:var(--accent); --green:var(--ok);
   --bg:#f4f5f7; --surface:#ffffff; --surface2:#f9f9fb;
   --text:#1a1b1e; --text2:#6f7278; --text3:#9b9ea5;
   --line:rgba(16,18,22,.08); --line2:rgba(16,18,22,.14);
@@ -24,6 +26,7 @@
   --shadow-h:0 4px 16px rgba(10,12,16,.10);
 }
 html[data-theme="dark"]{
+  --card:var(--surface); --red:var(--err); --blue:var(--accent); --green:var(--ok);
   --bg:#0f1013; --surface:#17181c; --surface2:#1d1f24;
   --text:#eceef1; --text2:#8d919a; --text3:#63676e;
   --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13);
@@ -34,7 +37,8 @@ html[data-theme="dark"]{
   --shadow-h:0 6px 20px rgba(0,0,0,.45);
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#0f1013; --surface:#17181c; --surface2:#1d1f24;
+  :root{ --card:var(--surface); --red:var(--err); --blue:var(--accent); --green:var(--ok);
+    --bg:#0f1013; --surface:#17181c; --surface2:#1d1f24;
     --text:#eceef1; --text2:#8d919a; --text3:#63676e;
     --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.13);
     --accent:#5b83ff; --accent-h:#4a72f0; --accent-soft:rgba(91,131,255,.12);
@@ -42,6 +46,7 @@ html[data-theme="dark"]{
     --shadow:0 1px 2px rgba(0,0,0,.4);
     --shadow-h:0 6px 20px rgba(0,0,0,.45); }
   html[data-theme="light"]{
+    --card:var(--surface); --red:var(--err); --blue:var(--accent); --green:var(--ok);
     --bg:#f4f5f7; --surface:#ffffff; --surface2:#f9f9fb;
     --text:#1a1b1e; --text2:#6f7278; --text3:#9b9ea5;
     --line:rgba(16,18,22,.08); --line2:rgba(16,18,22,.14);
@@ -225,6 +230,11 @@ footer a{color:var(--text2)}
   .card{padding:14px 13px;border-radius:12px}
   .pagehead h1{font-size:16.5px}
   .btn{font-size:14px}
+  /* 手机上卡片副标题太长会把标题挤成竖排：收进下一行显示 */
+  .cardhead{flex-wrap:wrap;row-gap:2px}
+  .cardhead .chint{flex-basis:100%;text-align:left;margin-left:0}
+  .cardhead h2{white-space:nowrap}
+  .cardhead .cico{flex:none}
 }
 </style>
 </head>
@@ -929,9 +939,9 @@ async function loadVisitors(){
       list.map(v => `<option value="${esc(v.vid)}">${esc(v.name)}${v.bonus?(' · 已加'+v.bonus+'次'):''}</option>`).join('');
     if(cur) sel.value = cur;
     box.innerHTML = list.length ? list.map(v =>
-      `<div style="display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
-        <b style="font-size:12px">${esc(v.name)}</b>
-        <span style="font-size:10px;color:var(--text2)">从 ${esc(v.start||'—')} 起 · 听过 ${v.plays||0} 次${v.last?(' · 最后 '+esc(v.last)):''}</span>
+      `<div style="display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card)">
+        <b style="font-size:12px;min-width:44px">${esc(v.name)}</b>
+        <span style="font-size:10px;color:var(--text2);flex:1;min-width:120px">从 ${esc(v.start||'—')} 起 · 听过 ${v.plays||0} 次${v.last?(' · 最后 '+esc(v.last)):''}</span>
         <span style="margin-left:auto;display:flex;gap:6px;align-items:center;flex:none">
           <span style="font-size:10px;color:var(--text2)">${(v.pools&&v.pools.length)?('池 '+v.pools.length):'池·全部'}</span>
           <button class="btn small ghost" style="padding:3px 10px" onclick="visitorPools('${esc(v.vid)}')">作者</button>
