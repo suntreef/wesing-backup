@@ -2287,6 +2287,17 @@ body.loading .reel{animation-duration:.7s}
 body.loading .play{opacity:.75}
 .foot{text-align:center;font-size:10.5px;color:#7a6a55;margin-top:12px}
 @media (max-width:360px){.reel{width:44px;height:44px}.reels{height:44px}.label h1{font-size:14px}}
+
+/* ---- 无障碍（设计规范 §1.5）：减弱动态后转轮停转 ---- */
+@media (prefers-reduced-motion: reduce){
+  .reel{animation:none!important}
+  .brand .dot{animation:none!important}
+  *,*::before,*::after{transition-duration:.1s!important}
+}
+@media (prefers-reduced-transparency: reduce){
+  .deck{background:#241a12}
+}
+
 </style></head><body>
 <div class="wrap">
  <form class="deck" method="POST" action="/api/g-login" onsubmit="return checkLogin(this)">

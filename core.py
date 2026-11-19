@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.28'
+APP_VERSION = '1.12.29'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -2318,7 +2318,7 @@ button{touch-action:manipulation}
 canvas#fx{position:fixed;inset:0;z-index:1;pointer-events:none}
 header{position:sticky;top:0;z-index:9;text-align:left;padding:calc(13px + env(safe-area-inset-top)) 18px 11px;background:rgba(15,18,32,.78);
  backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);
- border-bottom:1px solid transparent;transition:transform .32s ease,border-color var(--dur-med) ease,background-color var(--dur-med) ease}
+ border-bottom:1px solid transparent;transition:transform var(--dur-slow) ease,border-color var(--dur-med) ease,background-color var(--dur-med) ease}
 body.light header{background:rgba(247,248,252,.86)}
 header h1{font-size:17px;font-weight:800;letter-spacing:.2px}
 header .gold{color:#ffd76a}
@@ -2336,7 +2336,7 @@ body.light .hchips .chip b,body.light .hchips .chip .gold{color:#b8860b}
    无事可做，scrollY 稳定，从根上杜绝「停住后 收起↔还原 循环闪屏」。
    旧版用 max-height:0 压缩文档流，锚定回调把 scrollY 拉回 40 以下又还原、
    又涨回收起阈值，无限抖动——就是用户报的闪屏 */
-header{transition:transform .32s ease}
+header{transition:transform var(--dur-slow) ease}
 body.scrolled header{border-bottom-color:rgba(255,255,255,.08)}
 body.light.scrolled header{border-bottom-color:rgba(0,0,0,.07)}
 body.hcompact header{transform:translateY(-102%)}
@@ -2353,7 +2353,7 @@ body.fest .fest-banner{display:block}
 body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180deg,#2e1420,#1c0f1c)}
 .today .day{color:#9aa3b8;font-size:12px;letter-spacing:2px}
 .gift{font-size:84px;line-height:1.15;display:inline-block;cursor:pointer;user-select:none;
- animation:sway 2.6s ease-in-out infinite;filter:drop-shadow(0 14px 26px rgba(255,215,106,.28));transition:transform .5s}
+ animation:sway 2.6s ease-in-out infinite;filter:drop-shadow(0 14px 26px rgba(255,215,106,.28));transition:transform var(--dur-slow)}
 @keyframes sway{0%,100%{transform:rotate(-7deg)}50%{transform:rotate(7deg) translateY(-8px)}}
 .gift.opened{animation:pop .55s ease-out}
 @keyframes pop{40%{transform:scale(1.35) rotate(9deg)}70%{transform:scale(.94)}100%{transform:scale(1)}}
@@ -2371,7 +2371,7 @@ body.fest-cny .today,body.fest-christmas .today{background:linear-gradient(180de
  60%{transform:rotateY(-8deg) scale(1.02);opacity:1}
  100%{transform:rotateY(0) scale(1)}}
 .rev-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block;border-radius:22px;cursor:pointer;
- box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform .2s}
+ box-shadow:0 20px 50px rgba(0,0,0,.5);transition:transform var(--dur-med)}
 /* 手机上阴影减半、彩带去描边，动画期间不触发大面积重绘 */
 @media (max-width:700px){
  .rev-card img{box-shadow:0 10px 24px rgba(0,0,0,.35)}
@@ -2385,18 +2385,18 @@ body.ceremony header,body.ceremony .today{backdrop-filter:none;-webkit-backdrop-
 /* iOS 毛玻璃胶囊按钮（点封面也能直接播放） */
 .rev-play{display:inline-block;margin-top:2px;border:1px solid rgba(255,255,255,.16);cursor:pointer;font-family:inherit;
  font-size:13px;font-weight:700;color:#f2f4fa;background:rgba(255,255,255,.1);backdrop-filter:blur(14px);
- -webkit-backdrop-filter:blur(14px);border-radius:999px;padding:10px 30px;-webkit-appearance:none;appearance:none;transition:transform .18s,background .18s}
+ -webkit-backdrop-filter:blur(14px);border-radius:999px;padding:10px 30px;-webkit-appearance:none;appearance:none;transition:transform var(--dur-med),background var(--dur-med)}
 .rev-play:hover{background:rgba(255,255,255,.17)}
 .rev-play:active{transform:scale(.94)}
 .rev-title{font-size:19px;font-weight:800;color:#ffd76a;display:none;margin-top:12px}
 /* 加赠堆叠（iOS 卡片风）：一张主卡 + 两张微斜的卡背，礼盒+计数一行排布，点一下拆一张 */
 .gift-stack{position:relative;display:none;margin:18px auto 2px;width:min(320px,84vw);height:64px;
  border:none;cursor:pointer;background:transparent;font-family:inherit;-webkit-appearance:none;appearance:none;
- padding:0;-webkit-tap-highlight-color:transparent;transition:transform .18s}
+ padding:0;-webkit-tap-highlight-color:transparent;transition:transform var(--dur-med)}
 .gift-stack:active{transform:scale(.96)}
 .gift-stack .st-card{position:absolute;left:50%;top:5px;width:88%;height:54px;margin-left:-44%;border-radius:17px;
  background:linear-gradient(160deg,#262b40,#171b2b);border:1px solid rgba(255,255,255,.12);
- box-shadow:0 8px 20px rgba(0,0,0,.35);transition:transform .45s cubic-bezier(.2,.9,.3,1.2),opacity .45s}
+ box-shadow:0 8px 20px rgba(0,0,0,.35);transition:transform var(--dur-slow) cubic-bezier(.2,.9,.3,1.2),opacity var(--dur-slow)}
 .gift-stack .s1{transform:rotate(0) translateY(0);z-index:3}
 .gift-stack .s2{transform:rotate(-2.6deg) translateY(3px);z-index:2;opacity:.75}
 .gift-stack .s3{transform:rotate(2.6deg) translateY(5px);z-index:1;opacity:.55}
@@ -2412,7 +2412,7 @@ body.light .gift-stack .st-label{color:#b8860b;text-shadow:none}
 .rev-title.show{display:block}
 .btn{display:inline-block;border:none;cursor:pointer;font-family:inherit;font-size:16px;font-weight:700;color:#221d38;
  background:linear-gradient(180deg,#ffd76a,#e8b64c);border-radius:999px;padding:13px 34px;margin-top:16px;
- box-shadow:0 10px 28px rgba(255,215,106,.3);-webkit-appearance:none;appearance:none;transition:transform .18s,box-shadow .18s}
+ box-shadow:0 10px 28px rgba(255,215,106,.3);-webkit-appearance:none;appearance:none;transition:transform var(--dur-med),box-shadow var(--dur-med)}
 .btn:active{transform:scale(.95)}
 .count{color:#8f9aac;font-size:12.5px;margin-top:14px}
 .count b{color:#ffd76a;font-variant-numeric:tabular-nums}
@@ -2421,8 +2421,9 @@ body.light .gift-stack .st-label{color:#b8860b;text-shadow:none}
 .sec h2{font-size:16px}
 .sec span{color:#8f9aac;font-size:12px}
 .cabinet{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
-.item{background:#171a26;border-radius:16px;overflow:hidden;cursor:pointer;transition:transform .18s,border-color .18s;position:relative;border:1px solid rgba(255,255,255,.07)}
-.item:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.16)}
+.item{background:#171a26;border-radius:16px;overflow:hidden;cursor:pointer;transition:transform var(--dur-med),border-color var(--dur-med);position:relative;border:1px solid rgba(255,255,255,.07)}
+.item:hover{transform:translateY(-3px);border-color:rgba(255,255,255,.16);box-shadow:0 10px 24px rgba(0,0,0,.4)}
+body.light .item:hover{box-shadow:0 10px 24px rgba(40,50,90,.12)}
 .item:active{transform:scale(.97)}
 .item img{width:100%;height:118px;object-fit:cover;display:block}
 .item .nm{padding:9px 11px 3px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2440,7 +2441,7 @@ body.light .gift-stack .st-label{color:#b8860b;text-shadow:none}
 @keyframes shk{25%{transform:translateX(-5px)}50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
 .more-btn{display:block;margin:16px auto 4px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#9aa3b8;
  font-family:inherit;font-size:13px;font-weight:600;border-radius:999px;padding:10px 22px;cursor:pointer;
- -webkit-appearance:none;appearance:none;transition:.15s}
+ -webkit-appearance:none;appearance:none;transition:var(--dur-fast)}
 .more-btn:hover{border-color:#ffd76a;color:#ffd76a}
 body.light .more-btn{background:#fff;border-color:#d8dce8;color:#5a6474}
 .history{margin-top:8px;display:flex;flex-direction:column;gap:8px}
@@ -2468,7 +2469,7 @@ body.light .hrow .etag{color:#9a7b1c;background:rgba(184,134,11,.1)}
 .bar .bs{color:#8f9aac;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bar button{background:rgba(255,255,255,.08);border:none;color:#f2f4fa;border-radius:50%;width:36px;height:36px;flex:none;
  font-size:14px;cursor:pointer;-webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;
- padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none;transition:transform .15s,background .15s}
+ padding:0;line-height:1;-webkit-tap-highlight-color:transparent;outline:none;transition:transform var(--dur-fast),background var(--dur-fast)}
 .bar button:hover{background:rgba(255,255,255,.15)}
 .bar button:active{transform:scale(.88)}
 .bar button:focus-visible{outline:2px solid #ffd76a}
@@ -2481,11 +2482,11 @@ body.light .hrow .etag{color:#9a7b1c;background:rgba(184,134,11,.1)}
 .comments-sec{margin:26px 0 14px}
 .comments-sec h2{font-size:16px;margin-bottom:12px}
 .comment-form{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.comment-form input{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#eef1f7;font-size:13px;outline:none;transition:.15s}
+.comment-form input{padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.06);color:#eef1f7;font-size:13px;outline:none;transition:var(--dur-fast)}
 .comment-form input:focus{border-color:#ffd76a;background:rgba(255,255,255,.09)}
 .comment-form .cname{width:90px}
 .comment-form .ctext{flex:1;min-width:0}
-.comment-form .cbtn{padding:10px 20px;border:none;border-radius:999px;background:#ffd76a;color:#221d38;font-weight:700;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none;transition:transform .15s}
+.comment-form .cbtn{padding:10px 20px;border:none;border-radius:999px;background:#ffd76a;color:#221d38;font-weight:700;cursor:pointer;font-family:inherit;-webkit-appearance:none;appearance:none;transition:transform var(--dur-fast)}
 .comment-form .cbtn:active{transform:scale(.94)}
 .clist{display:flex;flex-direction:column;gap:8px}
 .crow{background:#171a26;border-radius:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.07)}
@@ -2503,13 +2504,13 @@ body.light .crow .creply{background:rgba(184,134,11,.08);color:#1d2430}
 /* 主题切换（固定右上角小按钮，不再挡歌柜） */
 .theme-toggle{position:fixed;top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));z-index:9;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.12);
  background:rgba(255,255,255,.07);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#ffd76a;font-size:14px;cursor:pointer;
- -webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:.2s}
+ -webkit-appearance:none;appearance:none;display:inline-flex;align-items:center;justify-content:center;transition:var(--dur-med)}
 .theme-toggle:hover{border-color:#ffd76a}
 .theme-toggle:active{transform:scale(.9)}
 /* PWA 安装按钮 */
 .pwa-btn{display:none;margin-top:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.07);
  font-family:inherit;font-size:12.5px;font-weight:600;border-radius:999px;padding:8px 18px;cursor:pointer;
- -webkit-appearance:none;appearance:none;transition:.15s}
+ -webkit-appearance:none;appearance:none;transition:var(--dur-fast)}
 .pwa-btn:hover{border-color:#7cb8ff;color:#7cb8ff}
 body.light .pwa-btn{background:#fff;border-color:#d8dce8;color:#5a7ea8}
 /* 明亮主题（body.light） */
@@ -2547,7 +2548,7 @@ body.light .theme-toggle{background:#fff;border-color:#c9cfdd}
 .msg-toggle{position:fixed;top:calc(10px + env(safe-area-inset-top));right:calc(52px + env(safe-area-inset-right));z-index:9;width:34px;height:34px;border-radius:50%;
  border:1px solid rgba(255,255,255,.12);background:rgba(30,34,52,.72);color:#e8eaf0;font-size:15px;
  display:none;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;
- -webkit-tap-highlight-color:transparent;transition:transform .15s}
+ -webkit-tap-highlight-color:transparent;transition:transform var(--dur-fast)}
 .msg-toggle.show{display:flex}
 .msg-toggle:hover{border-color:#ffd76a}
 .msg-toggle:active{transform:scale(.9)}
@@ -2588,7 +2589,7 @@ body.light .mrow .mx{color:#1d2430}
 .ptop{width:100%;display:flex;align-items:center;gap:9px;height:12px;margin:-1px 0 1px}
 .pbar{position:relative;flex:1;height:12px;display:flex;align-items:center;cursor:pointer;touch-action:none}
 .pbar i{display:block;width:100%;height:3px;border-radius:3px;background:rgba(255,255,255,.13);overflow:hidden}
-.pfill{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#ffd76a,#ffb347);transition:width .2s linear}
+.pfill{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#ffd76a,#ffb347);transition:width var(--dur-med) linear}
 .bar-time{flex:none;font-size:10px;color:#8f9aac;font-variant-numeric:tabular-nums;letter-spacing:.2px}
 body.light .pbar i{background:rgba(0,0,0,.1)}
 body.light .bar-time{color:#7c8698}
@@ -2681,8 +2682,8 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
   body.light .hint,body.light .ud,body.light .dt{color:#454b56}
 }
 /* 主题切换缓动（Apple：明暗切换避免亮度跳变） */
-body,.card,body{transition:background-color .3s ease,color .3s ease}
-header,.bar,.today,.item,.hrow,.crow{transition:background-color .3s ease,border-color .3s ease}
+body,.card,body{transition:background-color var(--dur-slow) ease,color var(--dur-slow) ease}
+header,.bar,.today,.item,.hrow,.crow{transition:background-color var(--dur-slow) ease,border-color var(--dur-slow) ease}
 
 
 /* ---- 设计规范令牌（docs/DESIGN.md §1）---- */
