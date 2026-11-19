@@ -57,7 +57,7 @@ PLAY_URL = 'https://node.kg.qq.com/play?s={shareid}'
 PAGE_SIZE = 15  # 服务端上限，更大的 num 会被拒绝
 
 APP_NAME = '全民K歌备份工具'
-APP_VERSION = '1.12.26'
+APP_VERSION = '1.12.27'
 DETAIL_API = 'https://node.kg.qq.com/fcgi-bin/kg_ugc_getdetail'
 
 
@@ -1039,6 +1039,19 @@ body.vvinyl,body.vtape,body.vspectrum,body.vjukebox{overflow:hidden;height:100vh
 @media (prefers-reduced-transparency: reduce){
   header{background:#111418;backdrop-filter:none;-webkit-backdrop-filter:none}
 }
+
+
+/* ---- 设计规范令牌（docs/DESIGN.md §1）---- */
+:root{
+  --dur-fast:120ms; --dur-med:250ms; --dur-slow:320ms;
+  --r-s:10px; --r-m:14px; --r-l:18px;
+  --focus:0 0 0 2.5px rgba(255,215,106,.55);
+}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:none;box-shadow:var(--focus);border-radius:var(--r-s)}
+::selection{background:rgba(255,215,106,.35);color:#fff}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.3);background-clip:content-box}
 
 </style></head><body data-view="grid">
 <canvas id="bg"></canvas>
@@ -2297,6 +2310,7 @@ GUEST_TEMPLATE = r"""<!DOCTYPE html>
 html{background:#0b0d13}
 html:has(body.light){background:#f2f4f8}
 body{background:radial-gradient(900px 600px at 50% -8%,#1d2233,#0b0d13 58%);color:#e8eaf0;min-height:100vh;min-height:100dvh;
+ font-optical-sizing:auto;
  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Microsoft YaHei",sans-serif;overflow-x:hidden;overflow-y:auto;padding-bottom:calc(104px + env(safe-area-inset-bottom));
  -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
  overscroll-behavior-y:auto;-webkit-overflow-scrolling:touch}
@@ -2667,6 +2681,28 @@ body.light .sheet .sb.ghost{background:rgba(0,0,0,.06);color:#39414f}
 /* 主题切换缓动（Apple：明暗切换避免亮度跳变） */
 body,.card,body{transition:background-color .3s ease,color .3s ease}
 header,.bar,.today,.item,.hrow,.crow{transition:background-color .3s ease,border-color .3s ease}
+
+
+/* ---- 设计规范令牌（docs/DESIGN.md §1）---- */
+:root{
+  --dur-fast:120ms; --dur-med:250ms; --dur-slow:320ms;
+  --r-s:10px; --r-m:14px; --r-l:18px;
+  --focus:0 0 0 2.5px rgba(255,215,106,.55);
+}
+/* 键盘焦点环（鼠标点击不显示） */
+.btn:focus-visible,.item:focus-visible,.bar button:focus-visible,.theme-toggle:focus-visible,
+.msg-toggle:focus-visible,.hrow:focus-visible,.more-btn:focus-visible,.gift-stack:focus-visible{
+  outline:none;box-shadow:var(--focus);border-radius:var(--r-s)}
+/* 选区 */
+::selection{background:rgba(255,215,106,.35);color:#fff}
+body.light ::selection{background:rgba(184,134,11,.28);color:#1d2430}
+/* 滚动条（页面与日志区统一） */
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px;border:2px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.26);background-clip:content-box}
+body.light ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.2);background-clip:content-box}
+body.light ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.34);background-clip:content-box}
+.log::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);background-clip:content-box}
 
 </style></head><body class="__FEST_CLASS__">
 
